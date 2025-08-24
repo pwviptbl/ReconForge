@@ -1,3 +1,49 @@
+# Dependências principais
 google-generativeai>=0.3.0
 python-dotenv>=1.0.0
 pyyaml>=6.0
+
+# Interface CLI e argumentos
+argparse
+
+# Processamento XML (para resultados Nmap)
+lxml>=4.9.0
+
+# Manipulação de arquivos e caminhos
+pathlib2>=2.3.0
+
+# Data e hora
+python-dateutil>=2.8.0
+
+# Logging avançado
+coloredlogs>=15.0
+
+# Processamento JSON
+jsonschema>=4.0.0
+
+# Utilitários de sistema
+psutil>=5.9.0
+
+# Para relatórios HTML (opcional)
+jinja2>=3.1.0
+markdown>=3.4.0
+
+# Para testes (desenvolvimento)
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Dependências de segurança e validação
+cryptography>=40.0.0
+requests>=2.28.0
+
+# Para manipulação de dados
+pandas>=1.5.0
+numpy>=1.24.0
+
+# Interface de usuário melhorada
+rich>=13.0.0
+click>=8.1.0
+
+# Configuração e validação
+pydantic>=1.10.0
+toml>=0.10.0

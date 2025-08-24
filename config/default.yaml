@@ -1,0 +1,56 @@
+# Configuração padrão do sistema de pentest
+# Este arquivo contém as configurações básicas para o funcionamento do sistema
+
+# Configurações da API Gemini
+api:
+  gemini:
+    modelo: "gemini-2.5-pro"
+    chave_api: "${GEMINI_API_KEY}"  # Variável de ambiente
+    timeout: 30
+    max_tentativas: 3
+
+# Configurações do Nmap
+nmap:
+  binario: "nmap"
+  timeout_padrao: 300  # 5 minutos
+  porta_padrao: "1-65535"
+  scripts_nse_padrao:
+    - "default"
+    - "vuln"
+    - "discovery"
+    - "auth"
+    - "safe"
+  opcoes_padrao:
+    - "-sV"  # Detecção de versão
+    - "-sC"  # Scripts padrão
+    - "-O"   # Detecção de OS
+    - "-A"   # Agressivo
+
+# Configurações de banco de dados
+banco_dados:
+  tipo: "sqlite"
+  arquivo: "dados/pentest.db"
+  backup_automatico: true
+  maximo_conexoes: 10
+
+# Configurações de logging
+logging:
+  nivel: "INFO"
+  arquivo: "logs/sistema.log"
+  max_tamanho_mb: 10
+  backup_count: 5
+  formato: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  mascarar_dados_sensiveis: true
+
+# Configurações de relatórios
+relatorios:
+  diretorio: "relatorios"
+  formato_padrao: "html"
+  incluir_graficos: true
+  template: "padrao"
+
+# Configurações de segurança
+seguranca:
+  validar_entrada: true
+  timeout_operacoes: 600  # 10 minutos
+  log_comandos: true

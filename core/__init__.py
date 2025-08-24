@@ -1,0 +1,1 @@
+# Módulo core - Funcionalidades principais do sistema de pentest

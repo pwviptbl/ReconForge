@@ -1,0 +1,86 @@
+{
+  "tipo_varredura": "completo",
+  "timestamp": "2024-08-24T00:00:00",
+  "sucesso": true,
+  "dados": {
+    "resumo": {
+      "hosts_total": 1,
+      "hosts_ativos": 1,
+      "portas_abertas": 5,
+      "servicos_detectados": 3,
+      "vulnerabilidades": 2
+    },
+    "hosts": [
+      {
+        "endereco": "192.168.1.100",
+        "hostname": "test-server.local",
+        "status": "up",
+        "os": {
+          "nome": "Linux 4.x",
+          "precisao": "95",
+          "familia": "Linux"
+        },
+        "portas": [
+          {
+            "numero": 22,
+            "protocolo": "tcp",
+            "estado": "open",
+            "servico": "ssh",
+            "produto": "OpenSSH",
+            "versao": "7.4",
+            "scripts": []
+          },
+          {
+            "numero": 80,
+            "protocolo": "tcp",
+            "estado": "open",
+            "servico": "http",
+            "produto": "Apache",
+            "versao": "2.4.6",
+            "scripts": [
+              {
+                "id": "http-vuln-cve2017-5638",
+                "saida": "Vulnerabilidade Apache Struts encontrada",
+                "elementos": []
+              }
+            ]
+          },
+          {
+            "numero": 443,
+            "protocolo": "tcp",
+            "estado": "open",
+            "servico": "https",
+            "produto": "Apache",
+            "versao": "2.4.6",
+            "scripts": []
+          },
+          {
+            "numero": 3306,
+            "protocolo": "tcp",
+            "estado": "open",
+            "servico": "mysql",
+            "produto": "MySQL",
+            "versao": "5.5.62",
+            "scripts": [
+              {
+                "id": "mysql-vuln-cve2012-2122",
+                "saida": "Vulnerabilidade de autenticação MySQL",
+                "elementos": []
+              }
+            ]
+          },
+          {
+            "numero": 5432,
+            "protocolo": "tcp",
+            "estado": "open",
+            "servico": "postgresql",
+            "produto": "PostgreSQL",
+            "versao": "9.6.2",
+            "scripts": []
+          }
+        ],
+        "scripts": []
+      }
+    ]
+  }
+}
