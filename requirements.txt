@@ -58,3 +58,17 @@ toml>=0.10.0
 # Arch Linux: yay -S rustscan
 # Cargo: cargo install rustscan
 # Docker: docker pull rustscan/rustscan:2.0.1
+
+# Nuclei Integration
+# Nota: Nuclei deve ser instalado separadamente do sistema
+# Go: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+# Ubuntu/Debian: wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.1.0/nuclei_3.1.0_linux_amd64.zip && unzip nuclei_3.1.0_linux_amd64.zip && sudo mv nuclei /usr/local/bin/
+# Homebrew: brew install nuclei
+# Docker: docker pull projectdiscovery/nuclei:latest
+
+# Nikto Integration
+# Nota: Nikto deve ser instalado separadamente do sistema
+# Ubuntu/Debian: sudo apt-get install nikto
+# CentOS/RHEL: sudo yum install nikto
+# Manual: git clone https://github.com/sullo/nikto.git && cd nikto/program && perl nikto.pl
+# Docker: docker pull sullo/nikto
