@@ -24,7 +24,7 @@ class GerenciadorConfiguracao:
         
         # Definir caminho padrão do arquivo de configuração
         if arquivo_config is None:
-            self.caminho_config = Path(__file__).parent / "default.yaml"
+            self.caminho_config = Path(__file__).parent.parent / "config" / "default.yaml"
         else:
             self.caminho_config = Path(arquivo_config)
         

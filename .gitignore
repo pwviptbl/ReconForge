@@ -1,0 +1,7 @@
+venv/
+logs/
+cli/__pycache__/
+core/__pycache__/
+modulos/__pycache__/
+utils/__pycache__/
+settings.json

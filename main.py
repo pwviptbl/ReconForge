@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Sistema de Pentest com Nmap e Análise IA
-Script principal que integra varredura Nmap com análise inteligente usando Gemini
+Script principal que integra varredura Nmap com análise inteligente usando IA
 """
 
 import os

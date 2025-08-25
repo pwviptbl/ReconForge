@@ -114,7 +114,7 @@ class VarreduraNmap:
         comando = [
             self.binario_nmap,
             '-p', portas,
-            '-sS',  # SYN scan
+            '-sT',  # TCP connect scan (não precisa de root)
             '--open',  # Apenas portas abertas
             alvo
         ]
