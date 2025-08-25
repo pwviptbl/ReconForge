@@ -51,3 +51,10 @@ click>=8.1.0
 # Configuração e validação
 pydantic>=1.10.0
 toml>=0.10.0
+
+# RustScan Integration
+# Nota: RustScan deve ser instalado separadamente do sistema
+# Ubuntu/Debian: wget -q https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb && sudo dpkg -i rustscan_2.0.1_amd64.deb
+# Arch Linux: yay -S rustscan
+# Cargo: cargo install rustscan
+# Docker: docker pull rustscan/rustscan:2.0.1
