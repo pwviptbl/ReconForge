@@ -72,3 +72,86 @@ toml>=0.10.0
 # CentOS/RHEL: sudo yum install nikto
 # Manual: git clone https://github.com/sullo/nikto.git && cd nikto/program && perl nikto.pl
 # Docker: docker pull sullo/nikto
+
+# Feroxbuster Integration
+# Nota: Feroxbuster deve ser instalado separadamente do sistema
+# Cargo: cargo install feroxbuster
+# Ubuntu/Debian: wget -q https://github.com/epi052/feroxbuster/releases/download/v2.10.1/feroxbuster_amd64.deb && sudo dpkg -i feroxbuster_amd64.deb
+# Docker: docker pull epi052/feroxbuster
+
+# WhatWeb Integration
+# Nota: WhatWeb deve ser instalado separadamente do sistema
+# Ubuntu/Debian: sudo apt-get install whatweb
+# Ruby Gem: gem install whatweb
+# Manual: git clone https://github.com/urbanadventurer/WhatWeb.git
+
+# Sublist3r Integration
+# Nota: Sublist3r deve ser instalado separadamente do sistema
+# Pip: pip install sublist3r
+# Manual: git clone https://github.com/aboul3la/Sublist3r.git && cd Sublist3r && pip install -r requirements.txt
+
+# SearchSploit Integration
+# Nota: SearchSploit faz parte do Exploit Database
+# Ubuntu/Debian: sudo apt-get install exploitdb
+# Manual: git clone https://github.com/offensive-security/exploitdb.git && ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit
+
+# SQLMap Integration
+# Nota: SQLMap deve ser instalado separadamente do sistema
+# Ubuntu/Debian: sudo apt-get install sqlmap
+# Pip: pip install sqlmap
+# Manual: git clone https://github.com/sqlmapproject/sqlmap.git
+
+# Subfinder Integration
+# Nota: Subfinder deve ser instalado separadamente do sistema
+# Go: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+# Ubuntu/Debian: wget -q https://github.com/projectdiscovery/subfinder/releases/download/v2.6.3/subfinder_2.6.3_linux_amd64.zip && unzip subfinder_2.6.3_linux_amd64.zip && sudo mv subfinder /usr/local/bin/
+
+# OWASP ZAP Integration
+# Nota: OWASP ZAP deve ser instalado separadamente do sistema
+# Ubuntu/Debian: sudo apt-get install zaproxy
+# Manual: wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.sh && chmod +x ZAP_2_14_0_unix.sh && ./ZAP_2_14_0_unix.sh
+# Docker: docker pull zaproxy/zap-stable
+
+# Amass Integration
+# Nota: Amass deve ser instalado separadamente do sistema
+# Go: go install -v github.com/owasp-amass/amass/v4/...@master
+# Ubuntu/Debian: sudo apt-get install amass
+# Docker: docker pull caffix/amass
+
+# XSStrike Integration
+# Nota: XSStrike deve ser instalado separadamente do sistema
+# Manual: git clone https://github.com/s0md3v/XSStrike.git && cd XSStrike && pip install -r requirements.txt
+
+# Dalfox Integration
+# Nota: Dalfox deve ser instalado separadamente do sistema
+# Go: go install github.com/hahwul/dalfox/v2@latest
+# Docker: docker pull hahwul/dalfox
+
+# Commix Integration
+# Nota: Commix deve ser instalado separadamente do sistema
+# Manual: git clone https://github.com/commixproject/commix.git && cd commix && python commix.py
+# Docker: docker pull commixproject/commix
+
+# Retire.js Integration
+# Nota: Retire.js deve ser instalado separadamente do sistema
+# NPM: npm install -g retire
+# Docker: docker pull retirejs/retire.js
+
+# Arjun Integration
+# Nota: Arjun deve ser instalado separadamente do sistema
+# Pip: pip install arjun
+# Manual: git clone https://github.com/s0md3v/Arjun.git && cd Arjun && pip install -r requirements.txt
+
+# LFISuite Integration
+# Nota: LFISuite deve ser instalado separadamente do sistema
+# Manual: git clone https://github.com/D35m0nd142/LFISuite.git && cd LFISuite && python lfisuite.py
+
+# Metasploit Integration
+# Nota: Metasploit deve ser instalado separadamente do sistema
+# Ubuntu/Debian: curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > msfinstall && chmod 755 msfinstall && ./msfinstall
+# Docker: docker pull metasploitframework/metasploit-framework
+
+# Graphviz Integration (para visualização de dados)
+# Ubuntu/Debian: sudo apt-get install graphviz
+# Python: pip install graphviz
+graphviz>=0.20.0
