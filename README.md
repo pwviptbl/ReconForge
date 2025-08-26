@@ -1,385 +1,289 @@
-# VarreduraIA# Sistema de Pentest com Nmap e Análise IA
+# Orquestrador Inteligente de Varreduras - Fase 1
 
 ## Descrição
 
-Sistema completo de pentesting que combina varreduras Nmap com análise inteligente usando Gemini AI. O sistema oferece:
+**Fase 1: Resolução DNS** - Primeira etapa do Orquestrador Inteligente de Varreduras de Segurança.
 
-- **Varreduras Nmap automatizadas** com scripts NSE
-- **Análise inteligente** de resultados usando IA
-- **Interface CLI completa** em português
-- **Relatórios detalhados** em múltiplos formatos
-- **Arquitetura modular** e extensível
+Este sistema foca na resolução DNS como ponto de partida para varreduras de segurança, oferecendo:
 
-## Características Principais
+- **Resolução DNS inteligente** (domínio ↔ IP)
+- **Coleta de registros DNS** (A, AAAA, MX, CNAME, TXT)
+- **Relatórios detalhados** em HTML e JSON
+- **Logging completo** das operações
+- **Base para próximas fases** do orquestrador
 
-### 🎯 Tipos de Varredura
-- **Básica**: Varredura rápida de portas
-- **Completa**: Varredura com detecção de serviços e OS
-- **Vulnerabilidades**: Foco em descoberta de vulnerabilidades
-- **Web**: Especializada em serviços web
-- **SMB**: Análise de serviços SMB/CIFS
-- **Descoberta**: Mapeamento de rede
+## Características da Fase 1
 
-### 🤖 Análise IA
-- Análise geral de segurança
-- Identificação de vulnerabilidades
-- Avaliação de serviços expostos
-- Geração de planos de pentest
-- Recomendações priorizadas
+### 🎯 Resolução DNS
+- **Resolução direta**: Domínio → IP(s)
+- **Resolução reversa**: IP → Domínio(s)
+- **Múltiplos registros**: A, AAAA, MX, CNAME, TXT
+- **Validação automática** de tipos de alvo
 
 ### 📊 Relatórios
-- Formato texto resumido
-- Relatórios HTML interativos
-- Exportação JSON estruturada
-- Logs detalhados com rotação
+- **Console**: Resumo executivo
+- **HTML**: Relatório visual completo
+- **JSON**: Dados estruturados para próximas fases
+- **Logs**: Rastreamento detalhado
 
 ## Instalação
 
 ### Pré-requisitos
 
 1. **Python 3.8+**
-2. **Nmap** instalado no sistema
-3. **Chave API do Gemini** (Google AI Studio)
+2. **Biblioteca dnspython** (instalada automaticamente)
 
-### Instalação no Windows
+### Instalação
 
 ```bash
-# 1. Instalar Nmap
-# Via Chocolatey:
-choco install nmap
+# 1. Clonar o repositório
+git clone <repository-url>
+cd VarreduraIA
 
-# Ou download manual de:
-# https://nmap.org/download.html
+# 2. Criar ambiente virtual
+python -m venv venv
 
-# 2. Clonar repositório
-git clone <repositorio>
-cd "Pentest Web"
+# 3. Ativar ambiente virtual
+# Linux/Mac:
+source venv/bin/activate
+# Windows:
+venv\Scripts\activate
 
-# 3. Instalar dependências Python
+# 4. Instalar dependências
 pip install -r requirements.txt
 
-# 4. Configuração inicial
-python main.py --configurar
 ```
 
-### Obter Chave API Gemini
+## Uso - Fase 1: Resolução DNS
 
-1. Acesse: https://aistudio.google.com/app/apikey
-2. Faça login com conta Google
-3. Clique em "Create API Key"
-4. Copie a chave gerada
-5. Configure no sistema durante a configuração inicial
-
-## Uso
-
-### Configuração Inicial
+### Exemplos Básicos
 
 ```bash
-# Configuração interativa
-python main.py --configurar
+# Resolver domínio para IP
+python main.py --alvo google.com
+
+# Resolver IP para domínio (resolução reversa)
+python main.py --alvo 8.8.8.8
+
+# Com saída verbosa
+python main.py --alvo github.com --verbose
 ```
 
-### Varreduras Simples
+### Gerando Relatórios
 
 ```bash
-# Varredura básica
-python main.py --alvo 192.168.1.1 --tipo basico
+# Salvar resultados em JSON (vai para dados/)
+python main.py --alvo example.com --salvar resultado_dns.json
 
-# Varredura completa com IA
-python main.py --alvo scanme.nmap.org --tipo completo --ia
+# Gerar relatório HTML (vai para relatorios/)
+python main.py --alvo microsoft.com --relatorio-html relatorio.html
 
-# Varredura de vulnerabilidades
-python main.py --alvo 192.168.1.100 --tipo vulnerabilidades --ia --salvar resultado.json
+# Ambos os formatos
+python main.py --alvo amazon.com --salvar dados.json --relatorio-html relatorio.html
+
+# Especificar pastas completas (opcional)
+python main.py --alvo github.com --salvar dados/github_dns.json --relatorio-html relatorios/github_relatorio.html
 ```
 
-### Interface CLI Completa
+### Exemplos de Saída
 
-```bash
-# Usar interface CLI completa
-python main.py --cli
+**Resolução de Domínio:**
+```
+=== Orquestrador Inteligente - Fase 1: Resolução DNS ===
+Alvo: google.com
 
-# Exemplos de comandos CLI:
-python cli/comandos.py varrer --alvo 192.168.1.1 --tipo completo --relatorio
-python cli/comandos.py configurar --validar
-python cli/comandos.py diagnostico --sistema
-python cli/comandos.py scripts --listar vuln
+✓ Resolução DNS concluída com sucesso!
+
+Resumo:
+  Tipo de alvo: Dominio
+  IP principal: 142.250.219.142
+  Total de IPs: 1
+  IPs encontrados: 142.250.219.142
+  Possui IPv6: Sim
+  Possui MX: Sim
+
+=== Próximos Passos ===
+1. Executar varredura de portas nos IPs descobertos
+2. Verificar subdomínios
+3. Analisar registros DNS para informações adicionais
 ```
 
-### Exemplos Avançados
+**Resolução de IP:**
+```
+=== Orquestrador Inteligente - Fase 1: Resolução DNS ===
+Alvo: 8.8.8.8
 
-```bash
-# Varredura de rede com relatório HTML
-python main.py --alvo 192.168.1.0/24 --tipo descoberta --ia --relatorio-html relatorio.html
+✓ Resolução DNS concluída com sucesso!
 
-# Varredura específica de portas
-python cli/comandos.py varrer --alvo target.com --portas "80,443,8080,8443" --scripts "http-*"
+Resumo:
+  Tipo de alvo: Ip
+  Hostname principal: dns.google
+  Total de domínios: 1
+  Domínios encontrados: dns.google
+  Resolução reversa: Sim
 
-# Análise focada em serviços web
-python main.py --alvo webapp.example.com --tipo web --ia --salvar web_analysis.json
+=== Próximos Passos ===
+1. Executar varredura de portas no IP
+2. Investigar domínios associados
+3. Verificar outros IPs na mesma rede
 ```
 
-## Estrutura do Projeto
+## Estrutura do Projeto - Fase 1
 
 ```
-Pentest Web/
-├── main.py                 # Script principal
-├── cliente_gemini.py       # Cliente Gemini original
-├── requirements.txt        # Dependências
-├── README.md              # Documentação
+VarreduraIA/
+├── main.py                    # Script principal - Fase 1
+├── requirements.txt           # Dependências
+├── README.md                 # Documentação
 │
-├── core/                  # Módulos principais
+├── modulos/                  # Módulos ativos
 │   ├── __init__.py
-│   └── configuracao.py    # Gerenciamento de configuração
+│   ├── resolucao_dns.py      # Resolução DNS (NOVO)
+│   └── analise_gemini.py     # Análise IA (futuro)
 │
-├── modulos/               # Módulos especializados
+├── utils/                    # Utilitários
 │   ├── __init__.py
-│   ├── varredura_nmap.py  # Varreduras Nmap
-│   └── analise_gemini.py  # Análise IA
+│   └── logger.py             # Sistema de logging
 │
-├── utils/                 # Utilitários
+├── core/                     # Configuração
 │   ├── __init__.py
-│   └── logger.py          # Sistema de logging
+│   └── configuracao.py       # Gerenciamento de configuração
 │
-├── cli/                   # Interface CLI
+├── config/                   # Arquivos de configuração
 │   ├── __init__.py
-│   └── comandos.py        # Comandos CLI
+│   └── default.yaml          # Configuração padrão
 │
-├── config/                # Configurações
-│   ├── __init__.py
-│   └── default.yaml       # Configuração padrão
-│
-├── logs/                  # Arquivos de log
-├── dados/                 # Banco de dados
-├── relatorios/           # Relatórios gerados
-└── testes/               # Testes automatizados
+├── relatorios/               # Relatórios HTML gerados
+├── dados/                    # Arquivos JSON de resultados
+├── logs/                     # Arquivos de log
+├── modulos_backup/           # Módulos das próximas fases
+├── cli_backup/               # Interface CLI (próximas fases)
+└── .kiro/                    # Especificações do projeto
+    └── specs/
+        └── orquestrador-inteligente/
 ```
 
-## Configuração
+## Arquivos Gerados
 
-O sistema usa arquivo YAML para configuração com suporte a variáveis de ambiente:
+### Relatório HTML
+- **Localização**: `relatorios/`
+- **Formato**: HTML responsivo com CSS
+- **Conteúdo**: Resumo executivo, detalhes DNS, próximos passos
 
-```yaml
-# config/default.yaml
-api:
-  gemini:
-    modelo: "gemini-2.5-pro"
-    chave_api: "${GEMINI_API_KEY}"
-    timeout: 30
+### Arquivo JSON
+- **Localização**: `dados/`
+- **Formato**: JSON estruturado
+- **Conteúdo**: Dados completos para próximas fases
 
-nmap:
-  binario: "nmap"
-  timeout_padrao: 300
-  scripts_nse_padrao:
-    - "default"
-    - "vuln"
-    - "discovery"
-```
+### Logs
+- **Localização**: `logs/sistema.log`
+- **Formato**: Texto estruturado com timestamps
+- **Conteúdo**: Operações detalhadas, erros, métricas
 
-### Variáveis de Ambiente
+## Próximas Fases
+
+### Fase 2: Descoberta de Portas
+- Integração com RustScan/Nmap
+- Varredura inteligente baseada nos IPs da Fase 1
+
+### Fase 3: Análise de Serviços  
+- Identificação de serviços e versões
+- Decisões IA para próximos módulos
+
+### Fase 4: Varreduras Especializadas
+- Módulos web (Nikto, Feroxbuster, WhatWeb)
+- Módulos de vulnerabilidades (Nuclei, SearchSploit)
+
+### Fase 5: Relatório Consolidado
+- Integração de todos os resultados
+- Análise IA completa
+- Plano de pentest final
+
+## Comandos Disponíveis
 
 ```bash
-# Definir chave API via variável de ambiente
-set GEMINI_API_KEY=sua_chave_aqui
+# Ajuda
+python main.py --help
 
-# Ou usar arquivo .env
-echo GEMINI_API_KEY=sua_chave_aqui > .env
+# Resolução DNS básica
+python main.py --alvo <dominio_ou_ip>
+
+# Com relatórios
+python main.py --alvo <alvo> --salvar resultado.json --relatorio-html relatorio.html
+
+# Modo verboso
+python main.py --alvo <alvo> --verbose
 ```
 
-## Comandos CLI
+## Formato de Saída JSON
 
-### Varredura
-```bash
-# Sintaxe
-python cli/comandos.py varrer --alvo <ALVO> [OPÇÕES]
-
-# Opções:
---tipo {basico,completo,vulnerabilidades,web,smb,descoberta}
---portas <especificação>
---scripts <scripts_nse>
---opcoes <opcoes_nmap>
---salvar <arquivo.json>
---relatorio
-```
-
-### Configuração
-```bash
-# Configuração interativa
-python cli/comandos.py configurar --interativo
-
-# Listar configurações
-python cli/comandos.py configurar --listar
-
-# Definir configuração
-python cli/comandos.py configurar --definir api.gemini.timeout 60
-
-# Validar configurações
-python cli/comandos.py configurar --validar
-```
-
-### Diagnóstico
-```bash
-# Diagnóstico completo do sistema
-python cli/comandos.py diagnostico --sistema
-
-# Verificar Nmap
-python cli/comandos.py diagnostico --nmap
-
-# Testar API Gemini
-python cli/comandos.py diagnostico --api
-
-# Estatísticas de logs
-python cli/comandos.py diagnostico --logs
-```
-
-### Scripts NSE
-```bash
-# Listar todos os scripts
-python cli/comandos.py scripts --listar
-
-# Listar por categoria
-python cli/comandos.py scripts --listar --categoria vuln
-
-# Buscar scripts
-python cli/comandos.py scripts --buscar http
-```
-
-## Formatos de Saída
-
-### JSON
 ```json
 {
-  "timestamp_inicio": "2024-01-20T10:30:00",
-  "alvo": "192.168.1.1",
-  "tipo_varredura": "completo",
-  "varredura_nmap": {
+  "timestamp_inicio": "2025-08-26T11:53:04.311213",
+  "alvo_original": "google.com",
+  "fase": "resolucao_dns",
+  "resolucao_dns": {
+    "tipo_alvo": "dominio",
     "sucesso": true,
     "dados": {
-      "resumo": {
-        "hosts_ativos": 1,
-        "portas_abertas": 5,
-        "servicos_detectados": 3,
-        "vulnerabilidades": 2
-      },
-      "hosts": [...]
+      "dominio": "google.com",
+      "ip_principal": "142.250.219.142",
+      "ips_resolvidos": ["142.250.219.142"],
+      "registros_dns": {
+        "A": ["142.250.219.142"],
+        "AAAA": ["2800:3f0:4004:c15::71"],
+        "MX": ["10 smtp.google.com"]
+      }
     }
   },
-  "analise_ia": {
-    "analise_geral": {...},
-    "vulnerabilidades": {...},
-    "servicos": {...},
-    "resumo_consolidado": {
-      "nivel_risco_maximo": "Alto",
-      "vulnerabilidades_criticas": 2,
-      "proximos_passos": [...]
-    }
-  }
+  "resumo": {
+    "tipo_alvo": "dominio",
+    "ip_principal": "142.250.219.142",
+    "total_ips": 1,
+    "possui_ipv6": true,
+    "possui_mx": true
+  },
+  "sucesso_geral": true
 }
 ```
 
-### Relatório HTML
-O sistema gera relatórios HTML interativos com:
-- Resumo executivo
-- Detalhes técnicos por host
-- Análise de vulnerabilidades
-- Recomendações da IA
-- Gráficos e métricas
-
-## Recursos Avançados
-
-### Logging Inteligente
-- Rotação automática de arquivos
-- Mascaramento de dados sensíveis
-- Múltiplos níveis de log
-- Logs especializados por módulo
-
-### Análise IA Avançada
-- Análise contextual de vulnerabilidades
-- Geração de planos de pentest
-- Priorização automática de riscos
-- Recomendações específicas por ambiente
-
-### Extensibilidade
-- Arquitetura modular
-- Plugins para novos tipos de varredura
-- Templates personalizáveis
-- API para integração
-
 ## Solução de Problemas
 
-### Nmap não encontrado
+### Erro de Resolução DNS
 ```bash
-# Windows - via Chocolatey
-choco install nmap
+# Verificar conectividade
+ping google.com
 
-# Windows - download manual
-# https://nmap.org/download.html
-
-# Verificar instalação
-nmap --version
-```
-
-### Erro de API Gemini
-```bash
-# Verificar chave API
-python cli/comandos.py diagnostico --api
-
-# Reconfigurar
-python main.py --configurar
-
-# Definir via variável de ambiente
-set GEMINI_API_KEY=sua_chave_aqui
-```
-
-### Problemas de Permissão
-```bash
-# Executar como administrador no Windows
-# Ou verificar permissões de diretório
+# Testar com IP conhecido
+python main.py --alvo 8.8.8.8
 
 # Verificar logs
-python cli/comandos.py diagnostico --logs
+tail -f logs/sistema.log
+```
+
+### Dependências
+```bash
+# Reinstalar dependências
+pip install --upgrade -r requirements.txt
+
+# Verificar dnspython
+python -c "import dns.resolver; print('DNS OK')"
 ```
 
 ## Desenvolvimento
 
-### Estrutura de Testes
-```bash
-# Executar testes
-pytest testes/
+Esta é a **Fase 1** do Orquestrador Inteligente. O projeto está sendo desenvolvido incrementalmente:
 
-# Testes com cobertura
-pytest --cov=. testes/
-```
-
-### Contribuindo
-1. Fork o projeto
-2. Crie branch para feature (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -am 'Adiciona nova funcionalidade'`)
-4. Push para branch (`git push origin feature/nova-funcionalidade`)
-5. Crie Pull Request
+1. ✅ **Fase 1**: Resolução DNS (atual)
+2. 🔄 **Fase 2**: Descoberta de portas
+3. 🔄 **Fase 3**: Análise de serviços
+4. 🔄 **Fase 4**: Varreduras especializadas
+5. 🔄 **Fase 5**: Relatório consolidado
 
 ## Licença
 
-Este projeto está sob licença MIT. Veja arquivo LICENSE para detalhes.
-
-## Avisos de Segurança
-
-⚠️ **IMPORTANTE**: Este sistema é destinado para:
-- Testes de penetração autorizados
-- Auditorias de segurança legítimas
-- Ambientes de teste e laboratório
-
-❌ **NÃO USE** para:
-- Atacar sistemas sem autorização
-- Atividades ilegais ou maliciosas
-- Violação de termos de serviço
-
-## Suporte
-
-- 📧 Email: [seu-email]
-- 🐛 Issues: [link-do-repositorio]/issues
-- 📖 Wiki: [link-da-wiki]
-- 💬 Discussões: [link-das-discussoes]
+Este projeto está sob licença MIT.
 
 ---
 
-**Desenvolvido com ❤️ para a comunidade de segurança cibernética**
+**Orquestrador Inteligente - Construindo o futuro das varreduras de segurança** 🚀

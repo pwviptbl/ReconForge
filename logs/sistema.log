@@ -78,3 +78,155 @@
 2025-08-24 01:09:18 - modulos.varredura_nmap - INFO - Executando varredura_basica: nmap -p 1-1000 -sS --open ***.***.***.*** -oX C:\Users\pw_vi\AppData\Local\Temp\tmpykpbsu9p.xml
 2025-08-24 01:09:18 - modulos.varredura_nmap - ERROR - Erro na execução: [WinError 2] O sistema não pode encontrar o arquivo especificado
 2025-08-24 01:09:18 - SistemaPentest - ERROR - Falha na varredura Nmap: Erro na execução: [WinError 2] O sistema não pode encontrar o arquivo especificado
+2025-08-26 11:52:37 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 11:52:37 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 11:52:37 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 11:52:37 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 11:52:37 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 11:52:37 - OrquestradorDNS - INFO - Iniciando resolução DNS para google.com
+2025-08-26 11:52:37 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 11:52:37 - ResolucaoDNS - INFO - IP principal resolvido: google.com -> ***.***.***.***
+2025-08-26 11:52:38 - ResolucaoDNS - INFO - Resolução DNS concluída para google.com
+2025-08-26 11:52:38 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 11:52:38 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 11:52:38 - SessaoPentest - INFO - Timestamp: 2025-08-26T11:52:38.027291
+2025-08-26 11:52:38 - SessaoPentest - INFO - alvo: google.com
+2025-08-26 11:52:38 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 11:52:38 - SessaoPentest - INFO - sucesso: True
+2025-08-26 11:52:38 - SessaoPentest - INFO - ips_encontrados: 1
+2025-08-26 11:52:38 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 11:52:51 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 11:52:51 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 11:52:51 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 11:52:51 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 11:52:51 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 11:52:51 - OrquestradorDNS - INFO - Iniciando resolução DNS para ***.***.***.***
+2025-08-26 11:52:51 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 11:52:51 - ResolucaoDNS - INFO - Hostname principal resolvido: ***.***.***.*** -> dns.google
+2025-08-26 11:52:51 - ResolucaoDNS - INFO - Resolução DNS concluída para ***.***.***.***
+2025-08-26 11:52:51 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 11:52:51 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 11:52:51 - SessaoPentest - INFO - Timestamp: 2025-08-26T11:52:51.392765
+2025-08-26 11:52:51 - SessaoPentest - INFO - alvo: ***.***.***.***
+2025-08-26 11:52:51 - SessaoPentest - INFO - tipo_alvo: ip
+2025-08-26 11:52:51 - SessaoPentest - INFO - sucesso: True
+2025-08-26 11:52:51 - SessaoPentest - INFO - ips_encontrados: 0
+2025-08-26 11:52:51 - SessaoPentest - INFO - dominios_encontrados: 1
+2025-08-26 11:53:04 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 11:53:04 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 11:53:04 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 11:53:04 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 11:53:04 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 11:53:04 - OrquestradorDNS - INFO - Iniciando resolução DNS para google.com
+2025-08-26 11:53:04 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 11:53:04 - ResolucaoDNS - INFO - IP principal resolvido: google.com -> ***.***.***.***
+2025-08-26 11:53:04 - ResolucaoDNS - INFO - Resolução DNS concluída para google.com
+2025-08-26 11:53:04 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 11:53:04 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 11:53:04 - SessaoPentest - INFO - Timestamp: 2025-08-26T11:53:04.392173
+2025-08-26 11:53:04 - SessaoPentest - INFO - alvo: google.com
+2025-08-26 11:53:04 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 11:53:04 - SessaoPentest - INFO - sucesso: True
+2025-08-26 11:53:04 - SessaoPentest - INFO - ips_encontrados: 1
+2025-08-26 11:53:04 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 11:53:04 - OrquestradorDNS - INFO - Relatório HTML gerado: relatorio_dns.html
+2025-08-26 11:53:24 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 11:53:24 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 11:53:24 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 11:53:24 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 11:53:24 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 11:53:24 - OrquestradorDNS - INFO - Iniciando resolução DNS para example.com
+2025-08-26 11:53:24 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 11:53:24 - ResolucaoDNS - INFO - IP principal resolvido: example.com -> ***.***.***.***
+2025-08-26 11:53:25 - ResolucaoDNS - INFO - Resolução DNS concluída para example.com
+2025-08-26 11:53:25 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 11:53:25 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 11:53:25 - SessaoPentest - INFO - Timestamp: 2025-08-26T11:53:25.047546
+2025-08-26 11:53:25 - SessaoPentest - INFO - alvo: example.com
+2025-08-26 11:53:25 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 11:53:25 - SessaoPentest - INFO - sucesso: True
+2025-08-26 11:53:25 - SessaoPentest - INFO - ips_encontrados: 6
+2025-08-26 11:53:25 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 11:53:25 - OrquestradorDNS - INFO - Resultados salvos em: resultado_dns.json
+2025-08-26 11:53:25 - OrquestradorDNS - INFO - Relatório HTML gerado: relatorio_example.html
+2025-08-26 11:54:29 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 11:54:29 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 11:54:29 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 11:54:29 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 11:54:29 - GerenciadorLog - INFO - Nível de logging alterado para: DEBUG
+2025-08-26 11:54:29 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 11:54:29 - OrquestradorDNS - INFO - Iniciando resolução DNS para github.com
+2025-08-26 11:54:29 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 11:54:29 - ResolucaoDNS - INFO - IP principal resolvido: github.com -> ***.***.***.***
+2025-08-26 11:54:29 - ResolucaoDNS - DEBUG - Erro ao obter registros AAAA: The DNS response does not contain an answer to the question: github.com. IN AAAA
+2025-08-26 11:54:29 - ResolucaoDNS - DEBUG - Erro ao obter registros CNAME: The DNS response does not contain an answer to the question: github.com. IN CNAME
+2025-08-26 11:54:35 - ResolucaoDNS - DEBUG - Erro ao obter registros TXT: The resolution lifetime expired after 5.403 seconds: Server Do53:***.***.***.***@53 answered The DNS operation timed out.; Server Do53:***.***.***.***@53 answered The DNS operation timed out.; Server Do53:***.***.***.***@53 answered The DNS operation timed out.
+2025-08-26 11:54:35 - ResolucaoDNS - INFO - Resolução DNS concluída para github.com
+2025-08-26 11:54:35 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 11:54:35 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 11:54:35 - SessaoPentest - INFO - Timestamp: 2025-08-26T11:54:35.417643
+2025-08-26 11:54:35 - SessaoPentest - INFO - alvo: github.com
+2025-08-26 11:54:35 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 11:54:35 - SessaoPentest - INFO - sucesso: True
+2025-08-26 11:54:35 - SessaoPentest - INFO - ips_encontrados: 1
+2025-08-26 11:54:35 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 12:02:55 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 12:02:55 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 12:02:55 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 12:02:55 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 12:18:11 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 12:18:11 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 12:18:11 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 12:18:11 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 12:18:11 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 12:18:11 - OrquestradorDNS - INFO - Iniciando resolução DNS para stackoverflow.com
+2025-08-26 12:18:11 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 12:18:11 - ResolucaoDNS - INFO - IP principal resolvido: stackoverflow.com -> ***.***.***.***
+2025-08-26 12:18:17 - ResolucaoDNS - INFO - Resolução DNS concluída para stackoverflow.com
+2025-08-26 12:18:17 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 12:18:17 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 12:18:17 - SessaoPentest - INFO - Timestamp: 2025-08-26T12:18:17.001762
+2025-08-26 12:18:17 - SessaoPentest - INFO - alvo: stackoverflow.com
+2025-08-26 12:18:17 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 12:18:17 - SessaoPentest - INFO - sucesso: True
+2025-08-26 12:18:17 - SessaoPentest - INFO - ips_encontrados: 2
+2025-08-26 12:18:17 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 12:18:17 - OrquestradorDNS - INFO - Resultados salvos em: teste_final.json
+2025-08-26 12:31:01 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 12:31:01 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 12:31:01 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 12:31:01 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 12:31:01 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 12:31:01 - OrquestradorDNS - INFO - Iniciando resolução DNS para google.com
+2025-08-26 12:31:01 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 12:31:01 - ResolucaoDNS - INFO - IP principal resolvido: google.com -> ***.***.***.***
+2025-08-26 12:31:01 - ResolucaoDNS - INFO - Resolução DNS concluída para google.com
+2025-08-26 12:31:01 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 12:31:01 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 12:31:01 - SessaoPentest - INFO - Timestamp: 2025-08-26T12:31:01.767712
+2025-08-26 12:31:01 - SessaoPentest - INFO - alvo: google.com
+2025-08-26 12:31:01 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 12:31:01 - SessaoPentest - INFO - sucesso: True
+2025-08-26 12:31:01 - SessaoPentest - INFO - ips_encontrados: 1
+2025-08-26 12:31:01 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 12:31:01 - OrquestradorDNS - INFO - Resultados salvos em: dados/teste_organizacao.json
+2025-08-26 12:31:01 - OrquestradorDNS - INFO - Relatório HTML gerado: relatorios/teste_organizacao.html
+2025-08-26 12:34:14 - GerenciadorLog - INFO - Sistema de logging configurado com sucesso
+2025-08-26 12:34:14 - GerenciadorLog - INFO - Arquivo de log: logs/sistema.log
+2025-08-26 12:34:14 - GerenciadorLog - INFO - Nível de log: INFO
+2025-08-26 12:34:14 - GerenciadorLog - INFO - Mascaramento de dados: Habilitado
+2025-08-26 12:34:14 - OrquestradorDNS - INFO - Orquestrador DNS inicializado
+2025-08-26 12:34:14 - OrquestradorDNS - INFO - Iniciando resolução DNS para example.com
+2025-08-26 12:34:14 - OrquestradorDNS - INFO - Executando resolução DNS...
+2025-08-26 12:34:14 - ResolucaoDNS - INFO - IP principal resolvido: example.com -> ***.***.***.***
+2025-08-26 12:34:15 - ResolucaoDNS - INFO - Resolução DNS concluída para example.com
+2025-08-26 12:34:15 - OrquestradorDNS - INFO - Resolução DNS concluída com sucesso
+2025-08-26 12:34:15 - SessaoPentest - INFO - Sessão Pentest - resolucao_dns
+2025-08-26 12:34:15 - SessaoPentest - INFO - Timestamp: 2025-08-26T12:34:15.452948
+2025-08-26 12:34:15 - SessaoPentest - INFO - alvo: example.com
+2025-08-26 12:34:15 - SessaoPentest - INFO - tipo_alvo: dominio
+2025-08-26 12:34:15 - SessaoPentest - INFO - sucesso: True
+2025-08-26 12:34:15 - SessaoPentest - INFO - ips_encontrados: 6
+2025-08-26 12:34:15 - SessaoPentest - INFO - dominios_encontrados: 0
+2025-08-26 12:34:15 - OrquestradorDNS - INFO - Resultados salvos em: dados/exemplo_final.json
+2025-08-26 12:34:15 - OrquestradorDNS - INFO - Relatório HTML gerado: relatorios/exemplo_final.html
