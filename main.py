@@ -10,46 +10,49 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # Adicionar diretório raiz ao path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Imports dos módulos do sistema
 from modulos.resolucao_dns import ResolucaoDNS
+from modulos.varredura_rustscan import VarreduraRustScan
 from utils.logger import obter_logger, log_manager
 
-class OrquestradorDNS:
-    """Orquestrador focado na resolução DNS - Primeira etapa"""
+class OrquestradorPentest:
+    """Orquestrador de Pentest - DNS + Scan de Portas"""
     
     def __init__(self):
-        """Inicializa o orquestrador DNS"""
-        self.logger = obter_logger('OrquestradorDNS')
+        """Inicializa o orquestrador"""
+        self.logger = obter_logger('OrquestradorPentest')
         self.resolver_dns = ResolucaoDNS()
+        self.scanner_portas = VarreduraRustScan()
         
-        self.logger.info("Orquestrador DNS inicializado")
+        self.logger.info("Orquestrador Pentest inicializado")
     
-    def executar_resolucao_dns(self, alvo: str) -> Dict[str, Any]:
+    def executar_pentest_inicial(self, alvo: str) -> Dict[str, Any]:
         """
-        Executa resolução DNS do alvo
+        Executa pentest inicial: DNS + Scan de Portas
         Args:
-            alvo (str): Alvo (domínio ou IP) para resolver
+            alvo (str): Alvo (domínio ou IP) para analisar
         Returns:
-            Dict[str, Any]: Resultados da resolução DNS
+            Dict[str, Any]: Resultados completos
         """
-        self.logger.info(f"Iniciando resolução DNS para {alvo}")
+        self.logger.info(f"Iniciando pentest inicial para {alvo}")
         
         resultado_completo = {
             'timestamp_inicio': datetime.now().isoformat(),
             'alvo_original': alvo,
-            'fase': 'resolucao_dns',
+            'fase': 'pentest_inicial',
             'resolucao_dns': {},
+            'scan_portas': {},
             'sucesso_geral': False
         }
         
         try:
-            # Executar resolução DNS
-            self.logger.info("Executando resolução DNS...")
+            # Etapa 1: Resolução DNS
+            self.logger.info("=== Etapa 1: Resolução DNS ===")
             resultado_dns = self.resolver_dns.resolver_dns(alvo)
             resultado_completo['resolucao_dns'] = resultado_dns
             
@@ -60,20 +63,47 @@ class OrquestradorDNS:
             
             self.logger.info("Resolução DNS concluída com sucesso")
             
+            # Obter IPs para scan
+            ips_para_scan = self._extrair_ips_para_scan(resultado_dns)
+            
+            if not ips_para_scan:
+                self.logger.error("Nenhum IP encontrado para scan de portas")
+                resultado_completo['erro'] = "Nenhum IP encontrado para scan de portas"
+                return resultado_completo
+            
+            # Etapa 2: Scan de Portas
+            self.logger.info("=== Etapa 2: Scan de Portas ===")
+            resultados_scan = {}
+            
+            for ip in ips_para_scan:
+                self.logger.info(f"Executando scan de portas em {ip}")
+                resultado_scan = self.scanner_portas.executar_scan_portas(ip)
+                resultados_scan[ip] = resultado_scan
+                
+                if resultado_scan.get('sucesso'):
+                    resumo_scan = self.scanner_portas.gerar_resumo(resultado_scan)
+                    self.logger.info(f"Scan concluído em {ip}: {resumo_scan.get('portas_abertas', 0)} portas abertas")
+                else:
+                    self.logger.warning(f"Falha no scan de {ip}: {resultado_scan.get('erro')}")
+            
+            resultado_completo['scan_portas'] = resultados_scan
             resultado_completo['sucesso_geral'] = True
             resultado_completo['timestamp_fim'] = datetime.now().isoformat()
             
-            # Gerar resumo
-            resumo = self.resolver_dns.gerar_resumo(resultado_dns)
-            resultado_completo['resumo'] = resumo
+            # Gerar resumos
+            resumo_dns = self.resolver_dns.gerar_resumo(resultado_dns)
+            resultado_completo['resumo_dns'] = resumo_dns
+            
+            resumo_scan = self._gerar_resumo_scan_completo(resultados_scan)
+            resultado_completo['resumo_scan'] = resumo_scan
             
             # Log da sessão
-            log_manager.log_sessao_pentest('resolucao_dns', {
+            log_manager.log_sessao_pentest('pentest_inicial', {
                 'alvo': alvo,
                 'tipo_alvo': resultado_dns.get('tipo_alvo', 'desconhecido'),
-                'sucesso': resultado_dns.get('sucesso', False),
-                'ips_encontrados': len(resumo.get('ips_encontrados', [])) if resumo.get('ips_encontrados') else 0,
-                'dominios_encontrados': len(resumo.get('dominios_encontrados', [])) if resumo.get('dominios_encontrados') else 0
+                'ips_scaneados': len(ips_para_scan),
+                'total_portas_abertas': resumo_scan.get('total_portas_abertas', 0),
+                'hosts_ativos': resumo_scan.get('hosts_ativos', 0)
             })
             
             return resultado_completo
@@ -83,6 +113,94 @@ class OrquestradorDNS:
             resultado_completo['erro'] = f'Erro na execução: {str(e)}'
             resultado_completo['timestamp_fim'] = datetime.now().isoformat()
             return resultado_completo
+    
+    def _extrair_ips_para_scan(self, resultado_dns: Dict[str, Any]) -> List[str]:
+        """
+        Extrai IPs do resultado DNS para scan de portas
+        Args:
+            resultado_dns (Dict): Resultado da resolução DNS
+        Returns:
+            List[str]: Lista de IPs para scan
+        """
+        ips = []
+        dados = resultado_dns.get('dados', {})
+        tipo_alvo = resultado_dns.get('tipo_alvo', 'desconhecido')
+        
+        if tipo_alvo == 'dominio':
+            # Se é domínio, pegar IPs resolvidos
+            ips_resolvidos = dados.get('ips_resolvidos', [])
+            ips.extend(ips_resolvidos)
+        else:
+            # Se já é IP, usar o próprio IP
+            ip_original = dados.get('ip')
+            if ip_original:
+                ips.append(ip_original)
+        
+        # Remover duplicatas e IPs inválidos
+        ips_unicos = list(set(ips))
+        ips_validos = [ip for ip in ips_unicos if self._validar_ip(ip)]
+        
+        self.logger.info(f"IPs extraídos para scan: {ips_validos}")
+        return ips_validos
+    
+    def _validar_ip(self, ip: str) -> bool:
+        """
+        Valida se é um IP válido
+        Args:
+            ip (str): IP para validar
+        Returns:
+            bool: True se válido
+        """
+        import socket
+        try:
+            socket.inet_aton(ip)
+            return True
+        except socket.error:
+            return False
+    
+    def _gerar_resumo_scan_completo(self, resultados_scan: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Gera resumo completo dos scans de portas
+        Args:
+            resultados_scan (Dict): Resultados de todos os scans
+        Returns:
+            Dict[str, Any]: Resumo consolidado
+        """
+        resumo = {
+            'total_ips_scaneados': len(resultados_scan),
+            'hosts_ativos': 0,
+            'total_portas_abertas': 0,
+            'hosts_com_portas_abertas': [],
+            'resumo_por_host': {}
+        }
+        
+        for ip, resultado in resultados_scan.items():
+            if resultado.get('sucesso'):
+                resumo_host = self.scanner_portas.gerar_resumo(resultado)
+                resumo['resumo_por_host'][ip] = resumo_host
+                
+                if resumo_host.get('hosts_ativos', 0) > 0:
+                    resumo['hosts_ativos'] += 1
+                
+                portas_abertas = resumo_host.get('portas_abertas', 0)
+                resumo['total_portas_abertas'] += portas_abertas
+                
+                if portas_abertas > 0:
+                    host_info = {
+                        'ip': ip,
+                        'portas_abertas': portas_abertas,
+                        'portas': []
+                    }
+                    
+                    # Extrair portas abertas
+                    for host_detalhe in resumo_host.get('hosts_detalhes', []):
+                        if host_detalhe.get('portas_abertas'):
+                            host_info['portas'] = host_detalhe['portas_abertas']
+                            break
+                    
+                    resumo['hosts_com_portas_abertas'].append(host_info)
+        
+        return resumo
 
     
     def salvar_resultados(self, resultados: Dict[str, Any], arquivo: str) -> bool:
@@ -313,14 +431,14 @@ class OrquestradorDNS:
         return html
 
 def main():
-    """Função principal - Fase 1: Resolução DNS"""
+    """Função principal - Pentest Inicial: DNS + Scan de Portas"""
     parser = argparse.ArgumentParser(
-        description='Orquestrador Inteligente - Fase 1: Resolução DNS',
+        description='Orquestrador Inteligente - Pentest Inicial: DNS + Scan de Portas',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             Exemplos de uso:
             %(prog)s --alvo google.com
-            %(prog)s --alvo 8.8.8.8 --salvar resultado_dns.json
+            %(prog)s --alvo 192.168.1.208 --salvar resultado.json
             %(prog)s --alvo example.com --relatorio-html relatorio.html
                     """
     )
@@ -340,37 +458,47 @@ def main():
         log_manager.definir_nivel('DEBUG')
     
     try:
-        orquestrador = OrquestradorDNS()
+        orquestrador = OrquestradorPentest()
         
-        print(f"=== Orquestrador Inteligente - Fase 1: Resolução DNS ===")
+        print(f"=== Orquestrador Inteligente - Pentest Inicial ===")
         print(f"Alvo: {args.alvo}")
         print()
         
-        # Executar resolução DNS
-        resultados = orquestrador.executar_resolucao_dns(args.alvo)
+        # Executar pentest inicial
+        resultados = orquestrador.executar_pentest_inicial(args.alvo)
         
         if resultados.get('sucesso_geral'):
-            print("✓ Resolução DNS concluída com sucesso!")
+            print("✓ Pentest inicial concluído com sucesso!")
             
-            # Exibir resumo
-            resumo = resultados.get('resumo', {})
+            # Exibir resumo DNS
+            resumo_dns = resultados.get('resumo_dns', {})
+            print(f"\n=== Resolução DNS ===")
+            print(f"  Tipo de alvo: {resumo_dns.get('tipo_alvo', 'N/A').title()}")
             
-            print(f"\nResumo:")
-            print(f"  Tipo de alvo: {resumo.get('tipo_alvo', 'N/A').title()}")
-            
-            if resumo.get('tipo_alvo') == 'dominio':
-                print(f"  IP principal: {resumo.get('ip_principal', 'N/A')}")
-                print(f"  Total de IPs: {resumo.get('total_ips', 0)}")
-                if resumo.get('ips_encontrados'):
-                    print(f"  IPs encontrados: {', '.join(resumo['ips_encontrados'])}")
-                print(f"  Possui IPv6: {'Sim' if resumo.get('possui_ipv6') else 'Não'}")
-                print(f"  Possui MX: {'Sim' if resumo.get('possui_mx') else 'Não'}")
+            if resumo_dns.get('tipo_alvo') == 'dominio':
+                print(f"  IP principal: {resumo_dns.get('ip_principal', 'N/A')}")
+                print(f"  Total de IPs: {resumo_dns.get('total_ips', 0)}")
+                if resumo_dns.get('ips_encontrados'):
+                    print(f"  IPs encontrados: {', '.join(resumo_dns['ips_encontrados'])}")
             else:
-                print(f"  Hostname principal: {resumo.get('hostname_principal', 'N/A')}")
-                print(f"  Total de domínios: {resumo.get('total_dominios', 0)}")
-                if resumo.get('dominios_encontrados'):
-                    print(f"  Domínios encontrados: {', '.join(resumo['dominios_encontrados'])}")
-                print(f"  Resolução reversa: {'Sim' if resumo.get('possui_resolucao_reversa') else 'Não'}")
+                print(f"  Hostname principal: {resumo_dns.get('hostname_principal', 'N/A')}")
+                if resumo_dns.get('dominios_encontrados'):
+                    print(f"  Domínios encontrados: {', '.join(resumo_dns['dominios_encontrados'])}")
+            
+            # Exibir resumo do scan de portas
+            resumo_scan = resultados.get('resumo_scan', {})
+            print(f"\n=== Scan de Portas ===")
+            print(f"  IPs scaneados: {resumo_scan.get('total_ips_scaneados', 0)}")
+            print(f"  Hosts ativos: {resumo_scan.get('hosts_ativos', 0)}")
+            print(f"  Total de portas abertas: {resumo_scan.get('total_portas_abertas', 0)}")
+            
+            # Mostrar hosts com portas abertas
+            hosts_com_portas = resumo_scan.get('hosts_com_portas_abertas', [])
+            if hosts_com_portas:
+                print(f"\n  Hosts com portas abertas:")
+                for host in hosts_com_portas:
+                    portas_str = ', '.join(map(str, host.get('portas', [])))
+                    print(f"    {host['ip']}: {portas_str} ({host['portas_abertas']} portas)")
             
             # Salvar resultados
             if args.salvar:
@@ -383,18 +511,18 @@ def main():
                     print(f"✓ Relatório HTML gerado: {args.relatorio_html}")
             
             print(f"\n=== Próximos Passos ===")
-            if resumo.get('tipo_alvo') == 'dominio':
-                print("1. Executar varredura de portas nos IPs descobertos")
-                print("2. Verificar subdomínios")
-                print("3. Analisar registros DNS para informações adicionais")
+            if hosts_com_portas:
+                print("1. Analisar serviços nas portas abertas")
+                print("2. Executar varreduras específicas por serviço")
+                print("3. Verificar vulnerabilidades conhecidas")
             else:
-                print("1. Executar varredura de portas no IP")
-                print("2. Investigar domínios associados")
-                print("3. Verificar outros IPs na mesma rede")
+                print("1. Verificar firewall ou filtros")
+                print("2. Tentar varredura completa de portas")
+                print("3. Investigar outros IPs na rede")
             
             return 0
         else:
-            print(f"✗ Falha na resolução DNS: {resultados.get('erro', 'Erro desconhecido')}")
+            print(f"✗ Falha no pentest inicial: {resultados.get('erro', 'Erro desconhecido')}")
             return 1
     
     except KeyboardInterrupt:

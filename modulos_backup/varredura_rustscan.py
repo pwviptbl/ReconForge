@@ -8,25 +8,23 @@ Realiza varreduras de portas rápidas usando RustScan
 import os
 import subprocess
 import json
-import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
 import tempfile
 
-from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraRustScan:
     """Classe para executar varreduras RustScan"""
     
     def __init__(self):
         """Inicializa o módulo de varredura RustScan"""
-        self.logger = logging.getLogger(__name__)
-        self.binario_rustscan = obter_config('rustscan.binario', 'rustscan')
-        self.timeout_padrao = obter_config('rustscan.timeout_padrao', 300)
-        self.threads_padrao = obter_config('rustscan.threads_padrao', 500)
-        self.batch_size_padrao = obter_config('rustscan.batch_size_padrao', 4500)
-        self.opcoes_padrao = obter_config('rustscan.opcoes_padrao', ['--accessible'])
+        self.logger = obter_logger('VarreduraRustScan')
+        self.binario_rustscan = 'rustscan'
+        self.timeout_padrao = 300
+        self.threads_padrao = 500
+        self.batch_size_padrao = 4500
         
         # Verificar se o RustScan está disponível
         self.verificar_rustscan()
