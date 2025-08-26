@@ -17,6 +17,7 @@ import tempfile
 import re
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraNikto:
     """Classe para executar varreduras Nikto"""
@@ -654,29 +655,30 @@ class VarreduraNikto:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraNiktoCLI')
     varredura = VarreduraNikto()
     
     if varredura.verificar_nikto():
-        print("Nikto está disponível!")
+        logger.info("Nikto está disponível!")
         
         # Mostrar opções de tuning
-        print("\nOpções de Tuning disponíveis:")
+        logger.info("\nOpções de Tuning disponíveis:")
         opcoes = varredura.obter_opcoes_tuning()
         for codigo, descricao in opcoes.items():
-            print(f"  {codigo}: {descricao}")
+            logger.info(f"  {codigo}: {descricao}")
         
         # Exemplo de varredura
         alvo = input("\nDigite a URL para varredura: ").strip()
         if alvo:
-            print(f"Executando varredura básica em {alvo}...")
+            logger.info(f"Executando varredura básica em {alvo}...")
             resultado = varredura.varredura_basica(alvo)
             
             if resultado['sucesso']:
-                print("\nRelatório da Varredura:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Varredura:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na varredura: {resultado['erro']}")
+                logger.error(f"Erro na varredura: {resultado['erro']}")
     else:
-        print("Nikto não está disponível. Instale o Nikto para continuar.")
-        print("Instalação Ubuntu/Debian: sudo apt-get install nikto")
-        print("Instalação manual: https://github.com/sullo/nikto")
+        logger.error("Nikto não está disponível. Instale o Nikto para continuar.")
+        logger.error("Instalação Ubuntu/Debian: sudo apt-get install nikto")
+        logger.error("Instalação manual: https://github.com/sullo/nikto")

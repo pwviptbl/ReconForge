@@ -174,29 +174,29 @@ class GerenciadorConfiguracao:
     
     def configuracao_interativa(self):
         """Processo interativo de configuração"""
-        print("=== Configuração Interativa do Sistema de Pentest ===")
-        print()
+        self.logger.info("=== Configuração Interativa do Sistema de Pentest ===")
+        self.logger.info("")
         
         # Configurar API Gemini
-        print("1. Configuração da API Gemini")
+        self.logger.info("1. Configuração da API Gemini")
         chave_atual = self.obter_configuracao('api.gemini.chave_api', '')
         if chave_atual.startswith('${'):
             chave_atual = ''
         
         if not chave_atual:
-            print("Para obter sua chave API do Gemini:")
-            print("1. Acesse: https://aistudio.google.com/app/apikey")
-            print("2. Faça login com sua conta Google")
-            print("3. Clique em 'Create API Key'")
-            print("4. Copie a chave gerada")
-            print()
+            self.logger.info("Para obter sua chave API do Gemini:")
+            self.logger.info("1. Acesse: https://aistudio.google.com/app/apikey")
+            self.logger.info("2. Faça login com sua conta Google")
+            self.logger.info("3. Clique em 'Create API Key'")
+            self.logger.info("4. Copie a chave gerada")
+            self.logger.info("")
         
         nova_chave = input(f"Chave da API Gemini [{chave_atual[:20]}...]: ").strip()
         if nova_chave:
             self.definir_configuracao('api.gemini.chave_api', nova_chave)
         
         # Configurar Nmap
-        print("\n2. Configuração do Nmap")
+        self.logger.info("\n2. Configuração do Nmap")
         binario_atual = self.obter_configuracao('nmap.binario', 'nmap')
         novo_binario = input(f"Caminho do binário Nmap [{binario_atual}]: ").strip()
         if novo_binario:
@@ -204,18 +204,18 @@ class GerenciadorConfiguracao:
         
         # Salvar configurações
         if self.salvar_configuracoes():
-            print("\n✓ Configurações salvas com sucesso!")
+            self.logger.info("\n✓ Configurações salvas com sucesso!")
         else:
-            print("\n✗ Erro ao salvar configurações")
+            self.logger.error("\n✗ Erro ao salvar configurações")
         
         # Validar configurações
         erros = self.validar_configuracoes()
         if erros:
-            print("\n⚠ Problemas encontrados na configuração:")
+            self.logger.warning("\n⚠ Problemas encontrados na configuração:")
             for erro, descricao in erros.items():
-                print(f"  - {erro}: {descricao}")
+                self.logger.warning(f"  - {erro}: {descricao}")
         else:
-            print("\n✓ Todas as configurações estão válidas!")
+            self.logger.info("\n✓ Todas as configurações estão válidas!")
     
     def obter_todas_configuracoes(self) -> Dict[str, Any]:
         """

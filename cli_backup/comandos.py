@@ -144,21 +144,21 @@ Exemplos de uso:
             if args.salvar:
                 with open(args.salvar, 'w', encoding='utf-8') as arquivo:
                     json.dump(resultado, arquivo, indent=2, ensure_ascii=False)
-                print(f"✓ Resultados salvos em: {args.salvar}")
+                self.logger.info(f"✓ Resultados salvos em: {args.salvar}")
             
             # Exibir relatório se solicitado
             if args.relatorio or not args.quiet:
                 if resultado.get('sucesso'):
                     relatorio = self.varredura_nmap.gerar_relatorio_resumido(resultado)
-                    print(relatorio)
+                    self.logger.info(relatorio)
                 else:
-                    print(f"✗ Erro na varredura: {resultado.get('erro', 'Erro desconhecido')}")
+                    self.logger.error(f"✗ Erro na varredura: {resultado.get('erro', 'Erro desconhecido')}")
             
             return resultado.get('sucesso', False)
             
         except Exception as e:
             self.logger.error(f"Erro na execução da varredura: {str(e)}")
-            print(f"✗ Erro: {str(e)}")
+            self.logger.error(f"✗ Erro: {str(e)}")
             return False
     
     def gerenciar_configuracao(self, args) -> bool:
@@ -178,7 +178,7 @@ Exemplos de uso:
             
             elif args.listar:
                 configuracoes = self.config_manager.obter_todas_configuracoes()
-                print("=== Configurações Atuais ===")
+                self.logger.info("=== Configurações Atuais ===")
                 self._imprimir_configuracoes(configuracoes)
                 return True
             
@@ -196,32 +196,32 @@ Exemplos de uso:
                     pass  # Manter como string
                 
                 self.config_manager.definir_configuracao(chave, valor)
-                print(f"✓ Configuração definida: {chave} = {valor}")
+                self.logger.info(f"✓ Configuração definida: {chave} = {valor}")
                 return True
             
             elif args.obter:
                 valor = self.config_manager.obter_configuracao(args.obter)
-                print(f"{args.obter}: {valor}")
+                self.logger.info(f"{args.obter}: {valor}")
                 return True
             
             elif args.validar:
                 erros = self.config_manager.validar_configuracoes()
                 if erros:
-                    print("✗ Problemas encontrados:")
+                    self.logger.error("✗ Problemas encontrados:")
                     for erro, descricao in erros.items():
-                        print(f"  {erro}: {descricao}")
+                        self.logger.error(f"  {erro}: {descricao}")
                     return False
                 else:
-                    print("✓ Todas as configurações estão válidas!")
+                    self.logger.info("✓ Todas as configurações estão válidas!")
                     return True
             
             else:
-                print("Especifique uma ação para configuração. Use --help para ajuda.")
+                self.logger.warning("Especifique uma ação para configuração. Use --help para ajuda.")
                 return False
                 
         except Exception as e:
             self.logger.error(f"Erro no gerenciamento de configuração: {str(e)}")
-            print(f"✗ Erro: {str(e)}")
+            self.logger.error(f"✗ Erro: {str(e)}")
             return False
     
     def _imprimir_configuracoes(self, config_dict: Dict[str, Any], prefixo: str = ""):
@@ -236,10 +236,10 @@ Exemplos de uso:
             chave_completa = f"{prefixo}.{chave}" if prefixo else chave
             
             if isinstance(valor, dict):
-                print(f"{chave_completa}:")
+                self.logger.info(f"{chave_completa}:")
                 self._imprimir_configuracoes(valor, chave_completa)
             else:
-                print(f"  {chave_completa}: {valor}")
+                self.logger.info(f"  {chave_completa}: {valor}")
     
     def gerar_relatorio(self, args) -> bool:
         """
@@ -253,11 +253,11 @@ Exemplos de uso:
         """
         try:
             if not args.arquivo:
-                print("✗ Especifique um arquivo de resultados com --arquivo")
+                self.logger.error("✗ Especifique um arquivo de resultados com --arquivo")
                 return False
             
             if not Path(args.arquivo).exists():
-                print(f"✗ Arquivo não encontrado: {args.arquivo}")
+                self.logger.error(f"✗ Arquivo não encontrado: {args.arquivo}")
                 return False
             
             # Carregar resultados
@@ -272,22 +272,22 @@ Exemplos de uso:
             elif args.formato == 'html':
                 relatorio = self._gerar_relatorio_html(resultado)
             else:
-                print(f"✗ Formato não suportado: {args.formato}")
+                self.logger.error(f"✗ Formato não suportado: {args.formato}")
                 return False
             
             # Salvar ou exibir relatório
             if args.saida:
                 with open(args.saida, 'w', encoding='utf-8') as arquivo:
                     arquivo.write(relatorio)
-                print(f"✓ Relatório salvo em: {args.saida}")
+                self.logger.info(f"✓ Relatório salvo em: {args.saida}")
             else:
-                print(relatorio)
+                self.logger.info(relatorio)
             
             return True
             
         except Exception as e:
             self.logger.error(f"Erro na geração de relatório: {str(e)}")
-            print(f"✗ Erro: {str(e)}")
+            self.logger.error(f"✗ Erro: {str(e)}")
             return False
     
     def _gerar_relatorio_html(self, resultado: Dict[str, Any]) -> str:
@@ -390,60 +390,60 @@ Exemplos de uso:
         """
         try:
             if args.sistema:
-                print("=== Diagnóstico do Sistema ===")
+                self.logger.info("=== Diagnóstico do Sistema ===")
                 
                 # Verificar Python
-                print(f"Python: {sys.version}")
+                self.logger.info(f"Python: {sys.version}")
                 
                 # Verificar diretórios
                 diretorios = ['logs', 'dados', 'relatorios', 'config']
                 for diretorio in diretorios:
                     existe = Path(diretorio).exists()
-                    print(f"Diretório {diretorio}: {'✓' if existe else '✗'}")
+                    self.logger.info(f"Diretório {diretorio}: {'✓' if existe else '✗'}")
                 
                 # Verificar configurações
                 erros_config = self.config_manager.validar_configuracoes()
-                print(f"Configurações: {'✓' if not erros_config else '✗'}")
+                self.logger.info(f"Configurações: {'✓' if not erros_config else '✗'}")
                 
                 return True
             
             elif args.nmap:
-                print("=== Diagnóstico do Nmap ===")
+                self.logger.info("=== Diagnóstico do Nmap ===")
                 disponivel = self.varredura_nmap.verificar_nmap()
-                print(f"Nmap disponível: {'✓' if disponivel else '✗'}")
+                self.logger.info(f"Nmap disponível: {'✓' if disponivel else '✗'}")
                 
                 if disponivel:
                     scripts = self.varredura_nmap.listar_scripts_nse('discovery')
-                    print(f"Scripts NSE disponíveis: {len(scripts)}")
+                    self.logger.info(f"Scripts NSE disponíveis: {len(scripts)}")
                 
                 return disponivel
             
             elif args.api:
-                print("=== Diagnóstico da API Gemini ===")
+                self.logger.info("=== Diagnóstico da API Gemini ===")
                 try:
                     from cliente_gemini import ClienteGemini
                     cliente = ClienteGemini()
                     conectado = cliente.conectar()
-                    print(f"API Gemini: {'✓' if conectado else '✗'}")
+                    self.logger.info(f"API Gemini: {'✓' if conectado else '✗'}")
                     return conectado
                 except ImportError:
-                    print("✗ Módulo cliente_gemini não encontrado")
+                    self.logger.error("✗ Módulo cliente_gemini não encontrado")
                     return False
             
             elif args.logs:
-                print("=== Estatísticas de Logs ===")
+                self.logger.info("=== Estatísticas de Logs ===")
                 stats = log_manager.obter_estatisticas_log()
                 for chave, valor in stats.items():
-                    print(f"{chave}: {valor}")
+                    self.logger.info(f"{chave}: {valor}")
                 return True
             
             else:
-                print("Especifique um tipo de diagnóstico. Use --help para ajuda.")
+                self.logger.warning("Especifique um tipo de diagnóstico. Use --help para ajuda.")
                 return False
                 
         except Exception as e:
             self.logger.error(f"Erro no diagnóstico: {str(e)}")
-            print(f"✗ Erro: {str(e)}")
+            self.logger.error(f"✗ Erro: {str(e)}")
             return False
     
     def gerenciar_scripts(self, args) -> bool:
@@ -464,20 +464,20 @@ Exemplos de uso:
                     categoria = None
                 scripts = self.varredura_nmap.listar_scripts_nse(categoria)
                 
-                print(f"=== Scripts NSE {'(' + categoria + ')' if categoria else ''} ===")
+                self.logger.info(f"=== Scripts NSE {'(' + categoria + ')' if categoria else ''} ===")
                 for script in scripts:
-                    print(f"  {script}")
+                    self.logger.info(f"  {script}")
                 
-                print(f"\nTotal: {len(scripts)} scripts")
+                self.logger.info(f"\nTotal: {len(scripts)} scripts")
                 return True
             
             else:
-                print("Especifique uma ação para scripts. Use --help para ajuda.")
+                self.logger.warning("Especifique uma ação para scripts. Use --help para ajuda.")
                 return False
                 
         except Exception as e:
             self.logger.error(f"Erro no gerenciamento de scripts: {str(e)}")
-            print(f"✗ Erro: {str(e)}")
+            self.logger.error(f"✗ Erro: {str(e)}")
             return False
     
     def executar(self):
@@ -509,7 +509,7 @@ Exemplos de uso:
         elif args.comando == 'scripts':
             sucesso = self.gerenciar_scripts(args)
         elif args.comando == 'sessao':
-            print("Gerenciamento de sessões não implementado ainda.")
+            self.logger.warning("Gerenciamento de sessões não implementado ainda.")
             sucesso = False
         else:
             parser.print_help()
@@ -520,14 +520,15 @@ Exemplos de uso:
 
 def main():
     """Função principal"""
+    logger = obter_logger('CLI')
     try:
         cli = InterfaceCLI()
         return cli.executar()
     except KeyboardInterrupt:
-        print("\n✗ Operação cancelada pelo usuário")
+        logger.error("\n✗ Operação cancelada pelo usuário")
         return 1
     except Exception as e:
-        print(f"✗ Erro inesperado: {str(e)}")
+        logger.error(f"✗ Erro inesperado: {str(e)}")
         return 1
 
 

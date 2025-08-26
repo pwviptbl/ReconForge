@@ -597,21 +597,22 @@ class VarreduraNmap:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraNmapCLI')
     varredura = VarreduraNmap()
     
     if varredura.verificar_nmap():
-        print("Nmap está disponível!")
+        logger.info("Nmap está disponível!")
         
         # Exemplo de varredura
         alvo = input("Digite o IP ou hostname para varredura: ").strip()
         if alvo:
-            print(f"Executando varredura básica em {alvo}...")
+            logger.info(f"Executando varredura básica em {alvo}...")
             resultado = varredura.varredura_basica(alvo, "1-1000")
             
             if resultado['sucesso']:
-                print("\nRelatório da Varredura:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Varredura:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na varredura: {resultado['erro']}")
+                logger.error(f"Erro na varredura: {resultado['erro']}")
     else:
-        print("Nmap não está disponível. Instale o Nmap para continuar.")
+        logger.error("Nmap não está disponível. Instale o Nmap para continuar.")

@@ -15,6 +15,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraFeroxbuster:
     """Classe para executar varreduras Feroxbuster"""
@@ -350,20 +351,21 @@ class VarreduraFeroxbuster:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraFeroxbusterCLI')
     varredura = VarreduraFeroxbuster()
     
     if varredura.verificar_feroxbuster():
-        print("Feroxbuster está disponível!")
+        logger.info("Feroxbuster está disponível!")
         
         alvo = input("Digite a URL para varredura: ").strip()
         if alvo:
-            print(f"Executando varredura básica em {alvo}...")
+            logger.info(f"Executando varredura básica em {alvo}...")
             resultado = varredura.varredura_basica(alvo)
             
             if resultado['sucesso']:
-                print("\nRelatório da Varredura:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Varredura:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na varredura: {resultado['erro']}")
+                logger.error(f"Erro na varredura: {resultado['erro']}")
     else:
-        print("Feroxbuster não está disponível. Instale o Feroxbuster para continuar.")
+        logger.error("Feroxbuster não está disponível. Instale o Feroxbuster para continuar.")

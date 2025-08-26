@@ -19,7 +19,7 @@ try:
     from gvm.transforms import EtreeTransform
     from gvm.xml import pretty_print
 except ImportError:
-    print("Erro: Biblioteca python-gvm não encontrada. Execute: pip install python-gvm")
+    logging.getLogger('VarreduraOpenVAS').error("Erro: Biblioteca python-gvm não encontrada. Execute: pip install python-gvm")
     exit(1)
 
 

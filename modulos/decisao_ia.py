@@ -1053,6 +1053,7 @@ Portas Abertas:
 
 if __name__ == "__main__":
     # Teste do módulo de decisão unificado
+    logger = obter_logger('DecisaoIACLI')
     decisao = DecisaoIA()
     
     # Dados de teste para decisão
@@ -1096,30 +1097,30 @@ if __name__ == "__main__":
     }
     
     # Teste 1: Decisão de próximos passos
-    print("\n1. Testando decisão de próximos passos...")
+    logger.info("\n1. Testando decisão de próximos passos...")
     resultado_decisao = decisao.decidir_proximos_passos(dados_teste_decisao)
     
-    print(f"Executar Nmap avançado: {resultado_decisao.get('executar_nmap_avancado', False)}")
-    print(f"Módulos recomendados: {resultado_decisao.get('modulos_recomendados', [])}")
-    print(f"Justificativa: {resultado_decisao.get('justificativa_ia', 'N/A')}")
-    print(f"Prioridade: {resultado_decisao.get('prioridade', 'N/A')}")
+    logger.info(f"Executar Nmap avançado: {resultado_decisao.get('executar_nmap_avancado', False)}")
+    logger.info(f"Módulos recomendados: {resultado_decisao.get('modulos_recomendados', [])}")
+    logger.info(f"Justificativa: {resultado_decisao.get('justificativa_ia', 'N/A')}")
+    logger.info(f"Prioridade: {resultado_decisao.get('prioridade', 'N/A')}")
     
     # Teste 2: Conexão Gemini (se configurado)
-    print("\n2. Testando conexão Gemini...")
+    logger.info("\n2. Testando conexão Gemini...")
     if decisao.conectar_gemini():
-        print("✓ Gemini conectado com sucesso!")
+        logger.info("✓ Gemini conectado com sucesso!")
         
         # Teste 3: Análise completa
-        print("\n3. Testando análise completa...")
+        logger.info("\n3. Testando análise completa...")
         resultado_analise = decisao.analisar_varredura_completa(dados_teste_analise)
         
         if 'erro' not in resultado_analise:
-            print("✓ Análise completa executada com sucesso!")
-            print(f"Nível de risco: {resultado_analise.get('nivel_risco_geral', 'N/A')}")
+            logger.info("✓ Análise completa executada com sucesso!")
+            logger.info(f"Nível de risco: {resultado_analise.get('nivel_risco_geral', 'N/A')}")
         else:
-            print(f"✗ Erro na análise: {resultado_analise['erro']}")
+            logger.error(f"✗ Erro na análise: {resultado_analise['erro']}")
     else:
-        print("✗ Falha ao conectar com Gemini (usando fallback)")
+        logger.error("✗ Falha ao conectar com Gemini (usando fallback)")
     
-    print("\n=== Teste concluído ===")
-    print("Módulo unificado pronto para uso!")
+    logger.info("\n=== Teste concluído ===")
+    logger.info("Módulo unificado pronto para uso!")

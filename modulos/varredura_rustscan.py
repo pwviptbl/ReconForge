@@ -572,27 +572,28 @@ class VarreduraRustScan:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraRustScanCLI')
     varredura = VarreduraRustScan()
     
     if varredura.verificar_rustscan():
-        print("RustScan está disponível!")
+        logger.info("RustScan está disponível!")
         
         # Exemplo de varredura
         alvo = input("\nDigite o IP para varredura: ").strip()
         if alvo:
-            print(f"Executando scan de portas em {alvo}...")
+            logger.info(f"Executando scan de portas em {alvo}...")
             resultado = varredura.executar_scan_portas(alvo)
             
             if resultado['sucesso']:
                 resumo = varredura.gerar_resumo(resultado)
-                print(f"\nResultados:")
-                print(f"  Hosts ativos: {resumo['hosts_ativos']}")
-                print(f"  Portas abertas: {resumo['portas_abertas']}")
+                logger.info(f"\nResultados:")
+                logger.info(f"  Hosts ativos: {resumo['hosts_ativos']}")
+                logger.info(f"  Portas abertas: {resumo['portas_abertas']}")
                 
                 for host in resumo['hosts_detalhes']:
                     if host['portas_abertas']:
-                        print(f"  {host['endereco']}: {', '.join(map(str, host['portas_abertas']))}")
+                        logger.info(f"  {host['endereco']}: {', '.join(map(str, host['portas_abertas']))}")
             else:
-                print(f"Erro na varredura: {resultado['erro']}")
+                logger.error(f"Erro na varredura: {resultado['erro']}")
     else:
-        print("RustScan não está disponível. Instale o RustScan para continuar.")
+        logger.error("RustScan não está disponível. Instale o RustScan para continuar.")

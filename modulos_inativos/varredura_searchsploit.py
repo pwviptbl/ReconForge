@@ -15,6 +15,7 @@ from datetime import datetime
 import re
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraSearchSploit:
     """Classe para executar buscas SearchSploit"""
@@ -426,24 +427,25 @@ class VarreduraSearchSploit:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraSearchSploitCLI')
     varredura = VarreduraSearchSploit()
     
     if varredura.verificar_searchsploit():
-        print("SearchSploit está disponível!")
+        logger.info("SearchSploit está disponível!")
         
         categorias = varredura.obter_categorias_disponiveis()
-        print("Plataformas:", ', '.join(categorias['plataformas']))
-        print("Tipos:", ', '.join(categorias['tipos']))
+        logger.info("Plataformas: " + ', '.join(categorias['plataformas']))
+        logger.info("Tipos: " + ', '.join(categorias['tipos']))
         
         termo = input("Digite o termo para busca de exploits: ").strip()
         if termo:
-            print(f"Buscando exploits para '{termo}'...")
+            logger.info(f"Buscando exploits para '{termo}'...")
             resultado = varredura.buscar_exploits(termo)
             
             if resultado['sucesso']:
-                print("\nRelatório da Busca:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Busca:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na busca: {resultado['erro']}")
+                logger.error(f"Erro na busca: {resultado['erro']}")
     else:
-        print("SearchSploit não está disponível. Instale o SearchSploit para continuar.")
+        logger.error("SearchSploit não está disponível. Instale o SearchSploit para continuar.")

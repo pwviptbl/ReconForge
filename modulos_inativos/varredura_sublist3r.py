@@ -15,6 +15,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraSublist3r:
     """Classe para executar varreduras Sublist3r"""
@@ -364,22 +365,23 @@ class VarreduraSublist3r:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraSublist3rCLI')
     varredura = VarreduraSublist3r()
     
     if varredura.verificar_sublist3r():
-        print("Sublist3r está disponível!")
+        logger.info("Sublist3r está disponível!")
         
-        print("Engines disponíveis:", ', '.join(varredura.obter_engines_disponiveis()))
+        logger.info("Engines disponíveis: " + ', '.join(varredura.obter_engines_disponiveis()))
         
         dominio = input("Digite o domínio para enumeração: ").strip()
         if dominio:
-            print(f"Enumerando subdomínios de {dominio}...")
+            logger.info(f"Enumerando subdomínios de {dominio}...")
             resultado = varredura.enumerar_subdominios(dominio)
             
             if resultado['sucesso']:
-                print("\nRelatório da Enumeração:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Enumeração:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na enumeração: {resultado['erro']}")
+                logger.error(f"Erro na enumeração: {resultado['erro']}")
     else:
-        print("Sublist3r não está disponível. Instale o Sublist3r para continuar.")
+        logger.error("Sublist3r não está disponível. Instale o Sublist3r para continuar.")

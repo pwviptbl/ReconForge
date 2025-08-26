@@ -15,6 +15,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraSQLMap:
     """Classe para executar varreduras SQLMap"""
@@ -500,25 +501,26 @@ class VarreduraSQLMap:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraSQLMapCLI')
     varredura = VarreduraSQLMap()
     
     if varredura.verificar_sqlmap():
-        print("SQLMap está disponível!")
+        logger.info("SQLMap está disponível!")
         
         opcoes = varredura.obter_opcoes_nivel_risco()
-        print("Níveis disponíveis:")
+        logger.info("Níveis disponíveis:")
         for nivel, desc in opcoes['niveis'].items():
-            print(f"  {nivel}: {desc}")
+            logger.info(f"  {nivel}: {desc}")
         
         url = input("Digite a URL para teste de SQL Injection: ").strip()
         if url:
-            print(f"Testando SQL Injection em {url}...")
+            logger.info(f"Testando SQL Injection em {url}...")
             resultado = varredura.testar_url(url)
             
             if resultado['sucesso']:
-                print("\nRelatório do Teste:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório do Teste:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro no teste: {resultado['erro']}")
+                logger.error(f"Erro no teste: {resultado['erro']}")
     else:
-        print("SQLMap não está disponível. Instale o SQLMap para continuar.")
+        logger.error("SQLMap não está disponível. Instale o SQLMap para continuar.")

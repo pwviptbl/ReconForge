@@ -15,6 +15,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraNuclei:
     """Classe para executar varreduras Nuclei"""
@@ -562,29 +563,30 @@ class VarreduraNuclei:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraNucleiCLI')
     varredura = VarreduraNuclei()
     
     if varredura.verificar_nuclei():
-        print("Nuclei está disponível!")
+        logger.info("Nuclei está disponível!")
         
         # Mostrar estatísticas
         stats = varredura.obter_estatisticas_templates()
         if stats['sucesso']:
-            print("\nEstatísticas dos Templates:")
+            logger.info("\nEstatísticas dos Templates:")
             for chave, valor in stats['estatisticas'].items():
-                print(f"  {chave}: {valor}")
+                logger.info(f"  {chave}: {valor}")
         
         # Exemplo de varredura
         alvo = input("\nDigite a URL para varredura: ").strip()
         if alvo:
-            print(f"Executando varredura básica em {alvo}...")
+            logger.info(f"Executando varredura básica em {alvo}...")
             resultado = varredura.varredura_basica(alvo, "medium")
             
             if resultado['sucesso']:
-                print("\nRelatório da Varredura:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Varredura:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na varredura: {resultado['erro']}")
+                logger.error(f"Erro na varredura: {resultado['erro']}")
     else:
-        print("Nuclei não está disponível. Instale o Nuclei para continuar.")
-        print("Instalação: https://github.com/projectdiscovery/nuclei")
+        logger.error("Nuclei não está disponível. Instale o Nuclei para continuar.")
+        logger.error("Instalação: https://github.com/projectdiscovery/nuclei")

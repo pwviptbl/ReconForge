@@ -15,6 +15,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraWhatWeb:
     """Classe para executar varreduras WhatWeb"""
@@ -398,20 +399,21 @@ class VarreduraWhatWeb:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraWhatWebCLI')
     varredura = VarreduraWhatWeb()
     
     if varredura.verificar_whatweb():
-        print("WhatWeb está disponível!")
+        logger.info("WhatWeb está disponível!")
         
         alvo = input("Digite a URL para análise: ").strip()
         if alvo:
-            print(f"Identificando tecnologias em {alvo}...")
+            logger.info(f"Identificando tecnologias em {alvo}...")
             resultado = varredura.identificar_tecnologias(alvo)
             
             if resultado['sucesso']:
-                print("\nRelatório da Análise:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Análise:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na análise: {resultado['erro']}")
+                logger.error(f"Erro na análise: {resultado['erro']}")
     else:
-        print("WhatWeb não está disponível. Instale o WhatWeb para continuar.")
+        logger.error("WhatWeb não está disponível. Instale o WhatWeb para continuar.")

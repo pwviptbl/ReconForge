@@ -78,7 +78,7 @@ class GerenciadorLog:
             
             # Configurar logger raiz
             root_logger = logging.getLogger()
-            root_logger.setLevel(getattr(logging, self.nivel_padrao.upper()))
+            root_logger.setLevel(logging.DEBUG)
             
             # Remover handlers existentes
             for handler in root_logger.handlers[:]:
@@ -90,9 +90,9 @@ class GerenciadorLog:
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
             
-            # Handler para console
+            # Handler para console (sempre silencioso por padrão)
             handler_console = logging.StreamHandler()
-            handler_console.setLevel(getattr(logging, self.nivel_padrao.upper()))
+            handler_console.setLevel(logging.CRITICAL)
             handler_console.setFormatter(formatador)
             
             # Adicionar mascaramento se habilitado
@@ -100,8 +100,9 @@ class GerenciadorLog:
                 handler_console.addFilter(MascaradorDadosSensiveis())
             
             root_logger.addHandler(handler_console)
+            self.handler_console = handler_console
             
-            # Handler para arquivo com rotação
+            # Handler para arquivo com rotação (segue nível configurado)
             handler_arquivo = logging.handlers.RotatingFileHandler(
                 self.arquivo_log,
                 maxBytes=self.max_tamanho_mb * 1024 * 1024,  # Converter MB para bytes
@@ -116,6 +117,7 @@ class GerenciadorLog:
                 handler_arquivo.addFilter(MascaradorDadosSensiveis())
             
             root_logger.addHandler(handler_arquivo)
+            self.handler_arquivo = handler_arquivo
             
             self.configurado = True
             
@@ -128,7 +130,7 @@ class GerenciadorLog:
                 logger.info(f"Mascaramento de dados: {'Habilitado' if self.mascarar_dados else 'Desabilitado'}")
             
         except Exception as e:
-            print(f"Erro ao configurar logging: {str(e)}")
+            logging.getLogger('GerenciadorLog').error(f"Erro ao configurar logging: {str(e)}")
             self.configurado = False
     
     def obter_logger(self, nome: str) -> logging.Logger:
@@ -154,21 +156,34 @@ class GerenciadorLog:
             nivel (str): Nível de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         """
         try:
+            # Ajustar apenas o nível do arquivo; console é controlado separadamente
             nivel_logging = getattr(logging, nivel.upper())
-            logging.getLogger().setLevel(nivel_logging)
+            self.nivel_padrao = nivel.upper()
+            root_logger = logging.getLogger()
+            root_logger.setLevel(logging.DEBUG)  # captura tudo; handlers filtram
             
-            # Atualizar todos os handlers (console e arquivo)
-            for handler in logging.getLogger().handlers:
-                handler.setLevel(nivel_logging)
+            if hasattr(self, 'handler_arquivo'):
+                self.handler_arquivo.setLevel(nivel_logging)
             
-            # Só fazer log se não for CRITICAL (para evitar spam quando silencioso)
             if nivel.upper() != 'CRITICAL':
                 logger = self.obter_logger('GerenciadorLog')
-                logger.info(f"Nível de logging alterado para: {nivel.upper()}")
-            
+                logger.info(f"Nível de logging (arquivo) alterado para: {nivel.upper()}")
         except AttributeError:
             logger = self.obter_logger('GerenciadorLog')
             logger.error(f"Nível de logging inválido: {nivel}")
+
+    def definir_console_verbose(self, verboso: bool):
+        """
+        Controla apenas o nível do console: verboso (DEBUG) ou silencioso (CRITICAL).
+        Não afeta o nível do arquivo.
+        """
+        try:
+            if not hasattr(self, 'handler_console'):
+                return
+            self.handler_console.setLevel(logging.DEBUG if verboso else logging.CRITICAL)
+        except Exception as e:
+            logger = self.obter_logger('GerenciadorLog')
+            logger.error(f"Erro ao definir verbosidade do console: {str(e)}")
     
     def log_comando_sistema(self, comando: str, resultado: Dict[str, Any]):
         """
@@ -308,7 +323,7 @@ class GerenciadorLog:
             return True
             
         except Exception as e:
-            print(f"Erro na rotação manual: {str(e)}")
+            logging.getLogger('GerenciadorLog').error(f"Erro na rotação manual: {str(e)}")
             return False
     
     def limpar_logs_antigos(self, dias: int = 30) -> bool:
@@ -378,6 +393,6 @@ if __name__ == "__main__":
     
     # Estatísticas
     stats = log_manager.obter_estatisticas_log()
-    print("\nEstatísticas do Log:")
+    logger.info("\nEstatísticas do Log:")
     for chave, valor in stats.items():
-        print(f"  {chave}: {valor}")
+        logger.info(f"  {chave}: {valor}")

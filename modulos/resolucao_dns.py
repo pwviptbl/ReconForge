@@ -262,23 +262,23 @@ class ResolucaoDNS:
 
 
 if __name__ == "__main__":
-    # Teste do módulo
+    logger = obter_logger('ResolucaoDNSCLI')
     resolver = ResolucaoDNS()
     
     # Teste com domínio
-    print("=== Teste com Domínio ===")
+    logger.info("=== Teste com Domínio ===")
     resultado_dominio = resolver.resolver_dns("google.com")
-    print(f"Sucesso: {resultado_dominio['sucesso']}")
+    logger.info(f"Sucesso: {resultado_dominio['sucesso']}")
     if resultado_dominio['sucesso']:
         resumo = resolver.gerar_resumo(resultado_dominio)
-        print(f"IP Principal: {resumo.get('ip_principal', 'N/A')}")
-        print(f"Total IPs: {resumo.get('total_ips', 0)}")
+        logger.info(f"IP Principal: {resumo.get('ip_principal', 'N/A')}")
+        logger.info(f"Total IPs: {resumo.get('total_ips', 0)}")
     
     # Teste com IP
-    print("\n=== Teste com IP ===")
+    logger.info("\n=== Teste com IP ===")
     resultado_ip = resolver.resolver_dns("8.8.8.8")
-    print(f"Sucesso: {resultado_ip['sucesso']}")
+    logger.info(f"Sucesso: {resultado_ip['sucesso']}")
     if resultado_ip['sucesso']:
         resumo = resolver.gerar_resumo(resultado_ip)
-        print(f"Hostname: {resumo.get('hostname_principal', 'N/A')}")
-        print(f"Total Domínios: {resumo.get('total_dominios', 0)}")
+        logger.info(f"Hostname: {resumo.get('hostname_principal', 'N/A')}")
+        logger.info(f"Total Domínios: {resumo.get('total_dominios', 0)}")

@@ -17,6 +17,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraZAP:
     """Classe para executar varreduras OWASP ZAP"""
@@ -418,20 +419,21 @@ class VarreduraZAP:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraZAPCLI')
     varredura = VarreduraZAP()
     
     if varredura.verificar_zap():
-        print("OWASP ZAP está disponível!")
+        logger.info("OWASP ZAP está disponível!")
         
         url = input("Digite a URL para varredura: ").strip()
         if url:
-            print(f"Executando varredura passiva em {url}...")
+            logger.info(f"Executando varredura passiva em {url}...")
             resultado = varredura.varredura_passiva(url)
             
             if resultado['sucesso']:
-                print("\nRelatório da Varredura:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Varredura:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na varredura: {resultado['erro']}")
+                logger.error(f"Erro na varredura: {resultado['erro']}")
     else:
-        print("OWASP ZAP não está disponível. Instale o ZAP para continuar.")
+        logger.error("OWASP ZAP não está disponível. Instale o ZAP para continuar.")

@@ -15,6 +15,7 @@ from datetime import datetime
 import tempfile
 
 from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraSubfinder:
     """Classe para executar varreduras Subfinder"""
@@ -343,22 +344,23 @@ class VarreduraSubfinder:
 
 if __name__ == "__main__":
     # Teste do módulo
+    logger = obter_logger('VarreduraSubfinderCLI')
     varredura = VarreduraSubfinder()
     
     if varredura.verificar_subfinder():
-        print("Subfinder está disponível!")
+        logger.info("Subfinder está disponível!")
         
-        print("Sources disponíveis:", ', '.join(varredura.obter_sources_disponiveis()))
+        logger.info("Sources disponíveis: " + ', '.join(varredura.obter_sources_disponiveis()))
         
         dominio = input("Digite o domínio para enumeração: ").strip()
         if dominio:
-            print(f"Enumerando subdomínios de {dominio}...")
+            logger.info(f"Enumerando subdomínios de {dominio}...")
             resultado = varredura.enumerar_subdominios(dominio)
             
             if resultado['sucesso']:
-                print("\nRelatório da Enumeração:")
-                print(varredura.gerar_relatorio_resumido(resultado))
+                logger.info("\nRelatório da Enumeração:")
+                logger.info(varredura.gerar_relatorio_resumido(resultado))
             else:
-                print(f"Erro na enumeração: {resultado['erro']}")
+                logger.error(f"Erro na enumeração: {resultado['erro']}")
     else:
-        print("Subfinder não está disponível. Instale o Subfinder para continuar.")
+        logger.error("Subfinder não está disponível. Instale o Subfinder para continuar.")
