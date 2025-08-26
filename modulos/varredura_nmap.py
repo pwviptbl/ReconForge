@@ -9,24 +9,23 @@ import os
 import subprocess
 import json
 import xml.etree.ElementTree as ET
-import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
 import tempfile
 
-from core.configuracao import obter_config
+from utils.logger import obter_logger
 
 class VarreduraNmap:
     """Classe para executar varreduras Nmap com NSE"""
     
     def __init__(self):
         """Inicializa o módulo de varredura Nmap"""
-        self.logger = logging.getLogger(__name__)
-        self.binario_nmap = obter_config('nmap.binario', 'nmap')
-        self.timeout_padrao = obter_config('nmap.timeout_padrao', 300)
-        self.scripts_nse_padrao = obter_config('nmap.scripts_nse_padrao', ['default'])
-        self.opcoes_padrao = obter_config('nmap.opcoes_padrao', ['-sV', '-sC'])
+        self.logger = obter_logger('VarreduraNmap')
+        self.binario_nmap = 'nmap'
+        self.timeout_padrao = 300
+        self.scripts_nse_padrao = ['default']
+        self.opcoes_padrao = ['-sV', '-sC']
         
         # Verificar se o Nmap está disponível
         self.verificar_nmap()
@@ -109,7 +108,7 @@ class VarreduraNmap:
             Dict[str, Any]: Resultados da varredura
         """
         if portas is None:
-            portas = obter_config('nmap.porta_padrao', '1-1000')
+            portas = '1-1000'
         
         comando = [
             self.binario_nmap,
@@ -131,14 +130,13 @@ class VarreduraNmap:
             Dict[str, Any]: Resultados da varredura
         """
         if portas is None:
-            portas = obter_config('nmap.porta_padrao', '1-65535')
+            portas = '1-65535'
         
         comando = [
             self.binario_nmap,
             '-p', portas,
             '-sV',  # Detecção de versão
-            '-O',   # Detecção de OS
-            '-sC',  # Scripts padrão
+            '-sC',  # Scripts padrão (removido -O que precisa root)
             '--open',
             alvo
         ]
@@ -155,7 +153,7 @@ class VarreduraNmap:
             Dict[str, Any]: Resultados da varredura de vulnerabilidades
         """
         if portas is None:
-            portas = obter_config('nmap.porta_padrao', '1-65535')
+            portas = '1-65535'
         
         comando = [
             self.binario_nmap,
@@ -485,6 +483,54 @@ class VarreduraNmap:
             script_info['elementos'].append(elemento)
         
         return script_info
+    
+    def gerar_resumo(self, resultados: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Gera resumo dos resultados de varredura Nmap
+        Args:
+            resultados (Dict): Resultado da varredura Nmap
+        Returns:
+            Dict[str, Any]: Resumo formatado
+        """
+        if not resultados.get('sucesso'):
+            return {
+                'status': 'falha',
+                'erro': resultados.get('erro', 'Erro desconhecido'),
+                'timestamp': resultados.get('timestamp')
+            }
+        
+        dados = resultados.get('dados', {})
+        resumo_dados = dados.get('resumo', {})
+        
+        resumo = {
+            'status': 'sucesso',
+            'timestamp': resultados.get('timestamp'),
+            'tipo_varredura': resultados.get('tipo_varredura'),
+            'hosts_total': resumo_dados.get('hosts_total', 0),
+            'hosts_ativos': resumo_dados.get('hosts_ativos', 0),
+            'portas_abertas': resumo_dados.get('portas_abertas', 0),
+            'servicos_detectados': resumo_dados.get('servicos_detectados', 0),
+            'vulnerabilidades': resumo_dados.get('vulnerabilidades', 0)
+        }
+        
+        # Adicionar detalhes dos hosts
+        hosts_detalhes = []
+        for host in dados.get('hosts', []):
+            host_info = {
+                'endereco': host.get('endereco'),
+                'hostname': host.get('hostname'),
+                'status': host.get('status'),
+                'os': host.get('os', {}),
+                'total_portas': len(host.get('portas', [])),
+                'portas_abertas': [p['numero'] for p in host.get('portas', []) if p.get('estado') == 'open'],
+                'servicos': [p['servico'] for p in host.get('portas', []) if p.get('servico')],
+                'vulnerabilidades_encontradas': len([s for s in host.get('scripts', []) if 'vuln' in s.get('id', '').lower()])
+            }
+            hosts_detalhes.append(host_info)
+        
+        resumo['hosts_detalhes'] = hosts_detalhes
+        
+        return resumo
     
     def gerar_relatorio_resumido(self, resultados: Dict[str, Any]) -> str:
         """
