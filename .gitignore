@@ -1,5 +1,6 @@
 venv/
 logs/
+logs/sistema.log
 cli/__pycache__/
 core/__pycache__/
 modulos/__pycache__/

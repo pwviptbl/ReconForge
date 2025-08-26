@@ -18,6 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Imports dos módulos do sistema
 from modulos.resolucao_dns import ResolucaoDNS
 from modulos.varredura_rustscan import VarreduraRustScan
+from modulos.varredura_nmap import VarreduraNmap
+from modulos.decisao_ia import DecisaoIA
 from utils.logger import obter_logger, log_manager
 
 class OrquestradorPentest:
@@ -28,6 +30,8 @@ class OrquestradorPentest:
         self.logger = obter_logger('OrquestradorPentest')
         self.resolver_dns = ResolucaoDNS()
         self.scanner_portas = VarreduraRustScan()
+        self.scanner_nmap = VarreduraNmap()
+        self.decisao_ia = DecisaoIA()
         
         self.logger.info("Orquestrador Pentest inicializado")
     
@@ -97,13 +101,36 @@ class OrquestradorPentest:
             resumo_scan = self._gerar_resumo_scan_completo(resultados_scan)
             resultado_completo['resumo_scan'] = resumo_scan
             
+            # Etapa 3: Decisão IA para próximos passos
+            self.logger.info("=== Etapa 3: Análise IA e Decisão ===")
+            decisao_ia = self.decisao_ia.decidir_proximos_passos(resultado_completo)
+            resultado_completo['decisao_ia'] = decisao_ia
+            
+            # Etapa 4: Executar Nmap avançado se recomendado
+            if decisao_ia.get('executar_nmap_avancado', False):
+                self.logger.info("=== Etapa 4: Execução Nmap Avançado ===")
+                resultados_nmap_avancado = self._executar_nmap_avancado(
+                    ips_para_scan, 
+                    decisao_ia.get('modulos_recomendados', []),
+                    decisao_ia.get('portas_prioritarias', [])
+                )
+                resultado_completo['nmap_avancado'] = resultados_nmap_avancado
+            else:
+                self.logger.info("IA decidiu não executar Nmap avançado")
+                resultado_completo['nmap_avancado'] = {
+                    'executado': False,
+                    'motivo': decisao_ia.get('justificativa_ia', 'IA não recomendou análise adicional')
+                }
+            
             # Log da sessão
             log_manager.log_sessao_pentest('pentest_inicial', {
                 'alvo': alvo,
                 'tipo_alvo': resultado_dns.get('tipo_alvo', 'desconhecido'),
                 'ips_scaneados': len(ips_para_scan),
                 'total_portas_abertas': resumo_scan.get('total_portas_abertas', 0),
-                'hosts_ativos': resumo_scan.get('hosts_ativos', 0)
+                'hosts_ativos': resumo_scan.get('hosts_ativos', 0),
+                'ia_recomendou_nmap': decisao_ia.get('executar_nmap_avancado', False),
+                'modulos_ia_recomendados': len(decisao_ia.get('modulos_recomendados', []))
             })
             
             return resultado_completo
@@ -199,6 +226,154 @@ class OrquestradorPentest:
                             break
                     
                     resumo['hosts_com_portas_abertas'].append(host_info)
+        
+        return resumo
+    
+    def _executar_nmap_avancado(self, ips: List[str], modulos_recomendados: List[str], 
+                               portas_prioritarias: List[str]) -> Dict[str, Any]:
+        """
+        Executa varreduras Nmap avançadas baseadas na recomendação da IA
+        Args:
+            ips (List[str]): Lista de IPs para varredura
+            modulos_recomendados (List[str]): Módulos recomendados pela IA
+            portas_prioritarias (List[str]): Portas prioritárias para análise
+        Returns:
+            Dict[str, Any]: Resultados das varreduras avançadas
+        """
+        resultados_nmap = {
+            'timestamp_inicio': datetime.now().isoformat(),
+            'ips_analisados': ips,
+            'modulos_executados': [],
+            'resultados_por_modulo': {},
+            'resumo_geral': {},
+            'sucesso_geral': False
+        }
+        
+        try:
+            # Mapear nomes de módulos para métodos
+            mapa_modulos = {
+                'varredura_basica': self.scanner_nmap.varredura_basica,
+                'varredura_completa': self.scanner_nmap.varredura_completa,
+                'varredura_vulnerabilidades': self.scanner_nmap.varredura_vulnerabilidades,
+                'varredura_servicos_web': self.scanner_nmap.varredura_servicos_web,
+                'varredura_smb': self.scanner_nmap.varredura_smb,
+                'varredura_descoberta_rede': self.scanner_nmap.varredura_descoberta_rede
+            }
+            
+            # Preparar portas para varredura
+            portas_str = ','.join(map(str, portas_prioritarias)) if portas_prioritarias else None
+            
+            # Executar cada módulo recomendado
+            for modulo in modulos_recomendados:
+                if modulo in mapa_modulos:
+                    self.logger.info(f"Executando módulo: {modulo}")
+                    
+                    resultados_modulo = {}
+                    
+                    # Executar para cada IP
+                    for ip in ips:
+                        try:
+                            if modulo == 'varredura_descoberta_rede':
+                                # Para descoberta de rede, usar notação CIDR
+                                rede = f"{'.'.join(ip.split('.')[:-1])}.0/24"
+                                resultado = mapa_modulos[modulo](rede)
+                            else:
+                                # Para outros módulos, usar IP específico
+                                if modulo in ['varredura_basica', 'varredura_completa', 'varredura_vulnerabilidades']:
+                                    resultado = mapa_modulos[modulo](ip, portas_str)
+                                else:
+                                    resultado = mapa_modulos[modulo](ip)
+                            
+                            resultados_modulo[ip] = resultado
+                            
+                            if resultado.get('sucesso'):
+                                self.logger.info(f"Módulo {modulo} executado com sucesso em {ip}")
+                            else:
+                                self.logger.warning(f"Falha no módulo {modulo} em {ip}: {resultado.get('erro')}")
+                                
+                        except Exception as e:
+                            self.logger.error(f"Erro ao executar {modulo} em {ip}: {str(e)}")
+                            resultados_modulo[ip] = {
+                                'sucesso': False,
+                                'erro': f'Erro na execução: {str(e)}',
+                                'timestamp': datetime.now().isoformat()
+                            }
+                    
+                    resultados_nmap['resultados_por_modulo'][modulo] = resultados_modulo
+                    resultados_nmap['modulos_executados'].append(modulo)
+                    
+                else:
+                    self.logger.warning(f"Módulo desconhecido: {modulo}")
+            
+            # Gerar resumo geral
+            resultados_nmap['resumo_geral'] = self._gerar_resumo_nmap_avancado(resultados_nmap)
+            resultados_nmap['sucesso_geral'] = len(resultados_nmap['modulos_executados']) > 0
+            resultados_nmap['timestamp_fim'] = datetime.now().isoformat()
+            
+            self.logger.info(f"Nmap avançado concluído: {len(resultados_nmap['modulos_executados'])} módulos executados")
+            
+        except Exception as e:
+            self.logger.error(f"Erro na execução do Nmap avançado: {str(e)}")
+            resultados_nmap['erro'] = f'Erro na execução: {str(e)}'
+            resultados_nmap['timestamp_fim'] = datetime.now().isoformat()
+        
+        return resultados_nmap
+    
+    def _gerar_resumo_nmap_avancado(self, resultados_nmap: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Gera resumo dos resultados do Nmap avançado
+        Args:
+            resultados_nmap (Dict): Resultados do Nmap avançado
+        Returns:
+            Dict[str, Any]: Resumo consolidado
+        """
+        resumo = {
+            'modulos_executados': len(resultados_nmap.get('modulos_executados', [])),
+            'ips_analisados': len(resultados_nmap.get('ips_analisados', [])),
+            'total_vulnerabilidades': 0,
+            'total_servicos_detectados': 0,
+            'hosts_com_vulnerabilidades': [],
+            'servicos_criticos_encontrados': [],
+            'resumo_por_modulo': {}
+        }
+        
+        # Analisar resultados por módulo
+        for modulo, resultados_modulo in resultados_nmap.get('resultados_por_modulo', {}).items():
+            resumo_modulo = {
+                'ips_processados': 0,
+                'sucessos': 0,
+                'falhas': 0,
+                'vulnerabilidades_encontradas': 0,
+                'servicos_encontrados': 0
+            }
+            
+            for ip, resultado in resultados_modulo.items():
+                resumo_modulo['ips_processados'] += 1
+                
+                if resultado.get('sucesso'):
+                    resumo_modulo['sucessos'] += 1
+                    
+                    # Contar vulnerabilidades e serviços
+                    dados = resultado.get('dados', {})
+                    resumo_dados = dados.get('resumo', {})
+                    
+                    vulns = resumo_dados.get('vulnerabilidades', 0)
+                    servicos = resumo_dados.get('servicos_detectados', 0)
+                    
+                    resumo_modulo['vulnerabilidades_encontradas'] += vulns
+                    resumo_modulo['servicos_encontrados'] += servicos
+                    
+                    resumo['total_vulnerabilidades'] += vulns
+                    resumo['total_servicos_detectados'] += servicos
+                    
+                    # Identificar hosts com vulnerabilidades
+                    if vulns > 0 and ip not in resumo['hosts_com_vulnerabilidades']:
+                        resumo['hosts_com_vulnerabilidades'].append(ip)
+                    
+                else:
+                    resumo_modulo['falhas'] += 1
+            
+            resumo['resumo_por_modulo'][modulo] = resumo_modulo
         
         return resumo
 
@@ -500,6 +675,36 @@ def main():
                     portas_str = ', '.join(map(str, host.get('portas', [])))
                     print(f"    {host['ip']}: {portas_str} ({host['portas_abertas']} portas)")
             
+            # Exibir decisão da IA
+            decisao_ia = resultados.get('decisao_ia', {})
+            print(f"\n=== Análise IA ===")
+            print(f"  Fonte da decisão: {decisao_ia.get('fonte_decisao', 'N/A')}")
+            print(f"  Executar Nmap avançado: {'Sim' if decisao_ia.get('executar_nmap_avancado') else 'Não'}")
+            print(f"  Prioridade: {decisao_ia.get('prioridade', 'N/A').title()}")
+            print(f"  Justificativa: {decisao_ia.get('justificativa_ia', 'N/A')}")
+            
+            modulos_recomendados = decisao_ia.get('modulos_recomendados', [])
+            if modulos_recomendados:
+                print(f"  Módulos recomendados: {', '.join(modulos_recomendados)}")
+            
+            # Exibir resultados do Nmap avançado se executado
+            nmap_avancado = resultados.get('nmap_avancado', {})
+            if nmap_avancado.get('executado', True):  # True por padrão se não especificado
+                resumo_nmap = nmap_avancado.get('resumo_geral', {})
+                print(f"\n=== Nmap Avançado ===")
+                print(f"  Módulos executados: {resumo_nmap.get('modulos_executados', 0)}")
+                print(f"  IPs analisados: {resumo_nmap.get('ips_analisados', 0)}")
+                print(f"  Vulnerabilidades encontradas: {resumo_nmap.get('total_vulnerabilidades', 0)}")
+                print(f"  Serviços detectados: {resumo_nmap.get('total_servicos_detectados', 0)}")
+                
+                hosts_com_vulns = resumo_nmap.get('hosts_com_vulnerabilidades', [])
+                if hosts_com_vulns:
+                    print(f"  Hosts com vulnerabilidades: {', '.join(hosts_com_vulns)}")
+            else:
+                print(f"\n=== Nmap Avançado ===")
+                print(f"  Status: Não executado")
+                print(f"  Motivo: {nmap_avancado.get('motivo', 'N/A')}")
+            
             # Salvar resultados
             if args.salvar:
                 if orquestrador.salvar_resultados(resultados, args.salvar):
@@ -511,10 +716,19 @@ def main():
                     print(f"✓ Relatório HTML gerado: {args.relatorio_html}")
             
             print(f"\n=== Próximos Passos ===")
-            if hosts_com_portas:
-                print("1. Analisar serviços nas portas abertas")
-                print("2. Executar varreduras específicas por serviço")
-                print("3. Verificar vulnerabilidades conhecidas")
+            if decisao_ia.get('executar_nmap_avancado') and nmap_avancado.get('executado', True):
+                if resumo_nmap.get('total_vulnerabilidades', 0) > 0:
+                    print("1. Investigar vulnerabilidades encontradas")
+                    print("2. Executar exploits específicos")
+                    print("3. Verificar impacto das vulnerabilidades")
+                else:
+                    print("1. Analisar configurações de serviços")
+                    print("2. Verificar hardening de segurança")
+                    print("3. Executar testes manuais específicos")
+            elif hosts_com_portas:
+                print("1. Considerar análise manual dos serviços")
+                print("2. Verificar configurações básicas de segurança")
+                print("3. Monitorar atividade dos serviços")
             else:
                 print("1. Verificar firewall ou filtros")
                 print("2. Tentar varredura completa de portas")
