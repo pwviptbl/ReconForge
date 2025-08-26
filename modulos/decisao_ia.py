@@ -7,6 +7,7 @@ Inclui análise completa com Gemini AI integrada
 """
 
 import json
+import time
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
@@ -140,19 +141,41 @@ Formate como um plano executável em português.
             
             # Configurar API
             genai.configure(api_key=self.chave_api)
-            print("chave_api = ", self.chave_api)
+            
             # Inicializar modelo
             self.modelo = genai.GenerativeModel(self.modelo_nome)
-            print("modelo_nome", self.modelo_nome)
-            # Teste de conexão
-            resposta_teste = self.modelo.generate_content("Teste de conexão.")
-            print("resposta_teste", resposta_teste)
-            if resposta_teste and resposta_teste.text:
-                self.conectado = True
-                self.logger.info(f"Conectado ao Gemini {self.modelo_nome}")
-                return True
+            
+            # Teste de conexão com prompt mais simples
+            resposta_teste = self.modelo.generate_content("Responda apenas: OK")
+            
+            # Verificar se a resposta é válida
+            if resposta_teste and resposta_teste.candidates:
+                candidate = resposta_teste.candidates[0]
+                
+                # Verificar se há conteúdo ou se pelo menos a conexão funcionou
+                if (hasattr(candidate, 'content') and candidate.content and 
+                    hasattr(candidate.content, 'parts') and candidate.content.parts):
+                    try:
+                        # Tentar acessar o texto
+                        texto = resposta_teste.text
+                        self.conectado = True
+                        self.logger.info(f"Conectado ao Gemini {self.modelo_nome} - Resposta: {texto[:50]}...")
+                        return True
+                    except:
+                        # Se não conseguir acessar o texto, mas a estrutura está ok
+                        self.conectado = True
+                        self.logger.info(f"Conectado ao Gemini {self.modelo_nome} (resposta sem texto)")
+                        return True
+                elif candidate.finish_reason == 1:  # STOP - resposta completa mas vazia
+                    # Conexão OK, mas modelo não gerou conteúdo
+                    self.conectado = True
+                    self.logger.info(f"Conectado ao Gemini {self.modelo_nome} (modelo conectado)")
+                    return True
+                else:
+                    self.logger.error(f"Resposta inválida do Gemini: {candidate.finish_reason}")
+                    return False
             else:
-                self.logger.error("Resposta inválida do Gemini no teste")
+                self.logger.error("Nenhuma resposta do Gemini")
                 return False
                 
         except Exception as e:
@@ -171,13 +194,38 @@ Formate como um plano executável em português.
             try:
                 resposta = self.modelo.generate_content(prompt)
                 
-                if resposta and resposta.text:
-                    return resposta.text.strip()
+                if resposta and resposta.candidates:
+                    candidate = resposta.candidates[0]
+                    
+                    # Tentar acessar o texto da resposta
+                    try:
+                        if resposta.text and resposta.text.strip():
+                            return resposta.text.strip()
+                    except:
+                        pass
+                    
+                    # Se não conseguiu acessar o texto, verificar se há conteúdo nas parts
+                    if (hasattr(candidate, 'content') and candidate.content and 
+                        hasattr(candidate.content, 'parts') and candidate.content.parts):
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                return part.text.strip()
+                    
+                    # Se chegou até aqui, a resposta está vazia
+                    self.logger.warning(f"Resposta vazia na tentativa {tentativa + 1} - Finish reason: {candidate.finish_reason}")
                 else:
-                    self.logger.warning(f"Resposta vazia na tentativa {tentativa + 1}")
+                    self.logger.warning(f"Nenhuma resposta na tentativa {tentativa + 1}")
                     
             except Exception as e:
-                self.logger.warning(f"Erro na tentativa {tentativa + 1}: {str(e)}")
+                erro_str = str(e)
+                self.logger.warning(f"Erro na tentativa {tentativa + 1}: {erro_str}")
+                
+                # Se for erro de quota, aguardar mais tempo
+                if "429" in erro_str or "quota" in erro_str.lower():
+                    if tentativa < self.max_tentativas - 1:
+                        delay = 10 * (tentativa + 1)  # Delay progressivo
+                        self.logger.info(f"Aguardando {delay}s devido ao limite de quota...")
+                        time.sleep(delay)
                 
                 if tentativa == self.max_tentativas - 1:
                     self.logger.error(f"Falha após {self.max_tentativas} tentativas")
@@ -1046,8 +1094,6 @@ if __name__ == "__main__":
             }]
         }
     }
-    
-    print("=== Testando Módulo de Decisão IA Unificado ===")
     
     # Teste 1: Decisão de próximos passos
     print("\n1. Testando decisão de próximos passos...")
