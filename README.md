@@ -59,30 +59,32 @@ pip install -r requirements.txt
 ### Exemplos Básicos
 
 ```bash
-# Resolver domínio para IP
+# Resolver domínio para IP (modo silencioso - padrão)
 python main.py --alvo google.com
 
 # Resolver IP para domínio (resolução reversa)
 python main.py --alvo 8.8.8.8
 
-# Com saída verbosa
+# Com saída verbosa (mostra detalhes no terminal)
 python main.py --alvo github.com --verbose
 ```
 
-### Gerando Relatórios
+### Arquivos Gerados Automaticamente
+
+**A ferramenta sempre salva automaticamente:**
+- **JSON**: `dados/resultado_YYYYMMDD_HHMMSS.json`
+- **HTML**: `relatorios/relatorio_YYYYMMDD_HHMMSS.html`
 
 ```bash
-# Salvar resultados em JSON (vai para dados/)
-python main.py --alvo example.com --salvar resultado_dns.json
+# Exemplo de execução simples
+python main.py --alvo example.com
 
-# Gerar relatório HTML (vai para relatorios/)
-python main.py --alvo microsoft.com --relatorio-html relatorio.html
+# Arquivos gerados automaticamente:
+# dados/resultado_20250826_143022.json
+# relatorios/relatorio_20250826_143022.html
 
-# Ambos os formatos
-python main.py --alvo amazon.com --salvar dados.json --relatorio-html relatorio.html
-
-# Especificar pastas completas (opcional)
-python main.py --alvo github.com --salvar dados/github_dns.json --relatorio-html relatorios/github_relatorio.html
+# Para ver detalhes no terminal, use --verbose
+python main.py --alvo example.com --verbose
 ```
 
 ### Exemplos de Saída
@@ -205,15 +207,14 @@ VarreduraIA/
 # Ajuda
 python main.py --help
 
-# Resolução DNS básica
+# Resolução DNS básica (modo silencioso)
 python main.py --alvo <dominio_ou_ip>
 
-# Com relatórios
-python main.py --alvo <alvo> --salvar resultado.json --relatorio-html relatorio.html
-
-# Modo verboso
+# Modo verboso (mostra detalhes no terminal)
 python main.py --alvo <alvo> --verbose
 ```
+
+**Nota**: Os arquivos JSON e HTML são sempre salvos automaticamente com timestamp, não é mais necessário especificar `--salvar` ou `--relatorio-html`.
 
 ## Formato de Saída JSON
 

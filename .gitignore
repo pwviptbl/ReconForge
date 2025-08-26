@@ -7,3 +7,5 @@ modulos/__pycache__/
 utils/__pycache__/
 settings.json
 .env
+dados/
+relatorios/

@@ -60,7 +60,7 @@ class GerenciadorLog:
         self.mascarar_dados = obter_config('logging.mascarar_dados_sensiveis', True)
         
         # Configurações padrão
-        self.nivel_padrao = obter_config('logging.nivel', 'INFO')
+        self.nivel_padrao = obter_config('logging.nivel', 'CRITICAL')  # Silencioso por padrão
         self.arquivo_log = obter_config('logging.arquivo', 'logs/sistema.log')
         self.max_tamanho_mb = obter_config('logging.max_tamanho_mb', 10)
         self.backup_count = obter_config('logging.backup_count', 5)
@@ -92,7 +92,7 @@ class GerenciadorLog:
             
             # Handler para console
             handler_console = logging.StreamHandler()
-            handler_console.setLevel(logging.INFO)
+            handler_console.setLevel(getattr(logging, self.nivel_padrao.upper()))
             handler_console.setFormatter(formatador)
             
             # Adicionar mascaramento se habilitado
@@ -119,12 +119,13 @@ class GerenciadorLog:
             
             self.configurado = True
             
-            # Log de inicialização
-            logger = self.obter_logger('GerenciadorLog')
-            logger.info("Sistema de logging configurado com sucesso")
-            logger.info(f"Arquivo de log: {self.arquivo_log}")
-            logger.info(f"Nível de log: {self.nivel_padrao}")
-            logger.info(f"Mascaramento de dados: {'Habilitado' if self.mascarar_dados else 'Desabilitado'}")
+            # Log de inicialização apenas se não estiver em modo silencioso
+            if self.nivel_padrao.upper() != 'CRITICAL':
+                logger = self.obter_logger('GerenciadorLog')
+                logger.info("Sistema de logging configurado com sucesso")
+                logger.info(f"Arquivo de log: {self.arquivo_log}")
+                logger.info(f"Nível de log: {self.nivel_padrao}")
+                logger.info(f"Mascaramento de dados: {'Habilitado' if self.mascarar_dados else 'Desabilitado'}")
             
         except Exception as e:
             print(f"Erro ao configurar logging: {str(e)}")
@@ -156,13 +157,14 @@ class GerenciadorLog:
             nivel_logging = getattr(logging, nivel.upper())
             logging.getLogger().setLevel(nivel_logging)
             
-            # Atualizar todos os handlers
+            # Atualizar todos os handlers (console e arquivo)
             for handler in logging.getLogger().handlers:
-                if isinstance(handler, logging.handlers.RotatingFileHandler):
-                    handler.setLevel(nivel_logging)
+                handler.setLevel(nivel_logging)
             
-            logger = self.obter_logger('GerenciadorLog')
-            logger.info(f"Nível de logging alterado para: {nivel.upper()}")
+            # Só fazer log se não for CRITICAL (para evitar spam quando silencioso)
+            if nivel.upper() != 'CRITICAL':
+                logger = self.obter_logger('GerenciadorLog')
+                logger.info(f"Nível de logging alterado para: {nivel.upper()}")
             
         except AttributeError:
             logger = self.obter_logger('GerenciadorLog')

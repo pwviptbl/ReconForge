@@ -15,23 +15,18 @@ from typing import Dict, Any, Optional, List
 # Adicionar diretório raiz ao path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Imports dos módulos do sistema
-from modulos.resolucao_dns import ResolucaoDNS
-from modulos.varredura_rustscan import VarreduraRustScan
-from modulos.varredura_nmap import VarreduraNmap
-from modulos.decisao_ia import DecisaoIA
-from utils.logger import obter_logger, log_manager
+# Imports dos módulos do sistema serão feitos após configurar logging
 
 class OrquestradorPentest:
     """Orquestrador de Pentest - DNS + Scan de Portas"""
     
-    def __init__(self):
+    def __init__(self, resolver_dns, scanner_portas, scanner_nmap, decisao_ia, logger_func):
         """Inicializa o orquestrador"""
-        self.logger = obter_logger('OrquestradorPentest')
-        self.resolver_dns = ResolucaoDNS()
-        self.scanner_portas = VarreduraRustScan()
-        self.scanner_nmap = VarreduraNmap()
-        self.decisao_ia = DecisaoIA()
+        self.logger = logger_func('OrquestradorPentest')
+        self.resolver_dns = resolver_dns
+        self.scanner_portas = scanner_portas
+        self.scanner_nmap = scanner_nmap
+        self.decisao_ia = decisao_ia
         
         self.logger.info("Orquestrador Pentest inicializado")
     
@@ -613,130 +608,159 @@ def main():
         epilog="""
             Exemplos de uso:
             %(prog)s --alvo google.com
-            %(prog)s --alvo 192.168.1.208 --salvar resultado.json
-            %(prog)s --alvo example.com --relatorio-html relatorio.html
+            %(prog)s --alvo 192.168.1.208
+            %(prog)s --alvo example.com --verbose
                     """
     )
     
     # Parâmetros principais
     parser.add_argument('--alvo', required=True, help='Domínio ou IP para resolver')
-    
-    # Saída
-    parser.add_argument('--salvar', help='Arquivo para salvar resultados JSON')
-    parser.add_argument('--relatorio-html', help='Gerar relatório HTML')
     parser.add_argument('--verbose', action='store_true', help='Saída verbosa')
     
     args = parser.parse_args()
     
-    # Configurar logging
+    # Configurar logging ANTES de importar qualquer módulo que use logging
+    import logging
+    
+    # Configurar nível básico primeiro
+    if args.verbose:
+        nivel_desejado = logging.DEBUG
+    else:
+        nivel_desejado = logging.CRITICAL
+    
+    # Configurar logger raiz
+    logging.getLogger().setLevel(nivel_desejado)
+    
+    # Agora importar os módulos
+    from modulos.resolucao_dns import ResolucaoDNS
+    from modulos.varredura_rustscan import VarreduraRustScan
+    from modulos.varredura_nmap import VarreduraNmap
+    from modulos.decisao_ia import DecisaoIA
+    from utils.logger import obter_logger, log_manager
+    
+    # Configurar o log_manager com o nível correto
     if args.verbose:
         log_manager.definir_nivel('DEBUG')
+    else:
+        log_manager.definir_nivel('CRITICAL')
     
     try:
-        orquestrador = OrquestradorPentest()
+        # Criar instâncias dos módulos
+        resolver_dns = ResolucaoDNS()
+        scanner_portas = VarreduraRustScan()
+        scanner_nmap = VarreduraNmap()
+        decisao_ia = DecisaoIA()
         
-        print(f"=== Orquestrador Inteligente - Pentest Inicial ===")
-        print(f"Alvo: {args.alvo}")
-        print()
+        orquestrador = OrquestradorPentest(resolver_dns, scanner_portas, scanner_nmap, decisao_ia, obter_logger)
+        
+        if args.verbose:
+            print(f"=== Orquestrador Inteligente - Pentest Inicial ===")
+            print(f"Alvo: {args.alvo}")
+            print()
         
         # Executar pentest inicial
         resultados = orquestrador.executar_pentest_inicial(args.alvo)
         
+        # Gerar nomes de arquivos com timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        arquivo_json = f"dados/resultado_{timestamp}.json"
+        arquivo_html = f"relatorios/relatorio_{timestamp}.html"
+        
+        # Sempre salvar resultados
+        orquestrador.salvar_resultados(resultados, arquivo_json)
+        orquestrador.gerar_relatorio_html(resultados, arquivo_html)
+        
         if resultados.get('sucesso_geral'):
-            print("✓ Pentest inicial concluído com sucesso!")
-            
-            # Exibir resumo DNS
-            resumo_dns = resultados.get('resumo_dns', {})
-            print(f"\n=== Resolução DNS ===")
-            print(f"  Tipo de alvo: {resumo_dns.get('tipo_alvo', 'N/A').title()}")
-            
-            if resumo_dns.get('tipo_alvo') == 'dominio':
-                print(f"  IP principal: {resumo_dns.get('ip_principal', 'N/A')}")
-                print(f"  Total de IPs: {resumo_dns.get('total_ips', 0)}")
-                if resumo_dns.get('ips_encontrados'):
-                    print(f"  IPs encontrados: {', '.join(resumo_dns['ips_encontrados'])}")
-            else:
-                print(f"  Hostname principal: {resumo_dns.get('hostname_principal', 'N/A')}")
-                if resumo_dns.get('dominios_encontrados'):
-                    print(f"  Domínios encontrados: {', '.join(resumo_dns['dominios_encontrados'])}")
-            
-            # Exibir resumo do scan de portas
-            resumo_scan = resultados.get('resumo_scan', {})
-            print(f"\n=== Scan de Portas ===")
-            print(f"  IPs scaneados: {resumo_scan.get('total_ips_scaneados', 0)}")
-            print(f"  Hosts ativos: {resumo_scan.get('hosts_ativos', 0)}")
-            print(f"  Total de portas abertas: {resumo_scan.get('total_portas_abertas', 0)}")
-            
-            # Mostrar hosts com portas abertas
-            hosts_com_portas = resumo_scan.get('hosts_com_portas_abertas', [])
-            if hosts_com_portas:
-                print(f"\n  Hosts com portas abertas:")
-                for host in hosts_com_portas:
-                    portas_str = ', '.join(map(str, host.get('portas', [])))
-                    print(f"    {host['ip']}: {portas_str} ({host['portas_abertas']} portas)")
-            
-            # Exibir decisão da IA
-            decisao_ia = resultados.get('decisao_ia', {})
-            print(f"\n=== Análise IA ===")
-            print(f"  Fonte da decisão: {decisao_ia.get('fonte_decisao', 'N/A')}")
-            print(f"  Executar Nmap avançado: {'Sim' if decisao_ia.get('executar_nmap_avancado') else 'Não'}")
-            print(f"  Prioridade: {decisao_ia.get('prioridade', 'N/A').title()}")
-            print(f"  Justificativa: {decisao_ia.get('justificativa_ia', 'N/A')}")
-            
-            modulos_recomendados = decisao_ia.get('modulos_recomendados', [])
-            if modulos_recomendados:
-                print(f"  Módulos recomendados: {', '.join(modulos_recomendados)}")
-            
-            # Exibir resultados do Nmap avançado se executado
-            nmap_avancado = resultados.get('nmap_avancado', {})
-            if nmap_avancado.get('executado', True):  # True por padrão se não especificado
-                resumo_nmap = nmap_avancado.get('resumo_geral', {})
-                print(f"\n=== Nmap Avançado ===")
-                print(f"  Módulos executados: {resumo_nmap.get('modulos_executados', 0)}")
-                print(f"  IPs analisados: {resumo_nmap.get('ips_analisados', 0)}")
-                print(f"  Vulnerabilidades encontradas: {resumo_nmap.get('total_vulnerabilidades', 0)}")
-                print(f"  Serviços detectados: {resumo_nmap.get('total_servicos_detectados', 0)}")
+            if args.verbose:
+                print("✓ Pentest inicial concluído com sucesso!")
                 
-                hosts_com_vulns = resumo_nmap.get('hosts_com_vulnerabilidades', [])
-                if hosts_com_vulns:
-                    print(f"  Hosts com vulnerabilidades: {', '.join(hosts_com_vulns)}")
-            else:
-                print(f"\n=== Nmap Avançado ===")
-                print(f"  Status: Não executado")
-                print(f"  Motivo: {nmap_avancado.get('motivo', 'N/A')}")
-            
-            # Salvar resultados
-            if args.salvar:
-                if orquestrador.salvar_resultados(resultados, args.salvar):
-                    print(f"\n✓ Resultados salvos em: {args.salvar}")
-            
-            # Gerar relatório HTML
-            if args.relatorio_html:
-                if orquestrador.gerar_relatorio_html(resultados, args.relatorio_html):
-                    print(f"✓ Relatório HTML gerado: {args.relatorio_html}")
-            
-            print(f"\n=== Próximos Passos ===")
-            if decisao_ia.get('executar_nmap_avancado') and nmap_avancado.get('executado', True):
-                if resumo_nmap.get('total_vulnerabilidades', 0) > 0:
-                    print("1. Investigar vulnerabilidades encontradas")
-                    print("2. Executar exploits específicos")
-                    print("3. Verificar impacto das vulnerabilidades")
+                # Exibir resumo DNS
+                resumo_dns = resultados.get('resumo_dns', {})
+                print(f"\n=== Resolução DNS ===")
+                print(f"  Tipo de alvo: {resumo_dns.get('tipo_alvo', 'N/A').title()}")
+                
+                if resumo_dns.get('tipo_alvo') == 'dominio':
+                    print(f"  IP principal: {resumo_dns.get('ip_principal', 'N/A')}")
+                    print(f"  Total de IPs: {resumo_dns.get('total_ips', 0)}")
+                    if resumo_dns.get('ips_encontrados'):
+                        print(f"  IPs encontrados: {', '.join(resumo_dns['ips_encontrados'])}")
                 else:
-                    print("1. Analisar configurações de serviços")
-                    print("2. Verificar hardening de segurança")
-                    print("3. Executar testes manuais específicos")
-            elif hosts_com_portas:
-                print("1. Considerar análise manual dos serviços")
-                print("2. Verificar configurações básicas de segurança")
-                print("3. Monitorar atividade dos serviços")
-            else:
-                print("1. Verificar firewall ou filtros")
-                print("2. Tentar varredura completa de portas")
-                print("3. Investigar outros IPs na rede")
+                    print(f"  Hostname principal: {resumo_dns.get('hostname_principal', 'N/A')}")
+                    if resumo_dns.get('dominios_encontrados'):
+                        print(f"  Domínios encontrados: {', '.join(resumo_dns['dominios_encontrados'])}")
+                
+                # Exibir resumo do scan de portas
+                resumo_scan = resultados.get('resumo_scan', {})
+                print(f"\n=== Scan de Portas ===")
+                print(f"  IPs scaneados: {resumo_scan.get('total_ips_scaneados', 0)}")
+                print(f"  Hosts ativos: {resumo_scan.get('hosts_ativos', 0)}")
+                print(f"  Total de portas abertas: {resumo_scan.get('total_portas_abertas', 0)}")
+                
+                # Mostrar hosts com portas abertas
+                hosts_com_portas = resumo_scan.get('hosts_com_portas_abertas', [])
+                if hosts_com_portas:
+                    print(f"\n  Hosts com portas abertas:")
+                    for host in hosts_com_portas:
+                        portas_str = ', '.join(map(str, host.get('portas', [])))
+                        print(f"    {host['ip']}: {portas_str} ({host['portas_abertas']} portas)")
+                
+                # Exibir decisão da IA
+                decisao_ia = resultados.get('decisao_ia', {})
+                print(f"\n=== Análise IA ===")
+                print(f"  Fonte da decisão: {decisao_ia.get('fonte_decisao', 'N/A')}")
+                print(f"  Executar Nmap avançado: {'Sim' if decisao_ia.get('executar_nmap_avancado') else 'Não'}")
+                print(f"  Prioridade: {decisao_ia.get('prioridade', 'N/A').title()}")
+                print(f"  Justificativa: {decisao_ia.get('justificativa_ia', 'N/A')}")
+                
+                modulos_recomendados = decisao_ia.get('modulos_recomendados', [])
+                if modulos_recomendados:
+                    print(f"  Módulos recomendados: {', '.join(modulos_recomendados)}")
+                
+                # Exibir resultados do Nmap avançado se executado
+                nmap_avancado = resultados.get('nmap_avancado', {})
+                if nmap_avancado.get('executado', True):  # True por padrão se não especificado
+                    resumo_nmap = nmap_avancado.get('resumo_geral', {})
+                    print(f"\n=== Nmap Avançado ===")
+                    print(f"  Módulos executados: {resumo_nmap.get('modulos_executados', 0)}")
+                    print(f"  IPs analisados: {resumo_nmap.get('ips_analisados', 0)}")
+                    print(f"  Vulnerabilidades encontradas: {resumo_nmap.get('total_vulnerabilidades', 0)}")
+                    print(f"  Serviços detectados: {resumo_nmap.get('total_servicos_detectados', 0)}")
+                    
+                    hosts_com_vulns = resumo_nmap.get('hosts_com_vulnerabilidades', [])
+                    if hosts_com_vulns:
+                        print(f"  Hosts com vulnerabilidades: {', '.join(hosts_com_vulns)}")
+                else:
+                    print(f"\n=== Nmap Avançado ===")
+                    print(f"  Status: Não executado")
+                    print(f"  Motivo: {nmap_avancado.get('motivo', 'N/A')}")
+                
+                print(f"\n=== Próximos Passos ===")
+                if decisao_ia.get('executar_nmap_avancado') and nmap_avancado.get('executado', True):
+                    if resumo_nmap.get('total_vulnerabilidades', 0) > 0:
+                        print("1. Investigar vulnerabilidades encontradas")
+                        print("2. Executar exploits específicos")
+                        print("3. Verificar impacto das vulnerabilidades")
+                    else:
+                        print("1. Analisar configurações de serviços")
+                        print("2. Verificar hardening de segurança")
+                        print("3. Executar testes manuais específicos")
+                elif hosts_com_portas:
+                    print("1. Considerar análise manual dos serviços")
+                    print("2. Verificar configurações básicas de segurança")
+                    print("3. Monitorar atividade dos serviços")
+                else:
+                    print("1. Verificar firewall ou filtros")
+                    print("2. Tentar varredura completa de portas")
+                    print("3. Investigar outros IPs na rede")
+                
+                print(f"\n✓ Arquivos salvos:")
+                print(f"  JSON: {arquivo_json}")
+                print(f"  HTML: {arquivo_html}")
             
             return 0
         else:
-            print(f"✗ Falha no pentest inicial: {resultados.get('erro', 'Erro desconhecido')}")
+            if args.verbose:
+                print(f"✗ Falha no pentest inicial: {resultados.get('erro', 'Erro desconhecido')}")
             return 1
     
     except KeyboardInterrupt:
