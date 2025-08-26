@@ -139,7 +139,7 @@ VarreduraIA/
 ├── modulos/                  # Módulos ativos
 │   ├── __init__.py
 │   ├── resolucao_dns.py      # Resolução DNS (NOVO)
-│   └── analise_gemini.py     # Análise IA (futuro)
+│   └── decisao_ia.py         # Decisão IA + Análise Gemini (UNIFICADO)
 │
 ├── utils/                    # Utilitários
 │   ├── __init__.py

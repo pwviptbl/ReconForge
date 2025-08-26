@@ -6,3 +6,4 @@ core/__pycache__/
 modulos/__pycache__/
 utils/__pycache__/
 settings.json
+.env
