@@ -50,8 +50,8 @@ class OrquestradorPentest:
         }
         
         try:
-            # Etapa 1: Resolução DNS
-            self.logger.info("=== Etapa 1: Resolução DNS ===")
+            #Resolução DNS
+            self.logger.info("=== Resolução DNS ===")
             resultado_dns = self.resolver_dns.resolver_dns(alvo)
             resultado_completo['resolucao_dns'] = resultado_dns
             
@@ -70,8 +70,8 @@ class OrquestradorPentest:
                 resultado_completo['erro'] = "Nenhum IP encontrado para scan de portas"
                 return resultado_completo
             
-            # Etapa 2: Scan de Portas
-            self.logger.info("=== Etapa 2: Scan de Portas ===")
+            #Scan de Portas
+            self.logger.info("=== Scan de Portas ===")
             resultados_scan = {}
             
             for ip in ips_para_scan:
@@ -97,13 +97,13 @@ class OrquestradorPentest:
             resultado_completo['resumo_scan'] = resumo_scan
             
             # Etapa 3: Decisão IA para próximos passos
-            self.logger.info("=== Etapa 3: Análise IA e Decisão ===")
+            self.logger.info("=== Análise IA e Decisão ===")
             decisao_ia = self.decisao_ia.decidir_proximos_passos(resultado_completo)
             resultado_completo['decisao_ia'] = decisao_ia
             
-            # Etapa 4: Executar Nmap avançado se recomendado
+            # Executar Nmap avançado se recomendado
             if decisao_ia.get('executar_nmap_avancado', False):
-                self.logger.info("=== Etapa 4: Execução Nmap Avançado ===")
+                self.logger.info("=== Execução Nmap Avançado ===")
                 resultados_nmap_avancado = self._executar_nmap_avancado(
                     ips_para_scan, 
                     decisao_ia.get('modulos_recomendados', []),
