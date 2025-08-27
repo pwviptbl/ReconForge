@@ -43,7 +43,7 @@ def main():
     from modulos.decisao_ia import DecisaoIA
 
     from core.orquestrador_pentest import OrquestradorPentest
-    from relatorios.gerador_html import gerar_relatorio_dns
+    from relatorios.gerador_html import gerar_relatorio_automatico
     from infra.persistencia import salvar_json_resultados
     from utils.logger import obter_logger, log_manager
 
@@ -77,7 +77,7 @@ def main():
 
         # Sempre salvar resultados (via camada de persistência)
         salvar_json_resultados(resultados, arquivo_json)
-        gerar_relatorio_dns(resultados, arquivo_html)
+        gerar_relatorio_automatico(resultados, arquivo_html)
 
         if resultados.get('sucesso_geral'):
             cli_logger.info("✓ Pentest inicial concluído com sucesso!")
