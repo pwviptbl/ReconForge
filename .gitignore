@@ -9,3 +9,4 @@ settings.json
 .env
 dados/
 relatorios/
+infra/

@@ -1,37 +1,52 @@
-# Orquestrador Inteligente de Varreduras - Fase 1
+# Orquestrador Inteligente de Varreduras - Pentest Inicial (DNS + Portas)
 
 ## Descrição
 
-**Fase 1: Resolução DNS** - Primeira etapa do Orquestrador Inteligente de Varreduras de Segurança.
+Pentest inicial automatizado com foco em:
+- Resolução DNS inteligente (domínio ↔ IP)
+- Scan de portas inicial (RustScan/Nmap básico)
+- Decisão assistida por IA para próximos passos
+- Nmap avançado opcional conforme recomendação
+- Relatórios em HTML (Jinja2) e JSON
+- Logging centralizado
 
-Este sistema foca na resolução DNS como ponto de partida para varreduras de segurança, oferecendo:
+Este repositório implementa a fase inicial do orquestrador: a partir de um alvo (domínio ou IP),
+resolve DNS, executa varredura de portas, consolida resumos e utiliza IA para decidir se executa
+varreduras Nmap avançadas. Mantém compatibilidade de CLI e caminhos de saída.
 
-- **Resolução DNS inteligente** (domínio ↔ IP)
-- **Coleta de registros DNS** (A, AAAA, MX, CNAME, TXT)
-- **Relatórios detalhados** em HTML e JSON
-- **Logging completo** das operações
-- **Base para próximas fases** do orquestrador
-
-## Características da Fase 1
+## Características do Pentest Inicial
 
 ### 🎯 Resolução DNS
-- **Resolução direta**: Domínio → IP(s)
-- **Resolução reversa**: IP → Domínio(s)
-- **Múltiplos registros**: A, AAAA, MX, CNAME, TXT
-- **Validação automática** de tipos de alvo
+- Resolução direta: Domínio → IP(s)
+- Resolução reversa: IP → Domínio(s)
+- Registros: A, AAAA, MX, CNAME, TXT
+- Identificação do tipo de alvo
 
-### 📊 Relatórios
-- **Console**: Resumo executivo
-- **HTML**: Relatório visual completo
-- **JSON**: Dados estruturados para próximas fases
-- **Logs**: Rastreamento detalhado
+### 🔍 Scan de Portas
+- Integração com RustScan (descoberta rápida)
+- Resumo consolidado por host
+- Total de portas e serviços expostos
+
+### 🤖 Decisão IA (Gemini)
+- Avalia os resultados do scan inicial
+- Recomenda módulos Nmap avançados (básico, completo, vuln, web, smb, discovery)
+- Define prioridade e portas de interesse
+- Fallback local por regras quando IA indisponível
+
+### 📡 Nmap Avançado (opcional)
+- Execução por módulo com agregação de métricas
+- Resumo por módulo e total de vulnerabilidades/serviços
+
+### 📊 Relatórios e Logs
+- HTML: templates Jinja2 com base e relatório DNS
+- JSON: dump completo de resultados
+- Logs: arquivo rotativo e console verboso opcional
 
 ## Instalação
 
 ### Pré-requisitos
-
-1. **Python 3.8+**
-2. **Biblioteca dnspython** (instalada automaticamente)
+- Python 3.8+
+- Dependências de sistema opcionais (para módulos externos): nmap, rustscan, etc.
 
 ### Instalação
 
@@ -51,12 +66,9 @@ venv\Scripts\activate
 
 # 4. Instalar dependências
 pip install -r requirements.txt
-
 ```
 
-## Uso - Fase 1: Resolução DNS
-
-### Exemplos Básicos
+## Uso - Pentest Inicial: DNS + Scan de Portas
 
 ```bash
 # Resolver domínio para IP (modo silencioso - padrão)
@@ -65,141 +77,137 @@ python main.py --alvo google.com
 # Resolver IP para domínio (resolução reversa)
 python main.py --alvo 8.8.8.8
 
-# Com saída verbosa (mostra detalhes no terminal)
+# Com saída verbosa (detalhes no terminal)
 python main.py --alvo github.com --verbose
 ```
 
 ### Arquivos Gerados Automaticamente
+- JSON: dados/resultado_YYYYMMDD_HHMMSS.json
+- HTML: relatorios/relatorio_YYYYMMDD_HHMMSS.html
 
-**A ferramenta sempre salva automaticamente:**
-- **JSON**: `dados/resultado_YYYYMMDD_HHMMSS.json`
-- **HTML**: `relatorios/relatorio_YYYYMMDD_HHMMSS.html`
+Os diretórios são criados automaticamente, mantendo o comportamento anterior.
 
-```bash
-# Exemplo de execução simples
-python main.py --alvo example.com
+## Exemplos de Saída
 
-# Arquivos gerados automaticamente:
-# dados/resultado_20250826_143022.json
-# relatorios/relatorio_20250826_143022.html
-
-# Para ver detalhes no terminal, use --verbose
-python main.py --alvo example.com --verbose
+Resolução de Domínio:
 ```
-
-### Exemplos de Saída
-
-**Resolução de Domínio:**
-```
-=== Orquestrador Inteligente - Fase 1: Resolução DNS ===
+=== Orquestrador Inteligente - Pentest Inicial ===
 Alvo: google.com
 
-✓ Resolução DNS concluída com sucesso!
+✓ Pentest inicial concluído com sucesso!
 
-Resumo:
+=== Resolução DNS ===
   Tipo de alvo: Dominio
   IP principal: 142.250.219.142
   Total de IPs: 1
   IPs encontrados: 142.250.219.142
   Possui IPv6: Sim
   Possui MX: Sim
-
-=== Próximos Passos ===
-1. Executar varredura de portas nos IPs descobertos
-2. Verificar subdomínios
-3. Analisar registros DNS para informações adicionais
 ```
 
-**Resolução de IP:**
+Resolução de IP:
 ```
-=== Orquestrador Inteligente - Fase 1: Resolução DNS ===
+=== Orquestrador Inteligente - Pentest Inicial ===
 Alvo: 8.8.8.8
 
-✓ Resolução DNS concluída com sucesso!
+✓ Pentest inicial concluído com sucesso!
 
-Resumo:
+=== Resolução DNS ===
   Tipo de alvo: Ip
   Hostname principal: dns.google
   Total de domínios: 1
   Domínios encontrados: dns.google
   Resolução reversa: Sim
-
-=== Próximos Passos ===
-1. Executar varredura de portas no IP
-2. Investigar domínios associados
-3. Verificar outros IPs na mesma rede
 ```
 
-## Estrutura do Projeto - Fase 1
+## Estrutura do Projeto (refatorada)
 
 ```
 VarreduraIA/
-├── main.py                    # Script principal - Fase 1
-├── requirements.txt           # Dependências
-├── README.md                 # Documentação
+├── main.py
+├── requirements.txt
+├── README.md
 │
-├── modulos/                  # Módulos ativos
+├── core/
 │   ├── __init__.py
-│   ├── resolucao_dns.py      # Resolução DNS (NOVO)
-│   └── decisao_ia.py         # Decisão IA + Análise Gemini (UNIFICADO)
+│   ├── configuracao.py
+│   └── orquestrador_pentest.py
 │
-├── utils/                    # Utilitários
+├── infra/
+│   └── persistencia.py
+│
+├── relatorios/
 │   ├── __init__.py
-│   └── logger.py             # Sistema de logging
+│   └── gerador_html.py
 │
-├── core/                     # Configuração
+├── templates/
+│   └── relatorios/
+│       ├── base.html
+│       └── dns_relatorio.html
+│
+├── utils/
 │   ├── __init__.py
-│   └── configuracao.py       # Gerenciamento de configuração
+│   ├── logger.py
+│   ├── rede.py
+│   └── resumo.py
 │
-├── config/                   # Arquivos de configuração
+├── modulos/
 │   ├── __init__.py
-│   └── default.yaml          # Configuração padrão
+│   ├── resolucao_dns.py
+│   ├── varredura_rustscan.py
+│   ├── varredura_nmap.py
+│   └── decisao_ia.py
 │
-├── relatorios/               # Relatórios HTML gerados
-├── dados/                    # Arquivos JSON de resultados
-├── logs/                     # Arquivos de log
-├── modulos_backup/           # Módulos das próximas fases
-├── cli_backup/               # Interface CLI (próximas fases)
-└── .kiro/                    # Especificações do projeto
-    └── specs/
-        └── orquestrador-inteligente/
+├── config/
+│   ├── __init__.py
+│   └── default.yaml
+│
+├── dados/
+├── relatorios/        # arquivos HTML gerados (mesmo diretório do pacote)
+└── logs/
 ```
 
-## Arquivos Gerados
+Observação: o diretório relatorios/ serve tanto como pacote Python (código do gerador)
+quanto como pasta de saída dos relatórios HTML, para manter compatibilidade de caminho.
 
-### Relatório HTML
-- **Localização**: `relatorios/`
-- **Formato**: HTML responsivo com CSS
-- **Conteúdo**: Resumo executivo, detalhes DNS, próximos passos
+## Arquitetura e Responsabilidades
 
-### Arquivo JSON
-- **Localização**: `dados/`
-- **Formato**: JSON estruturado
-- **Conteúdo**: Dados completos para próximas fases
+- CLI fina: main.py
+  - Parse de argumentos (--alvo, --verbose)
+  - Configuração da verbosidade de console
+  - Instancia módulos e delega execução ao orquestrador
+  - Chama persistência e gerador de HTML
 
-### Logs
-- **Localização**: `logs/sistema.log`
-- **Formato**: Texto estruturado com timestamps
-- **Conteúdo**: Operações detalhadas, erros, métricas
+- Orquestração: core/orquestrador_pentest.py
+  - Fluxo DNS → Scan de Portas → Decisão IA → Nmap Avançado (opcional)
+  - Usa utils/rede.py para extrair/validar IPs
+  - Usa utils/resumo.py para consolidar resumos
+  - Loga sessão via utils/logger.py
 
-## Próximas Fases
+- Relatórios HTML: relatorios/gerador_html.py
+  - Renderização via Jinja2 usando templates/relatorios/*.html
+  - Template base: templates/relatorios/base.html
+  - Template DNS: templates/relatorios/dns_relatorio.html
 
-### Fase 2: Descoberta de Portas
-- Integração com RustScan/Nmap
-- Varredura inteligente baseada nos IPs da Fase 1
+- Persistência: infra/persistencia.py
+  - salvar_json_resultados(resultados, arquivo)
+  - garantir_diretorio(path)
 
-### Fase 3: Análise de Serviços  
-- Identificação de serviços e versões
-- Decisões IA para próximos módulos
+- Configurações: core/configuracao.py + config/default.yaml
+  - Chaves API do Gemini via variável de ambiente
+  - Nível/arquivo de logging, diretórios padrão
 
-### Fase 4: Varreduras Especializadas
-- Módulos web (Nikto, Feroxbuster, WhatWeb)
-- Módulos de vulnerabilidades (Nuclei, SearchSploit)
+- Logging: utils/logger.py
+  - Console controlado pela flag --verbose
+  - Arquivo com rotação e mascaramento de dados sensíveis
 
-### Fase 5: Relatório Consolidado
-- Integração de todos os resultados
-- Análise IA completa
-- Plano de pentest final
+## Relatórios HTML (Jinja2)
+
+O gerador utiliza o contexto "resultados" com os campos:
+- resultados.alvo_original, resultados.timestamp_inicio, resultados.timestamp_fim, resultados.fase
+- resultados.sucesso_geral, resultados.erro
+- resultados.resumo_dns (tipo_alvo, ip_principal, total_ips, possui_ipv6, possui_mx, hostname_principal, total_dominios, possui_resolucao_reversa, ips_encontrados, dominios_encontrados)
+- resultados.resolucao_dns.dados.registros_dns
 
 ## Comandos Disponíveis
 
@@ -207,22 +215,20 @@ VarreduraIA/
 # Ajuda
 python main.py --help
 
-# Resolução DNS básica (modo silencioso)
+# Execução padrão
 python main.py --alvo <dominio_ou_ip>
 
-# Modo verboso (mostra detalhes no terminal)
+# Modo verboso
 python main.py --alvo <alvo> --verbose
 ```
 
-**Nota**: Os arquivos JSON e HTML são sempre salvos automaticamente com timestamp, não é mais necessário especificar `--salvar` ou `--relatorio-html`.
-
-## Formato de Saída JSON
+## Formato de Saída JSON (exemplo)
 
 ```json
 {
   "timestamp_inicio": "2025-08-26T11:53:04.311213",
   "alvo_original": "google.com",
-  "fase": "resolucao_dns",
+  "fase": "pentest_inicial",
   "resolucao_dns": {
     "tipo_alvo": "dominio",
     "sucesso": true,
@@ -237,12 +243,20 @@ python main.py --alvo <alvo> --verbose
       }
     }
   },
-  "resumo": {
+  "resumo_dns": {
     "tipo_alvo": "dominio",
     "ip_principal": "142.250.219.142",
     "total_ips": 1,
     "possui_ipv6": true,
     "possui_mx": true
+  },
+  "resumo_scan": {
+    "total_ips_scaneados": 1,
+    "hosts_ativos": 1,
+    "total_portas_abertas": 3,
+    "hosts_com_portas_abertas": [
+      { "ip": "192.168.1.10", "portas_abertas": 3, "portas": [22,80,443] }
+    ]
   },
   "sucesso_geral": true
 }
@@ -250,36 +264,16 @@ python main.py --alvo <alvo> --verbose
 
 ## Solução de Problemas
 
-### Erro de Resolução DNS
-```bash
-# Verificar conectividade
-ping google.com
+- Confirme dependências externas (nmap, rustscan) se módulos avançados falharem.
+- Verifique os logs em logs/sistema.log para detalhes de erros.
+- Ajuste --verbose para inspecionar a saída de console.
 
-# Testar com IP conhecido
-python main.py --alvo 8.8.8.8
+## Desenvolvimento e Próximas Fases
 
-# Verificar logs
-tail -f logs/sistema.log
-```
-
-### Dependências
-```bash
-# Reinstalar dependências
-pip install --upgrade -r requirements.txt
-
-# Verificar dnspython
-python -c "import dns.resolver; print('DNS OK')"
-```
-
-## Desenvolvimento
-
-Esta é a **Fase 1** do Orquestrador Inteligente. O projeto está sendo desenvolvido incrementalmente:
-
-1. ✅ **Fase 1**: Resolução DNS (atual)
-2. 🔄 **Fase 2**: Descoberta de portas
-3. 🔄 **Fase 3**: Análise de serviços
-4. 🔄 **Fase 4**: Varreduras especializadas
-5. 🔄 **Fase 5**: Relatório consolidado
+1. Pentest inicial (esta fase) ✅
+2. Enumeração de serviços e versões 🔄
+3. Varreduras especializadas (web, vuln, etc.) 🔄
+4. Relatório consolidado 🔄
 
 ## Licença
 
@@ -287,4 +281,4 @@ Este projeto está sob licença MIT.
 
 ---
 
-**Orquestrador Inteligente - Construindo o futuro das varreduras de segurança** 🚀
+Orquestrador Inteligente - Construindo o futuro das varreduras de segurança 🚀
