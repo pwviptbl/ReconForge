@@ -433,6 +433,112 @@ class VarreduraNmap:
         
         return self._executar_varredura(comando, "varredura_adaptativa")
     
+    def diagnosticar_xml_nmap(self, arquivo_xml: str) -> Dict[str, Any]:
+        """
+        Diagnostica problemas com arquivos XML do Nmap
+        Args:
+            arquivo_xml (str): Caminho para o arquivo XML
+        Returns:
+            Dict[str, Any]: Diagnóstico detalhado
+        """
+        diagnostico = {
+            'arquivo_existe': False,
+            'tamanho_bytes': 0,
+            'conteudo_vazio': True,
+            'xml_valido': False,
+            'nmap_valido': False,
+            'problemas': [],
+            'sugestoes': []
+        }
+        
+        try:
+            # Verificar se o arquivo existe
+            if os.path.exists(arquivo_xml):
+                diagnostico['arquivo_existe'] = True
+                
+                # Verificar tamanho
+                tamanho = os.path.getsize(arquivo_xml)
+                diagnostico['tamanho_bytes'] = tamanho
+                
+                if tamanho == 0:
+                    diagnostico['problemas'].append("Arquivo XML está vazio")
+                    diagnostico['sugestoes'].append("Verificar se o Nmap teve permissões para escrever")
+                    diagnostico['sugestoes'].append("Verificar se o disco não está cheio")
+                else:
+                    diagnostico['conteudo_vazio'] = False
+                    
+                    # Ler conteúdo
+                    with open(arquivo_xml, 'r', encoding='utf-8') as f:
+                        conteudo = f.read()
+                    
+                    # Verificar se é XML válido
+                    try:
+                        import xml.etree.ElementTree as ET
+                        tree = ET.parse(arquivo_xml)
+                        root = tree.getroot()
+                        diagnostico['xml_valido'] = True
+                        
+                        # Verificar se é do Nmap
+                        if root.tag == 'nmaprun':
+                            diagnostico['nmap_valido'] = True
+                        else:
+                            diagnostico['problemas'].append(f"XML não é do Nmap (tag raiz: {root.tag})")
+                            
+                    except ET.ParseError as e:
+                        diagnostico['problemas'].append(f"XML mal formado: {str(e)}")
+                        diagnostico['sugestoes'].append("Verificar se o Nmap foi interrompido durante execução")
+                        
+                        # Mostrar início do conteúdo para debug
+                        if len(conteudo) > 0:
+                            inicio = conteudo[:200]
+                            diagnostico['inicio_conteudo'] = inicio
+                            
+                            if not inicio.strip().startswith('<?xml'):
+                                diagnostico['problemas'].append("Conteúdo não começa com declaração XML")
+                                
+            else:
+                diagnostico['problemas'].append("Arquivo XML não foi criado")
+                diagnostico['sugestoes'].extend([
+                    "Verificar se o Nmap está instalado corretamente",
+                    "Verificar permissões de escrita no diretório temporário",
+                    "Verificar se o comando Nmap está correto"
+                ])
+        
+        except Exception as e:
+            diagnostico['problemas'].append(f"Erro ao diagnosticar: {str(e)}")
+        
+        return diagnostico
+    
+    def testar_nmap_xml(self, alvo: str = '127.0.0.1') -> Dict[str, Any]:
+        """
+        Testa a geração de XML do Nmap com comando simples
+        Args:
+            alvo (str): Alvo para teste
+        Returns:
+            Dict[str, Any]: Resultado do teste
+        """
+        self.logger.info(f"Testando geração de XML do Nmap para {alvo}")
+        
+        # Comando muito simples para teste
+        comando = [
+            self.binario_nmap,
+            '-p', '80',
+            '-sT',  # TCP connect (não precisa root)
+            '--open',
+            alvo
+        ]
+        
+        resultado_teste = self._executar_varredura(comando, "teste_xml")
+        
+        if not resultado_teste.get('sucesso'):
+            # Diagnosticar o problema
+            arquivo_xml = resultado_teste.get('arquivo_xml')
+            if arquivo_xml:
+                diagnostico = self.diagnosticar_xml_nmap(arquivo_xml)
+                resultado_teste['diagnostico_xml'] = diagnostico
+        
+        return resultado_teste
+    
     def diagnosticar_timeout(self, resultado_varredura: Dict[str, Any]) -> Dict[str, Any]:
         """
         Diagnostica problemas de timeout e sugere otimizações
@@ -584,17 +690,25 @@ class VarreduraNmap:
         
         # Obter timeout específico para o tipo de varredura
         timeout_varredura = self.timeouts_especificos.get(tipo_varredura, self.timeout_padrao)
+        arquivo_xml = None
         
         try:
-            # Criar arquivo temporário para saída XML
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
-                arquivo_xml = temp_file.name
+            # Criar arquivo temporário para saída XML no diretório do projeto
+            # para evitar problemas de permissão com snap do Nmap
+            projeto_dir = Path(__file__).parent.parent
+            temp_dir = projeto_dir / 'temp'
+            temp_dir.mkdir(exist_ok=True)
+            
+            # Criar arquivo temporário no diretório do projeto
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+            arquivo_xml = temp_dir / f'nmap_{tipo_varredura}_{timestamp}.xml'
             
             # Adicionar saída XML ao comando
-            comando_completo = comando + ['-oX', arquivo_xml]
+            comando_completo = comando + ['-oX', str(arquivo_xml)]
             
             self.logger.info(f"Executando {tipo_varredura}: {' '.join(comando_completo)}")
             self.logger.info(f"Timeout configurado: {timeout_varredura}s")
+            self.logger.debug(f"Arquivo XML de saída: {arquivo_xml}")
             
             # Executar comando Nmap
             processo = subprocess.run(
@@ -608,29 +722,65 @@ class VarreduraNmap:
             resultado['saida_padrao'] = processo.stdout
             resultado['saida_erro'] = processo.stderr
             resultado['timeout_usado'] = timeout_varredura
+            resultado['arquivo_xml'] = str(arquivo_xml)
             
+            # Log da saída para debug
+            if processo.stdout:
+                self.logger.debug(f"STDOUT: {processo.stdout[:200]}...")
+            if processo.stderr:
+                self.logger.debug(f"STDERR: {processo.stderr[:200]}...")
+            
+            # Verificar se o comando foi executado com sucesso
             if processo.returncode == 0:
-                # Processar saída XML
-                resultado['dados'] = self._processar_xml_nmap(arquivo_xml)
-                resultado['sucesso'] = True
-                self.logger.info(f"{tipo_varredura} concluída com sucesso")
+                # Aguardar um momento para o arquivo ser escrito completamente
+                import time
+                time.sleep(0.1)
+                
+                # Verificar se o arquivo XML foi criado
+                if arquivo_xml.exists():
+                    tamanho = arquivo_xml.stat().st_size
+                    self.logger.debug(f"Arquivo XML criado: {tamanho} bytes")
+                    
+                    if tamanho > 0:
+                        # Processar saída XML
+                        resultado['dados'] = self._processar_xml_nmap(str(arquivo_xml))
+                        resultado['sucesso'] = True
+                        self.logger.info(f"{tipo_varredura} concluída com sucesso")
+                    else:
+                        self.logger.warning(f"Arquivo XML está vazio: {arquivo_xml}")
+                        # Mesmo assim, considerar sucesso se o código de saída foi 0
+                        resultado['sucesso'] = True
+                        resultado['aviso'] = "Nmap executou com sucesso mas não gerou saída XML"
+                else:
+                    self.logger.error(f"Arquivo XML não foi criado: {arquivo_xml}")
+                    resultado['erro'] = "Nmap não gerou arquivo XML de saída"
+                    
             else:
-                resultado['erro'] = f"Nmap retornou código {processo.returncode}: {processo.stderr}"
+                resultado['erro'] = f"Nmap retornou código {processo.returncode}"
+                if processo.stderr:
+                    resultado['erro'] += f": {processo.stderr}"
                 self.logger.error(resultado['erro'])
-            
-            # Limpar arquivo temporário
-            try:
-                os.unlink(arquivo_xml)
-            except:
-                pass
             
         except subprocess.TimeoutExpired:
             resultado['erro'] = f"Timeout na execução da varredura ({timeout_varredura}s)"
             resultado['timeout_usado'] = timeout_varredura
             self.logger.error(resultado['erro'])
+            
         except Exception as e:
             resultado['erro'] = f"Erro na execução: {str(e)}"
             self.logger.error(resultado['erro'])
+        
+        finally:
+            # Limpar arquivo temporário apenas se não estamos em modo debug
+            if arquivo_xml and arquivo_xml.exists():
+                try:
+                    # Preservar arquivo se houve erro para debug
+                    if resultado.get('sucesso', False) or not self.logger.isEnabledFor(10):  # 10 = DEBUG
+                        arquivo_xml.unlink()
+                    else:
+                        self.logger.debug(f"Arquivo XML preservado para debug: {arquivo_xml}")
+                except Exception as e:
+                    self.logger.warning(f"Erro ao limpar arquivo temporário: {e}")
         
         return resultado
     
@@ -654,8 +804,42 @@ class VarreduraNmap:
         }
         
         try:
+            # Verificar se o arquivo existe e não está vazio
+            if not os.path.exists(arquivo_xml):
+                self.logger.error(f"Arquivo XML não encontrado: {arquivo_xml}")
+                return dados
+            
+            # Verificar tamanho do arquivo
+            tamanho_arquivo = os.path.getsize(arquivo_xml)
+            if tamanho_arquivo == 0:
+                self.logger.error(f"Arquivo XML está vazio: {arquivo_xml}")
+                return dados
+            
+            # Log para debug
+            self.logger.debug(f"Processando XML: {arquivo_xml} ({tamanho_arquivo} bytes)")
+            
+            # Tentar ler o conteúdo do arquivo primeiro
+            with open(arquivo_xml, 'r', encoding='utf-8') as f:
+                conteudo = f.read().strip()
+                
+            if not conteudo:
+                self.logger.error(f"Arquivo XML contém apenas espaços em branco: {arquivo_xml}")
+                return dados
+            
+            # Verificar se parece com XML válido
+            if not conteudo.startswith('<?xml') and not conteudo.startswith('<nmaprun'):
+                self.logger.error(f"Arquivo não parece ser XML válido do Nmap: {arquivo_xml}")
+                self.logger.debug(f"Primeiros 200 caracteres: {conteudo[:200]}")
+                return dados
+            
+            # Tentar fazer o parse do XML
             tree = ET.parse(arquivo_xml)
             root = tree.getroot()
+            
+            # Verificar se é uma saída válida do Nmap
+            if root.tag != 'nmaprun':
+                self.logger.error(f"XML não é uma saída válida do Nmap. Tag raiz: {root.tag}")
+                return dados
             
             # Processar hosts
             for host in root.findall('host'):
@@ -684,8 +868,24 @@ class VarreduraNmap:
             dados['resumo']['servicos_detectados'] = len(servicos)
             dados['resumo']['vulnerabilidades'] = vulnerabilidades
             
+        except ET.ParseError as e:
+            self.logger.error(f"Erro de parsing XML: {str(e)}")
+            self.logger.error(f"Arquivo: {arquivo_xml}")
+            
+            # Tentar mostrar o conteúdo problemático
+            try:
+                with open(arquivo_xml, 'r', encoding='utf-8') as f:
+                    conteudo = f.read()
+                self.logger.debug(f"Conteúdo do arquivo XML problemático ({len(conteudo)} chars):")
+                self.logger.debug(conteudo[:500] if len(conteudo) > 500 else conteudo)
+            except Exception:
+                pass
+                
         except Exception as e:
             self.logger.error(f"Erro ao processar XML: {str(e)}")
+            self.logger.error(f"Arquivo: {arquivo_xml}")
+        
+        return dados
         
         return dados
     

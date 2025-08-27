@@ -11,3 +11,5 @@ dados/
 relatorios/*.html
 relatorios/__pycache__/
 infra/__pycache__/
+temp/
+*.xml
