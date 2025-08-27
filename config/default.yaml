@@ -4,7 +4,7 @@
 # Configurações da API Gemini
 api:
   gemini:
-    modelo: "gemini-2.5-pro"
+    modelo: "gemini-2.5-flash"
     chave_api: "${GEMINI_API_KEY}"  # Variável de ambiente
     timeout: 30
     max_tentativas: 3

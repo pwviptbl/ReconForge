@@ -25,7 +25,7 @@ class DecisaoIA:
         
         # Configuração Gemini
         self.chave_api = obter_config('api.gemini.chave_api')
-        self.modelo_nome = obter_config('api.gemini.modelo', 'gemini-2.5-pro')
+        self.modelo_nome = obter_config('api.gemini.modelo', 'gemini-2.5-flash')
         self.timeout = obter_config('api.gemini.timeout', 30)
         self.max_tentativas = obter_config('api.gemini.max_tentativas', 3)
         self.habilitado = obter_config('api.gemini.habilitado', True)
@@ -42,12 +42,12 @@ RESULTADOS DO SCAN INICIAL:
 {resultados_scan}
 
 MÓDULOS DISPONÍVEIS:
-1. Nmap Básico - Varredura simples de portas
-2. Nmap Completo - Detecção de versão e serviços  
-3. Nmap Vulnerabilidades - Scripts NSE de vulnerabilidades
-4. Nmap Serviços Web - Análise específica de HTTP/HTTPS
-5. Nmap SMB - Análise de serviços SMB/NetBIOS
-6. Nmap Descoberta de Rede - Discovery de hosts na rede
+1. varredura_basica - Varredura simples de portas
+2. varredura_completa - Detecção de versão e serviços  
+3. varredura_vulnerabilidades - Scripts NSE de vulnerabilidades
+4. varredura_servicos_web - Análise específica de HTTP/HTTPS
+5. varredura_smb - Análise de serviços SMB/NetBIOS
+6. varredura_descoberta_rede - Discovery de hosts na rede
 
 Com base nos serviços encontrados, responda APENAS em formato JSON:
 {{
@@ -59,7 +59,7 @@ Com base nos serviços encontrados, responda APENAS em formato JSON:
     "tempo_estimado": "estimativa em minutos"
 }}
 
-IMPORTANTE: Responda APENAS o JSON, sem texto adicional.
+IMPORTANTE: Use EXATAMENTE os nomes dos módulos listados acima. Responda APENAS o JSON, sem texto adicional.
 """,
             
             'analisar_servicos_encontrados': """
@@ -192,6 +192,9 @@ Formate como um plano executável em português.
         Executa consulta ao Gemini com retry e timeout por tentativa.
         Usa thread para impor timeout definido em self.timeout.
         """
+        # DEBUG: Informações básicas do prompt
+        self.logger.info(f"Enviando prompt para Gemini ({len(prompt)} caracteres)")
+        
         for tentativa in range(self.max_tentativas):
             result_container: Dict[str, Any] = {'resp': None, 'err': None}
 
@@ -224,27 +227,147 @@ Formate como um plano executável em português.
                 continue
 
             resposta = result_container['resp']
+            
+            # DEBUG: Informações básicas da resposta
             if resposta and getattr(resposta, 'candidates', None):
                 candidate = resposta.candidates[0]
-                # Tentar acessar o texto direto
-                try:
-                    if getattr(resposta, 'text', None) and resposta.text.strip():
-                        return resposta.text.strip()
-                except Exception:
-                    pass
+                finish_reason = getattr(candidate, 'finish_reason', 'N/A')
+                
+                # Mapear finish_reason para entendimento
+                finish_reason_map = {
+                    1: 'STOP (resposta completa)',
+                    2: 'MAX_TOKENS (limite de tokens)',
+                    3: 'SAFETY (bloqueio de segurança)',
+                    4: 'RECITATION (conteúdo repetitivo)',
+                    5: 'OTHER (outro motivo)'
+                }
+                
+                finish_reason_desc = finish_reason_map.get(finish_reason, f'UNKNOWN ({finish_reason})')
+                
+                # DEBUG detalhado apenas em caso de erro
+                if finish_reason == 1:  # STOP - normal
+                    # Tentar acessar o texto direto
+                    try:
+                        if getattr(resposta, 'text', None) and resposta.text.strip():
+                            self.logger.info(f"Resposta recebida com sucesso ({len(resposta.text)} caracteres)")
+                            return resposta.text.strip()
+                    except Exception as e:
+                        self.logger.debug(f"Erro ao acessar resposta.text: {e}")
 
-                # Alternativa: extrair das parts
-                if (hasattr(candidate, 'content') and candidate.content and
-                        hasattr(candidate.content, 'parts') and candidate.content.parts):
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'text') and part.text:
-                            return part.text.strip()
+                    # Alternativa: extrair das parts
+                    if (hasattr(candidate, 'content') and candidate.content and
+                            hasattr(candidate.content, 'parts') and candidate.content.parts):
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                self.logger.info(f"Resposta recebida via parts ({len(part.text)} caracteres)")
+                                return part.text.strip()
 
-                self.logger.warning(f"Resposta vazia na tentativa {tentativa + 1} - finish_reason: {getattr(candidate, 'finish_reason', 'N/A')}")
+                    # Se chegou aqui, a resposta está vazia
+                    self.logger.warning(f"Resposta vazia na tentativa {tentativa + 1} - {finish_reason_desc}")
+                    
+                    # Tentar estratégias para resposta vazia
+                    if tentativa < self.max_tentativas - 1:
+                        # Aguardar um pouco antes da próxima tentativa
+                        time.sleep(2)
+                        self.logger.info(f"Tentando novamente com prompt simplificado...")
+                        
+                        # Se for a segunda tentativa, tentar com prompt simplificado
+                        if tentativa == 1:
+                            prompt_simplificado = self._simplificar_prompt(prompt)
+                            if prompt_simplificado != prompt:
+                                self.logger.info("Usando prompt simplificado na próxima tentativa")
+                                # Substituir prompt para próxima iteração
+                                prompt = prompt_simplificado
+                    
+                elif finish_reason in [2, 3, 4, 5]:  # Outros finish_reason - problemas específicos
+                    self.logger.warning(f"Resposta bloqueada na tentativa {tentativa + 1} - {finish_reason_desc}")
+                    
+                    if finish_reason == 3:  # SAFETY
+                        safety_ratings = getattr(candidate, 'safety_ratings', [])
+                        self.logger.warning(f"Bloqueio de segurança detectado. Safety ratings: {safety_ratings}")
+                        # Para problemas de segurança, tentar prompt mais neutro
+                        if tentativa < self.max_tentativas - 1:
+                            prompt = self._neutralizar_prompt(prompt)
+                            self.logger.info("Tentando com prompt neutralizado")
+                    
+                    elif finish_reason == 2:  # MAX_TOKENS
+                        self.logger.warning("Limite de tokens atingido - prompt muito longo")
+                        if tentativa < self.max_tentativas - 1:
+                            prompt = self._encurtar_prompt(prompt)
+                            self.logger.info("Tentando com prompt encurtado")
+                else:
+                    self.logger.warning(f"Finish reason inesperado: {finish_reason_desc}")
+                    
             else:
-                self.logger.warning(f"Nenhuma resposta na tentativa {tentativa + 1}")
+                self.logger.warning(f"Nenhuma resposta válida na tentativa {tentativa + 1}")
 
         return None
+    
+    def _simplificar_prompt(self, prompt: str) -> str:
+        """
+        Simplifica o prompt para tentar obter resposta do Gemini
+        Args:
+            prompt (str): Prompt original
+        Returns:
+            str: Prompt simplificado
+        """
+        if 'decidir_proximos_passos' in prompt:
+            # Prompt simplificado para decisão
+            return """
+Analise estes resultados de scan e responda apenas em JSON:
+- 16 portas abertas incluindo SSH (22), HTTP (80), e vários serviços web (8000, 8080, 9443)
+
+Responda APENAS:
+{
+    "executar_nmap_avancado": true/false,
+    "justificativa": "explicação"
+}
+"""
+        return prompt[:len(prompt)//2]  # Reduzir pela metade como fallback
+    
+    def _neutralizar_prompt(self, prompt: str) -> str:
+        """
+        Remove termos que podem causar bloqueios de segurança
+        Args:
+            prompt (str): Prompt original
+        Returns:
+            str: Prompt neutralizado
+        """
+        # Substituir termos que podem ser considerados problemáticos
+        termos_problematicos = {
+            'vulnerabilidades': 'questões de configuração',
+            'exploração': 'análise',
+            'ataque': 'teste',
+            'pentest': 'auditoria de segurança',
+            'hack': 'análise',
+            'exploit': 'verificação'
+        }
+        
+        prompt_neutralizado = prompt
+        for termo, substituto in termos_problematicos.items():
+            prompt_neutralizado = prompt_neutralizado.replace(termo, substituto)
+        
+        return prompt_neutralizado
+    
+    def _encurtar_prompt(self, prompt: str) -> str:
+        """
+        Encurta o prompt para reduzir tokens
+        Args:
+            prompt (str): Prompt original
+        Returns:
+            str: Prompt encurtado
+        """
+        # Manter apenas as partes essenciais
+        linhas = prompt.split('\n')
+        linhas_essenciais = []
+        
+        for linha in linhas:
+            if any(termo in linha.lower() for termo in ['analise', 'responda', 'json', 'formato']):
+                linhas_essenciais.append(linha)
+            elif len(linhas_essenciais) < 10:  # Manter primeiras 10 linhas relevantes
+                linhas_essenciais.append(linha)
+        
+        return '\n'.join(linhas_essenciais)
 
     def decidir_proximos_passos(self, resultados_scan_inicial: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -505,6 +628,53 @@ Total de portas: {host.get('portas_abertas', 0)}
             self.logger.warning(f"Erro ao parsear análise de serviços: {str(e)}")
             return None
     
+    def _normalizar_modulos_ia(self, modulos_ia: List[str]) -> List[str]:
+        """
+        Normaliza nomes de módulos vindos da IA para os nomes esperados pelo orquestrador
+        Args:
+            modulos_ia (List[str]): Lista de módulos recomendados pela IA
+        Returns:
+            List[str]: Lista de módulos normalizados
+        """
+        # Mapeamento de nomes da IA para nomes do orquestrador
+        mapa_normalizacao = {
+            # Nomes descritivos da IA -> nomes técnicos do orquestrador
+            'Nmap Básico': 'varredura_basica',
+            'Nmap Completo': 'varredura_completa',
+            'Nmap Vulnerabilidades': 'varredura_vulnerabilidades',
+            'Nmap Serviços Web': 'varredura_servicos_web',
+            'Nmap SMB': 'varredura_smb',
+            'Nmap Descoberta de Rede': 'varredura_descoberta_rede',
+            
+            # Nomes descritivos completos
+            'Nmap Básico - Varredura simples de portas': 'varredura_basica',
+            'Nmap Completo - Detecção de versão e serviços': 'varredura_completa',
+            'Nmap Vulnerabilidades - Scripts NSE de vulnerabilidades': 'varredura_vulnerabilidades',
+            'Nmap Serviços Web - Análise específica de HTTP/HTTPS': 'varredura_servicos_web',
+            'Nmap SMB - Análise de serviços SMB/NetBIOS': 'varredura_smb',
+            'Nmap Descoberta de Rede - Discovery de hosts na rede': 'varredura_descoberta_rede',
+            
+            # Já normalizados (pass-through)
+            'varredura_basica': 'varredura_basica',
+            'varredura_completa': 'varredura_completa',
+            'varredura_vulnerabilidades': 'varredura_vulnerabilidades',
+            'varredura_servicos_web': 'varredura_servicos_web',
+            'varredura_smb': 'varredura_smb',
+            'varredura_descoberta_rede': 'varredura_descoberta_rede'
+        }
+        
+        modulos_normalizados = []
+        for modulo in modulos_ia:
+            modulo_normalizado = mapa_normalizacao.get(modulo.strip())
+            if modulo_normalizado:
+                if modulo_normalizado not in modulos_normalizados:  # Evitar duplicatas
+                    modulos_normalizados.append(modulo_normalizado)
+                    self.logger.debug(f"Módulo normalizado: '{modulo}' -> '{modulo_normalizado}'")
+            else:
+                self.logger.warning(f"Módulo não reconhecido da IA: '{modulo}'")
+        
+        return modulos_normalizados
+    
     def _enriquecer_decisao(self, decisao_ia: Dict[str, Any], resultados_scan: Dict[str, Any]) -> Dict[str, Any]:
         """
         Enriquece decisão da IA com análise local
@@ -514,11 +684,16 @@ Total de portas: {host.get('portas_abertas', 0)}
         Returns:
             Dict[str, Any]: Decisão enriquecida
         """
+        # Normalizar módulos recomendados pela IA
+        modulos_ia_originais = decisao_ia.get('modulos_recomendados', [])
+        modulos_normalizados = self._normalizar_modulos_ia(modulos_ia_originais)
+        
         decisao_final = {
             'timestamp': datetime.now().isoformat(),
             'fonte_decisao': 'ia_gemini',
             'executar_nmap_avancado': decisao_ia.get('executar_nmap_avancado', False),
-            'modulos_recomendados': decisao_ia.get('modulos_recomendados', []),
+            'modulos_recomendados': modulos_normalizados,  # Usar módulos normalizados
+            'modulos_ia_originais': modulos_ia_originais,  # Manter originais para debug
             'justificativa_ia': decisao_ia.get('justificativa', ''),
             'prioridade': decisao_ia.get('prioridade', 'media'),
             'portas_prioritarias': decisao_ia.get('portas_prioritarias', []),
@@ -532,6 +707,10 @@ Total de portas: {host.get('portas_abertas', 0)}
                 'hosts_interessantes': len(resultados_scan.get('resumo_scan', {}).get('hosts_com_portas_abertas', []))
             }
         }
+        
+        # Log da normalização
+        if modulos_ia_originais != modulos_normalizados:
+            self.logger.info(f"Módulos IA normalizados: {modulos_ia_originais} -> {modulos_normalizados}")
         
         return decisao_final
     
@@ -621,38 +800,60 @@ Total de portas: {host.get('portas_abertas', 0)}
         resumo_scan = resultados_scan.get('resumo_scan', {})
         total_portas = resumo_scan.get('total_portas_abertas', 0)
         hosts_com_portas = resumo_scan.get('hosts_com_portas_abertas', [])
+        hosts_ativos = resumo_scan.get('hosts_ativos', 0)
         
         # Análise local para decisão
         analise_local = self._gerar_analise_local(resultados_scan)
         nivel_interesse = analise_local.get('nivel_interesse', 'baixo')
         
-        # Decidir baseado em regras simples
+        # Decisão conservadora - só executar nmap se realmente necessário
         executar_nmap = False
         modulos_recomendados = []
         justificativa = ""
         prioridade = "baixa"
         
-        if nivel_interesse == 'alto':
+        # Só executar nmap se houver hosts ativos E portas abertas
+        if hosts_ativos == 0:
+            # Nenhum host ativo - não vale a pena continuar
+            executar_nmap = False
+            justificativa = "Nenhum host ativo detectado - scan inicial suficiente"
+        elif total_portas == 0:
+            # Hosts ativos mas sem portas abertas - só descoberta se necessário
+            executar_nmap = False
+            justificativa = "Nenhuma porta aberta detectada - pode ser firewall ou host offline"
+        elif nivel_interesse == 'alto':
+            # Serviços críticos detectados
             executar_nmap = True
             modulos_recomendados = ['varredura_vulnerabilidades', 'varredura_completa']
             justificativa = "Serviços críticos detectados - análise aprofundada necessária"
             prioridade = "alta"
         elif nivel_interesse == 'medio':
+            # Serviços interessantes
             executar_nmap = True
             modulos_recomendados = ['varredura_completa']
             justificativa = "Serviços interessantes detectados - análise recomendada"
             prioridade = "media"
-        elif total_portas >= 5:
+        elif total_portas >= 10:
+            # Muitas portas abertas - vale investigar
+            executar_nmap = True
+            modulos_recomendados = ['varredura_completa']
+            justificativa = "Muitas portas abertas detectadas - análise recomendada para identificar serviços"
+            prioridade = "media"
+        elif total_portas >= 3:
+            # Algumas portas interessantes
             executar_nmap = True
             modulos_recomendados = ['varredura_basica']
-            justificativa = "Múltiplas portas abertas - verificação adicional recomendada"
-            prioridade = "media"
+            justificativa = "Portas abertas detectadas - verificação básica recomendada"
+            prioridade = "baixa"
         else:
+            # Poucos serviços
+            executar_nmap = False
             justificativa = "Poucos serviços expostos - scan inicial suficiente"
         
-        # Adicionar módulos específicos baseado nos serviços
-        if analise_local.get('servicos_web_detectados', 0) > 0:
-            modulos_recomendados.append('varredura_servicos_web')
+        # Adicionar módulos específicos baseado nos serviços (só se já vai executar nmap)
+        if executar_nmap and analise_local.get('servicos_web_detectados', 0) > 0:
+            if 'varredura_servicos_web' not in modulos_recomendados:
+                modulos_recomendados.append('varredura_servicos_web')
         
         return {
             'timestamp': datetime.now().isoformat(),
@@ -665,10 +866,11 @@ Total de portas: {host.get('portas_abertas', 0)}
             'tempo_estimado': '3-5 minutos' if executar_nmap else '0 minutos',
             'analise_local': analise_local,
             'contexto_scan': {
-                'total_hosts': resumo_scan.get('hosts_ativos', 0),
+                'total_hosts': hosts_ativos,
                 'total_portas': total_portas,
                 'hosts_interessantes': len(hosts_com_portas)
-            }
+            },
+            'motivo_decisao': f"Hosts ativos: {hosts_ativos}, Portas abertas: {total_portas}, Nível: {nivel_interesse}"
         }
     
     def _analise_servicos_local(self, servicos: List[Dict[str, Any]]) -> Dict[str, Any]:

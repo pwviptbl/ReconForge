@@ -146,8 +146,8 @@ class GerenciadorConfiguracao:
         
         # Validar modelo Gemini
         modelo = self.obter_configuracao('api.gemini.modelo')
-        if not modelo or modelo != 'gemini-2.5-pro':
-            erros['modelo_gemini'] = "Modelo deve ser 'gemini-2.5-pro'"
+        if not modelo or modelo != 'gemini-2.5-flash':
+            erros['modelo_gemini'] = "Modelo deve ser 'gemini-2.5-flash'"
         
         # Validar configurações do Nmap
         if not self.obter_configuracao('nmap.binario'):
