@@ -8,6 +8,7 @@ api:
     chave_api: "${GEMINI_API_KEY}"  # Variável de ambiente
     timeout: 30
     max_tentativas: 3
+    habilitado: true
 
 # Configurações do Nmap
 nmap:

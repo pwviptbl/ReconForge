@@ -145,7 +145,7 @@ class VarreduraRustScan:
             '--accessible',
             '-t', str(self.threads_padrao),
             '-b', str(self.batch_size_padrao),
-            '--top-ports', str(top)
+            '--top'
         ]
         
         return self._executar_varredura(comando, "varredura_top_ports")
@@ -168,28 +168,45 @@ class VarreduraRustScan:
         ]
         
         if portas:
-            comando.extend(['-p', portas])
+            if '-' in portas:
+                comando.extend(['--range', portas])
+            else:
+                comando.extend(['-p', portas])
         
         return self._executar_varredura(comando, "varredura_rapida")
     
     def varredura_completa(self, alvo: str) -> Dict[str, Any]:
         """
-        Executa varredura completa de todas as portas
+        Executa varredura completa de todas as portas (1-65535).
+        Usa RustScan se disponível, caso contrário faz fallback para Nmap.
         Args:
             alvo (str): Endereço IP ou hostname do alvo
         Returns:
             Dict[str, Any]: Resultados da varredura
         """
-        comando = [
-            self.binario_rustscan,
-            '-a', alvo,
-            '--accessible',
-            '-t', str(self.threads_padrao),
-            '-b', str(self.batch_size_padrao),
-            '-p', '1-65535'
-        ]
-        
-        return self._executar_varredura(comando, "varredura_completa")
+        if self.rustscan_disponivel:
+            comando = [
+                self.binario_rustscan,
+                '-a', alvo,
+                '--accessible',
+                '-t', str(self.threads_padrao),
+                '-b', str(self.batch_size_padrao),
+                '--range', '1-65535'
+            ]
+            resultado = self._executar_varredura(comando, "varredura_completa")
+            if not resultado.get('sucesso') and self.nmap_disponivel:
+                self.logger.info("Fallback: executando varredura completa via Nmap (RustScan falhou)")
+                return self.varredura_nmap_completa(alvo)
+            return resultado
+        elif self.nmap_disponivel:
+            return self.varredura_nmap_completa(alvo)
+        else:
+            return {
+                'sucesso': False,
+                'erro': 'Nenhuma ferramenta de scan disponível (rustscan ou nmap)',
+                'timestamp': datetime.now().isoformat(),
+                'dados': {}
+            }
     
     def varredura_nmap_top_ports(self, alvo: str, top: int = 1000) -> Dict[str, Any]:
         """
@@ -235,6 +252,24 @@ class VarreduraRustScan:
         comando.append(alvo)
         
         return self._executar_varredura_nmap(comando, "varredura_nmap_rapida")
+    
+    def varredura_nmap_completa(self, alvo: str) -> Dict[str, Any]:
+        """
+        Executa varredura completa de todas as portas usando Nmap.
+        Args:
+            alvo (str): Endereço IP ou hostname do alvo
+        Returns:
+            Dict[str, Any]: Resultados da varredura
+        """
+        comando = [
+            self.binario_nmap,
+            '-sT',              # TCP connect scan (sem root)
+            '-p', '1-65535',    # Todas as portas
+            '-T4',              # Timing agressivo
+            '--open',           # Apenas portas abertas
+            alvo
+        ]
+        return self._executar_varredura_nmap(comando, "varredura_nmap_completa")
     
     def _executar_varredura(self, comando: List[str], tipo_varredura: str) -> Dict[str, Any]:
         """

@@ -8,6 +8,7 @@ Inclui análise completa com Gemini AI integrada
 
 import json
 import time
+import threading
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
@@ -27,6 +28,7 @@ class DecisaoIA:
         self.modelo_nome = obter_config('api.gemini.modelo', 'gemini-2.5-pro')
         self.timeout = obter_config('api.gemini.timeout', 30)
         self.max_tentativas = obter_config('api.gemini.max_tentativas', 3)
+        self.habilitado = obter_config('api.gemini.habilitado', True)
         
         self.modelo = None
         self.conectado = False
@@ -135,6 +137,9 @@ Formate como um plano executável em português.
             bool: True se conectado com sucesso
         """
         try:
+            if not self.habilitado:
+                self.logger.info("Gemini desabilitado por configuração (api.gemini.habilitado=false)")
+                return False
             if not self.chave_api or self.chave_api.startswith('${'):
                 self.logger.error("Chave da API Gemini não configurada")
                 return False
@@ -184,53 +189,61 @@ Formate como um plano executável em português.
     
     def _executar_consulta_gemini(self, prompt: str) -> Optional[str]:
         """
-        Executa consulta ao Gemini com retry
-        Args:
-            prompt (str): Prompt para o modelo
-        Returns:
-            Optional[str]: Resposta do modelo ou None
+        Executa consulta ao Gemini com retry e timeout por tentativa.
+        Usa thread para impor timeout definido em self.timeout.
         """
         for tentativa in range(self.max_tentativas):
-            try:
-                resposta = self.modelo.generate_content(prompt)
-                
-                if resposta and resposta.candidates:
-                    candidate = resposta.candidates[0]
-                    
-                    # Tentar acessar o texto da resposta
-                    try:
-                        if resposta.text and resposta.text.strip():
-                            return resposta.text.strip()
-                    except:
-                        pass
-                    
-                    # Se não conseguiu acessar o texto, verificar se há conteúdo nas parts
-                    if (hasattr(candidate, 'content') and candidate.content and 
-                        hasattr(candidate.content, 'parts') and candidate.content.parts):
-                        for part in candidate.content.parts:
-                            if hasattr(part, 'text') and part.text:
-                                return part.text.strip()
-                    
-                    # Se chegou até aqui, a resposta está vazia
-                    self.logger.warning(f"Resposta vazia na tentativa {tentativa + 1} - Finish reason: {candidate.finish_reason}")
-                else:
-                    self.logger.warning(f"Nenhuma resposta na tentativa {tentativa + 1}")
-                    
-            except Exception as e:
-                erro_str = str(e)
+            result_container: Dict[str, Any] = {'resp': None, 'err': None}
+
+            def worker():
+                try:
+                    result_container['resp'] = self.modelo.generate_content(prompt)
+                except Exception as e:
+                    result_container['err'] = e
+
+            t = threading.Thread(target=worker, daemon=True)
+            t.start()
+            t.join(timeout=self.timeout)
+
+            if t.is_alive():
+                self.logger.warning(f"Timeout na consulta ao Gemini na tentativa {tentativa + 1} ({self.timeout}s)")
+                # prossegue para próxima tentativa sem aguardar a thread
+                continue
+
+            if result_container['err'] is not None:
+                erro_str = str(result_container['err'])
                 self.logger.warning(f"Erro na tentativa {tentativa + 1}: {erro_str}")
-                
-                # Se for erro de quota, aguardar mais tempo
                 if "429" in erro_str or "quota" in erro_str.lower():
                     if tentativa < self.max_tentativas - 1:
-                        delay = 10 * (tentativa + 1)  # Delay progressivo
+                        delay = 10 * (tentativa + 1)
                         self.logger.info(f"Aguardando {delay}s devido ao limite de quota...")
                         time.sleep(delay)
-                
                 if tentativa == self.max_tentativas - 1:
                     self.logger.error(f"Falha após {self.max_tentativas} tentativas")
                     return None
-        
+                continue
+
+            resposta = result_container['resp']
+            if resposta and getattr(resposta, 'candidates', None):
+                candidate = resposta.candidates[0]
+                # Tentar acessar o texto direto
+                try:
+                    if getattr(resposta, 'text', None) and resposta.text.strip():
+                        return resposta.text.strip()
+                except Exception:
+                    pass
+
+                # Alternativa: extrair das parts
+                if (hasattr(candidate, 'content') and candidate.content and
+                        hasattr(candidate.content, 'parts') and candidate.content.parts):
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            return part.text.strip()
+
+                self.logger.warning(f"Resposta vazia na tentativa {tentativa + 1} - finish_reason: {getattr(candidate, 'finish_reason', 'N/A')}")
+            else:
+                self.logger.warning(f"Nenhuma resposta na tentativa {tentativa + 1}")
+
         return None
 
     def decidir_proximos_passos(self, resultados_scan_inicial: Dict[str, Any]) -> Dict[str, Any]:
