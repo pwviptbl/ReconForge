@@ -8,5 +8,6 @@ utils/__pycache__/
 settings.json
 .env
 dados/
-relatorios/
-infra/
+relatorios/*.html
+relatorios/__pycache__/
+infra/__pycache__/

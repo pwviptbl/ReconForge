@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% set resumo = (resultados.resumo_dns if resultados.resumo_dns is defined else resultados.resumo|default({})) %}
+{% set dns_data = resultados.resolucao_dns.dados if resultados.resolucao_dns is defined and resultados.resolucao_dns.dados is defined else {} %}
+
+{% block title %}Relatório de Resolução DNS - {{ resultados.alvo_original|default('N/A') }}{% endblock %}
+
+{% block header %}
+<h1>Relatório de Resolução DNS</h1>
+<p>Alvo: <strong>{{ resultados.alvo_original|default('N/A') }}</strong></p>
+<p>Data: <strong>{{ resultados.timestamp_inicio|default('N/A') }}</strong></p>
+{% endblock %}
+
+{% block content %}
+<div class="summary">
+  <h2>Resumo Executivo</h2>
+  <table>
+    <tr>
+      <th>Status</th>
+      <td class="{{ 'status-success' if resultados.sucesso_geral else 'status-error' }}">
+        {{ 'Sucesso' if resultados.sucesso_geral else 'Falha' }}
+      </td>
+    </tr>
+    <tr>
+      <th>Tipo de Alvo</th>
+      <td>{{ (resumo.tipo_alvo|default('N/A'))|title }}</td>
+    </tr>
+
+    {% if resumo.tipo_alvo == 'dominio' %}
+      <tr><th>IP Principal</th><td>{{ resumo.ip_principal|default('N/A') }}</td></tr>
+      <tr><th>Total de IPs</th><td>{{ resumo.total_ips|default(0) }}</td></tr>
+      <tr><th>Possui IPv6</th><td>{{ 'Sim' if resumo.possui_ipv6 else 'Não' }}</td></tr>
+      <tr><th>Possui MX</th><td>{{ 'Sim' if resumo.possui_mx else 'Não' }}</td></tr>
+    {% else %}
+      <tr><th>Hostname Principal</th><td>{{ resumo.hostname_principal|default('N/A') }}</td></tr>
+      <tr><th>Total de Domínios</th><td>{{ resumo.total_dominios|default(0) }}</td></tr>
+      <tr><th>Resolução Reversa</th><td>{{ 'Sim' if resumo.possui_resolucao_reversa else 'Não' }}</td></tr>
+    {% endif %}
+  </table>
+</div>
+
+{% if resultados.sucesso_geral %}
+  {% if resumo.tipo_alvo == 'dominio' %}
+    <div class="section">
+      <h3>Endereços IP Encontrados</h3>
+      <ul>
+        {% for ip in resumo.ips_encontrados|default([]) %}
+          <li>{{ ip }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {% set registros_dns = dns_data.registros_dns if dns_data.registros_dns is defined else {} %}
+    {% if registros_dns %}
+      <div class="section">
+        <h3>Registros DNS</h3>
+
+        {% for tipo, valores in registros_dns.items() %}
+          {% if valores %}
+            <div class="info-box">
+              <strong>Registros {{ tipo }}:</strong>
+              <ul>
+                {% for valor in valores %}
+                  <li>{{ valor }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="section">
+      <h3>Domínios Encontrados</h3>
+      <ul>
+        {% for dominio in resumo.dominios_encontrados|default([]) %}
+          <li>{{ dominio }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="section">
+    <h3>Erro na Resolução</h3>
+    <div class="info-box" style="border-left-color: #e74c3c;">
+      <strong>Erro:</strong> {{ resultados.erro|default('Erro desconhecido') }}
+    </div>
+  </div>
+{% endif %}
+
+<div class="section">
+  <h3>Próximos Passos Recomendados</h3>
+  <ul>
+    {% if resultados.sucesso_geral %}
+      {% if resumo.tipo_alvo == 'dominio' %}
+        <li>Executar varredura de portas nos IPs descobertos</li>
+        <li>Verificar subdomínios se aplicável</li>
+        <li>Analisar registros DNS para informações adicionais</li>
+      {% else %}
+        <li>Executar varredura de portas no IP</li>
+        <li>Investigar domínios associados se encontrados</li>
+        <li>Verificar outros IPs na mesma rede</li>
+      {% endif %}
+    {% else %}
+      <li>Verificar conectividade de rede</li>
+      <li>Confirmar se o alvo está correto</li>
+      <li>Tentar resolução manual</li>
+    {% endif %}
+  </ul>
+</div>
+
+<div class="section">
+  <h3>Informações Técnicas</h3>
+  <div class="info-box meta">
+    <p><strong>Timestamp Início:</strong> {{ resultados.timestamp_inicio|default('N/A') }}</p>
+    <p><strong>Timestamp Fim:</strong> {{ resultados.timestamp_fim|default('N/A') }}</p>
+    <p><strong>Fase:</strong> {{ resultados.fase|default('N/A') }}</p>
+  </div>
+</div>
+{% endblock %}
