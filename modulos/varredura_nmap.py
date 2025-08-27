@@ -9,6 +9,7 @@ import os
 import subprocess
 import json
 import xml.etree.ElementTree as ET
+import yaml
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
@@ -27,8 +28,86 @@ class VarreduraNmap:
         self.scripts_nse_padrao = ['default']
         self.opcoes_padrao = ['-sV', '-sC']
         
+        # Carregar configurações de timeout do arquivo YAML
+        self._carregar_configuracoes_timeout()
+        
         # Verificar se o Nmap está disponível
         self.verificar_nmap()
+    
+    def _carregar_configuracoes_timeout(self) -> None:
+        """Carrega configurações de timeout do arquivo YAML"""
+        config_path = Path(__file__).parent.parent / 'config' / 'nmap_timeouts.yaml'
+        
+        # Timeouts padrão (fallback)
+        timeouts_padrao = {
+            'varredura_basica': 300,
+            'varredura_completa': 600,
+            'varredura_vulnerabilidades': 900,
+            'varredura_servicos_web': 600,
+            'varredura_smb': 300,
+            'descoberta_rede': 180,
+            'varredura_personalizada': 600,
+            'varredura_adaptativa': 450
+        }
+        
+        # Configurações de performance padrão
+        self.config_performance = {
+            'max_hostgroup': 1,
+            'max_parallelism_default': 10,
+            'max_parallelism_vuln': 5,
+            'max_parallelism_web': 5,
+            'max_retries': 2,
+            'timing_template': 3
+        }
+        
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                
+                # Carregar timeouts
+                if 'timeouts' in config:
+                    self.timeouts_especificos = {**timeouts_padrao, **config['timeouts']}
+                else:
+                    self.timeouts_especificos = timeouts_padrao
+                
+                # Carregar configurações de performance
+                if 'performance' in config:
+                    self.config_performance.update(config['performance'])
+                
+                # Carregar scripts otimizados
+                self.scripts_otimizados = config.get('scripts_otimizados', {})
+                
+                self.logger.info(f"Configurações carregadas de {config_path}")
+            else:
+                self.timeouts_especificos = timeouts_padrao
+                self.scripts_otimizados = {}
+                self.logger.warning(f"Arquivo de configuração não encontrado: {config_path}. Usando valores padrão.")
+                
+        except Exception as e:
+            self.timeouts_especificos = timeouts_padrao
+            self.scripts_otimizados = {}
+            self.logger.error(f"Erro ao carregar configurações: {str(e)}. Usando valores padrão.")
+    
+    def configurar_timeout(self, tipo_varredura: str, timeout: int) -> None:
+        """
+        Configura timeout personalizado para um tipo de varredura
+        Args:
+            tipo_varredura (str): Tipo da varredura
+            timeout (int): Timeout em segundos
+        """
+        self.timeouts_especificos[tipo_varredura] = timeout
+        self.logger.info(f"Timeout para {tipo_varredura} configurado para {timeout}s")
+    
+    def obter_timeout(self, tipo_varredura: str) -> int:
+        """
+        Obtém o timeout configurado para um tipo de varredura
+        Args:
+            tipo_varredura (str): Tipo da varredura
+        Returns:
+            int: Timeout em segundos
+        """
+        return self.timeouts_especificos.get(tipo_varredura, self.timeout_padrao)
     
     def verificar_nmap(self) -> bool:
         """
@@ -130,16 +209,27 @@ class VarreduraNmap:
             Dict[str, Any]: Resultados da varredura
         """
         if portas is None:
-            portas = '1-65535'
+            # Usar top ports para acelerar a varredura
+            portas = '--top-ports 1000'
+        else:
+            portas = f'-p {portas}'
         
         comando = [
             self.binario_nmap,
-            '-p', portas,
+            portas,
             '-sV',  # Detecção de versão
             '-sC',  # Scripts padrão (removido -O que precisa root)
             '--open',
+            '--max-hostgroup', '1',  # Um host por vez
+            '--max-parallelism', '20',  # Paralelismo moderado
             alvo
         ]
+        
+        # Ajustar comando para portas específicas
+        if portas.startswith('-p'):
+            comando[1] = portas
+        else:
+            comando[1] = portas
         
         return self._executar_varredura(comando, "varredura_completa")
     
@@ -153,14 +243,23 @@ class VarreduraNmap:
             Dict[str, Any]: Resultados da varredura de vulnerabilidades
         """
         if portas is None:
-            portas = '1-65535'
+            # Usar apenas portas mais comuns para acelerar a varredura
+            portas = '22,53,80,443,135,139,445,993,995,1723,3306,3389,5432,5900'
+        
+        # Usar scripts otimizados se disponíveis
+        scripts = self.scripts_otimizados.get('vulnerabilidades', ['vuln'])
+        scripts_str = ','.join(scripts)
         
         comando = [
             self.binario_nmap,
             '-p', portas,
             '-sV',
-            '--script', 'vuln',
+            '--script', scripts_str,
             '--script-args', 'unsafe=1',
+            '--max-hostgroup', str(self.config_performance['max_hostgroup']),
+            '--max-parallelism', str(self.config_performance['max_parallelism_vuln']),
+            '--max-retries', str(self.config_performance['max_retries']),
+            '-T', str(self.config_performance['timing_template']),
             alvo
         ]
         
@@ -210,11 +309,20 @@ class VarreduraNmap:
         Returns:
             Dict[str, Any]: Resultados da varredura de serviços web
         """
+        # Usar scripts otimizados se disponíveis
+        scripts = self.scripts_otimizados.get('servicos_web', 
+                                             ['http-enum', 'http-headers', 'http-methods', 'http-title'])
+        scripts_str = ','.join(scripts)
+        
         comando = [
             self.binario_nmap,
             '-p', '80,443,8080,8443,8000,8888,3000,5000',
             '-sV',
-            '--script', 'http-*',
+            '--script', scripts_str,
+            '--max-hostgroup', str(self.config_performance['max_hostgroup']),
+            '--max-parallelism', str(self.config_performance['max_parallelism_web']),
+            '--max-retries', str(self.config_performance['max_retries']),
+            '-T', str(self.config_performance['timing_template']),
             alvo
         ]
         
@@ -228,15 +336,233 @@ class VarreduraNmap:
         Returns:
             Dict[str, Any]: Resultados da varredura SMB
         """
+        # Usar scripts otimizados se disponíveis
+        scripts = self.scripts_otimizados.get('smb', ['smb-*'])
+        scripts_str = ','.join(scripts)
+        
         comando = [
             self.binario_nmap,
             '-p', '139,445',
             '-sV',
-            '--script', 'smb-*',
+            '--script', scripts_str,
+            '--max-hostgroup', str(self.config_performance['max_hostgroup']),
+            '--max-parallelism', str(self.config_performance['max_parallelism_default']),
+            '--max-retries', str(self.config_performance['max_retries']),
+            '-T', str(self.config_performance['timing_template']),
             alvo
         ]
         
         return self._executar_varredura(comando, "varredura_smb")
+    
+    def varredura_rapida_vulnerabilidades(self, alvo: str, portas_conhecidas: Optional[List[int]] = None) -> Dict[str, Any]:
+        """
+        Executa varredura rápida de vulnerabilidades apenas em portas conhecidas abertas
+        Args:
+            alvo (str): Endereço IP ou hostname do alvo
+            portas_conhecidas (List[int]): Lista de portas conhecidas abertas
+        Returns:
+            Dict[str, Any]: Resultados da varredura de vulnerabilidades
+        """
+        if portas_conhecidas:
+            portas = ','.join(map(str, portas_conhecidas))
+        else:
+            # Usar apenas as portas mais críticas
+            portas = '22,80,443,445,3389'
+        
+        comando = [
+            self.binario_nmap,
+            '-p', portas,
+            '-sV',
+            '--script', 'vuln',
+            '--script-args', 'unsafe=1',
+            '--max-hostgroup', '1',
+            '--max-parallelism', '5',  # Paralelismo baixo para estabilidade
+            '--max-retries', '1',       # Menos tentativas
+            alvo
+        ]
+        
+        return self._executar_varredura(comando, "varredura_vulnerabilidades")
+    
+    def varredura_adaptativa(self, alvo: str, portas_abertas: List[int], timeout_personalizado: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Executa varredura adaptativa baseada nas portas já conhecidas
+        Args:
+            alvo (str): Endereço IP ou hostname do alvo
+            portas_abertas (List[int]): Lista de portas abertas conhecidas
+            timeout_personalizado (int): Timeout personalizado em segundos
+        Returns:
+            Dict[str, Any]: Resultados da varredura adaptativa
+        """
+        if not portas_abertas:
+            self.logger.warning("Nenhuma porta aberta fornecida para varredura adaptativa")
+            return {
+                'sucesso': False,
+                'erro': 'Nenhuma porta aberta fornecida',
+                'tipo_varredura': 'varredura_adaptativa',
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        # Configurar timeout se fornecido
+        if timeout_personalizado:
+            self.configurar_timeout('varredura_adaptativa', timeout_personalizado)
+        
+        portas_str = ','.join(map(str, portas_abertas))
+        
+        # Determinar scripts baseados nas portas
+        scripts = []
+        if any(p in portas_abertas for p in [80, 443, 8080, 8443]):
+            scripts.append('http-enum')
+        if any(p in portas_abertas for p in [139, 445]):
+            scripts.append('smb-enum-shares')
+        if 22 in portas_abertas:
+            scripts.append('ssh-auth-methods')
+        
+        # Se não há scripts específicos, usar detecção básica
+        if not scripts:
+            scripts = ['version']
+        
+        comando = [
+            self.binario_nmap,
+            '-p', portas_str,
+            '-sV',
+            '--script', ','.join(scripts),
+            '--max-hostgroup', '1',
+            '--max-parallelism', '10',
+            alvo
+        ]
+        
+        return self._executar_varredura(comando, "varredura_adaptativa")
+    
+    def diagnosticar_timeout(self, resultado_varredura: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Diagnostica problemas de timeout e sugere otimizações
+        Args:
+            resultado_varredura (Dict): Resultado de uma varredura que teve timeout
+        Returns:
+            Dict[str, Any]: Diagnóstico e sugestões
+        """
+        diagnostico = {
+            'teve_timeout': False,
+            'tipo_varredura': resultado_varredura.get('tipo_varredura', 'desconhecido'),
+            'timeout_usado': resultado_varredura.get('timeout_usado', 0),
+            'sugestoes': [],
+            'novos_timeouts_sugeridos': {},
+            'otimizacoes_comando': []
+        }
+        
+        # Verificar se teve timeout
+        erro = resultado_varredura.get('erro', '')
+        if 'Timeout' in erro or 'timeout' in erro.lower():
+            diagnostico['teve_timeout'] = True
+            
+            tipo_varredura = diagnostico['tipo_varredura']
+            timeout_atual = diagnostico['timeout_usado']
+            
+            # Sugerir aumento de timeout
+            novo_timeout = min(timeout_atual * 1.5, 1800)  # Máximo de 30 minutos
+            diagnostico['novos_timeouts_sugeridos'][tipo_varredura] = int(novo_timeout)
+            
+            # Sugestões específicas por tipo de varredura
+            if tipo_varredura == 'varredura_vulnerabilidades':
+                diagnostico['sugestoes'].extend([
+                    'Considere usar varredura_rapida_vulnerabilidades() para portas específicas',
+                    'Reduza o número de portas alvo usando --top-ports',
+                    'Execute a varredura em horários de menor carga de rede',
+                    'Use --max-parallelism menor (ex: 3-5) para reduzir carga'
+                ])
+                diagnostico['otimizacoes_comando'].extend([
+                    '--max-parallelism 3',
+                    '--max-retries 1',
+                    '--host-timeout 600s'
+                ])
+            
+            elif tipo_varredura == 'varredura_servicos_web':
+                diagnostico['sugestoes'].extend([
+                    'Use scripts HTTP específicos em vez de http-*',
+                    'Teste conectividade HTTP manual antes da varredura',
+                    'Considere varredura em portas web uma por vez',
+                    'Verifique se o servidor web está respondendo'
+                ])
+                diagnostico['otimizacoes_comando'].extend([
+                    '--script http-enum,http-title',
+                    '--max-parallelism 3',
+                    '--script-timeout 30s'
+                ])
+            
+            elif tipo_varredura == 'varredura_completa':
+                diagnostico['sugestoes'].extend([
+                    'Use --top-ports 1000 em vez de todas as portas',
+                    'Execute varredura básica primeiro para identificar portas abertas',
+                    'Use timing template T2 para redes lentas',
+                    'Considere dividir a varredura em etapas'
+                ])
+                diagnostico['otimizacoes_comando'].extend([
+                    '--top-ports 1000',
+                    '-T2',
+                    '--max-parallelism 10'
+                ])
+            
+            # Sugestões gerais
+            diagnostico['sugestoes'].extend([
+                f'Aumente o timeout para {novo_timeout}s',
+                'Verifique a conectividade de rede com ping',
+                'Execute a varredura em horários de menor tráfego',
+                'Considere usar varredura_adaptativa() com portas conhecidas'
+            ])
+        
+        return diagnostico
+    
+    def aplicar_otimizacoes_timeout(self, diagnostico: Dict[str, Any]) -> None:
+        """
+        Aplica otimizações de timeout baseadas no diagnóstico
+        Args:
+            diagnostico (Dict): Resultado do diagnóstico de timeout
+        """
+        if diagnostico.get('teve_timeout') and diagnostico.get('novos_timeouts_sugeridos'):
+            for tipo_varredura, novo_timeout in diagnostico['novos_timeouts_sugeridos'].items():
+                self.configurar_timeout(tipo_varredura, novo_timeout)
+                self.logger.info(f"Timeout otimizado para {tipo_varredura}: {novo_timeout}s")
+    
+    def executar_varredura_com_retry(self, metodo_varredura, alvo: str, 
+                                   max_tentativas: int = 2, **kwargs) -> Dict[str, Any]:
+        """
+        Executa varredura com retry automático em caso de timeout
+        Args:
+            metodo_varredura: Método de varredura a ser executado
+            alvo (str): Alvo da varredura
+            max_tentativas (int): Número máximo de tentativas
+            **kwargs: Argumentos adicionais para o método de varredura
+        Returns:
+            Dict[str, Any]: Resultado da varredura
+        """
+        ultima_tentativa = None
+        
+        for tentativa in range(max_tentativas):
+            self.logger.info(f"Tentativa {tentativa + 1}/{max_tentativas} para {metodo_varredura.__name__}")
+            
+            resultado = metodo_varredura(alvo, **kwargs)
+            
+            if resultado.get('sucesso'):
+                if tentativa > 0:
+                    self.logger.info(f"Varredura bem-sucedida na tentativa {tentativa + 1}")
+                return resultado
+            
+            ultima_tentativa = resultado
+            
+            # Se houve timeout, aplicar otimizações para próxima tentativa
+            if 'timeout' in resultado.get('erro', '').lower():
+                diagnostico = self.diagnosticar_timeout(resultado)
+                self.aplicar_otimizacoes_timeout(diagnostico)
+                
+                self.logger.warning(f"Timeout na tentativa {tentativa + 1}, aplicando otimizações...")
+        
+        # Se chegou aqui, todas as tentativas falharam
+        self.logger.error(f"Todas as {max_tentativas} tentativas falharam")
+        return ultima_tentativa or {
+            'sucesso': False,
+            'erro': f'Falha após {max_tentativas} tentativas',
+            'timestamp': datetime.now().isoformat()
+        }
     
     def _executar_varredura(self, comando: List[str], tipo_varredura: str) -> Dict[str, Any]:
         """
@@ -256,6 +582,9 @@ class VarreduraNmap:
             'erro': None
         }
         
+        # Obter timeout específico para o tipo de varredura
+        timeout_varredura = self.timeouts_especificos.get(tipo_varredura, self.timeout_padrao)
+        
         try:
             # Criar arquivo temporário para saída XML
             with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
@@ -265,18 +594,20 @@ class VarreduraNmap:
             comando_completo = comando + ['-oX', arquivo_xml]
             
             self.logger.info(f"Executando {tipo_varredura}: {' '.join(comando_completo)}")
+            self.logger.info(f"Timeout configurado: {timeout_varredura}s")
             
             # Executar comando Nmap
             processo = subprocess.run(
                 comando_completo,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout_padrao
+                timeout=timeout_varredura
             )
             
             resultado['codigo_saida'] = processo.returncode
             resultado['saida_padrao'] = processo.stdout
             resultado['saida_erro'] = processo.stderr
+            resultado['timeout_usado'] = timeout_varredura
             
             if processo.returncode == 0:
                 # Processar saída XML
@@ -294,7 +625,8 @@ class VarreduraNmap:
                 pass
             
         except subprocess.TimeoutExpired:
-            resultado['erro'] = f"Timeout na execução da varredura ({self.timeout_padrao}s)"
+            resultado['erro'] = f"Timeout na execução da varredura ({timeout_varredura}s)"
+            resultado['timeout_usado'] = timeout_varredura
             self.logger.error(resultado['erro'])
         except Exception as e:
             resultado['erro'] = f"Erro na execução: {str(e)}"
