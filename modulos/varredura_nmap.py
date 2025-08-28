@@ -210,7 +210,7 @@ class VarreduraNmap:
         """
         if portas is None:
             # Usar top ports para acelerar a varredura
-            portas = '--top-ports 1000'
+            portas = '--top-ports=1000'
         else:
             portas = f'-p {portas}'
         
@@ -597,13 +597,13 @@ class VarreduraNmap:
             
             elif tipo_varredura == 'varredura_completa':
                 diagnostico['sugestoes'].extend([
-                    'Use --top-ports 1000 em vez de todas as portas',
+                    'Use --top-ports=1000 em vez de todas as portas',
                     'Execute varredura básica primeiro para identificar portas abertas',
                     'Use timing template T2 para redes lentas',
                     'Considere dividir a varredura em etapas'
                 ])
                 diagnostico['otimizacoes_comando'].extend([
-                    '--top-ports 1000',
+                    '--top-ports=1000',
                     '-T2',
                     '--max-parallelism 10'
                 ])

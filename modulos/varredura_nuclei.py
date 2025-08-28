@@ -141,6 +141,18 @@ class VarreduraNuclei:
             self.logger.error(f"Erro ao listar templates: {str(e)}")
             return []
     
+    def scan(self, alvo: str, **kwargs) -> Dict[str, Any]:
+        """
+        Método padrão de execução para o orquestrador
+        Args:
+            alvo (str): URL ou IP do alvo
+            **kwargs: Parâmetros adicionais
+        Returns:
+            Dict[str, Any]: Resultados da varredura
+        """
+        severidade = kwargs.get('severidade', 'medium')
+        return self.varredura_basica(alvo, severidade)
+    
     def varredura_basica(self, alvo: str, severidade: Optional[str] = None) -> Dict[str, Any]:
         """
         Executa varredura básica no alvo

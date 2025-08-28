@@ -381,6 +381,31 @@ class VarreduraOpenVAS:
             self.logger.error(f"Erro ao processar relatório XML: {e}")
             return {}
 
+    def scan(self, alvo: str, **kwargs) -> Dict[str, Any]:
+        """
+        Método padrão de execução para o orquestrador
+        Args:
+            alvo (str): IP ou hostname do alvo
+            **kwargs: Parâmetros adicionais
+        Returns:
+            Dict[str, Any]: Resultados da varredura
+        """
+        # Verifica se OpenVAS está disponível
+        if not self.verificar_openvas():
+            return {
+                'sucesso': False,
+                'erro': 'OpenVAS/GVM não está disponível ou configurado',
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        tipo_varredura = kwargs.get('tipo', 'rapida')
+        nome_varredura = kwargs.get('nome_varredura', None)
+        
+        if tipo_varredura == 'completa':
+            return self.varredura_completa(alvo, nome_varredura)
+        else:
+            return self.varredura_rapida(alvo, nome_varredura)
+
     def varredura_completa(self, alvo: str, nome_varredura: Optional[str] = None) -> Dict[str, Any]:
         """
         Executa uma varredura completa (criar alvo, tarefa, executar e obter resultados)

@@ -10,6 +10,7 @@ config/default.yaml
 dados/
 relatorios/*.html
 relatorios/__pycache__/
+historico_ia/__pycache__/
 infra/__pycache__/
 temp/
 *.xml

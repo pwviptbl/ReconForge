@@ -79,6 +79,31 @@ class VarreduraSearchSploit:
         
         return self._executar_busca(comando, "buscar_exploits")
     
+    def scan(self, alvo: str, **kwargs) -> Dict[str, Any]:
+        """
+        Método padrão de execução para o orquestrador
+        Args:
+            alvo (str): Termo de busca (IP, serviço, etc.)
+            **kwargs: Parâmetros adicionais (servicos, versoes)
+        Returns:
+            Dict[str, Any]: Resultados da busca
+        """
+        servicos = kwargs.get('servicos', [])
+        if servicos:
+            # Buscar por serviços específicos
+            resultados = {}
+            for servico in servicos:
+                resultado = self.buscar_por_servico(servico)
+                resultados[servico] = resultado
+            return {
+                'sucesso': True,
+                'dados': resultados,
+                'timestamp': datetime.now().isoformat()
+            }
+        else:
+            # Busca genérica
+            return self.buscar_exploits(alvo)
+    
     def buscar_por_servico(self, servico: str, versao: Optional[str] = None) -> Dict[str, Any]:
         """
         Busca exploits por serviço e versão

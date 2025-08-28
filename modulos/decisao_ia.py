@@ -15,6 +15,7 @@ from datetime import datetime
 import google.generativeai as genai
 from core.configuracao import obter_config
 from utils.logger import obter_logger
+from historico_ia.gerenciador_historico import obter_gerenciador_historico
 
 class DecisaoIA:
     """Classe para tomada de decisões inteligentes baseada em IA"""
@@ -32,6 +33,9 @@ class DecisaoIA:
         
         self.modelo = None
         self.conectado = False
+        
+        # Gerenciador de histórico
+        self.historico = obter_gerenciador_historico()
         
         # Templates de prompts para decisão e análise completa
         self.templates_prompts = {
@@ -64,6 +68,41 @@ Com base nos serviços encontrados, responda APENAS em formato JSON:
 }}
 
 IMPORTANTE: Use EXATAMENTE os nomes dos módulos listados acima. Responda APENAS o JSON, sem texto adicional.
+""",
+
+            'loop_inteligente_universal': """
+ANÁLISE DE CONTEXTO PARA PRÓXIMO PASSO:
+
+{contexto_completo}
+
+MÓDULOS DISPONÍVEIS:
+{modulos_disponiveis}
+
+MÓDULOS JÁ EXECUTADOS:
+{modulos_executados}
+
+Baseado no contexto atual, decida o próximo passo. Considere:
+1. Resultados anteriores para evitar redundância
+2. Vulnerabilidades encontradas que precisam de investigação
+3. Serviços descobertos que merecem análise aprofundada
+4. Eficiência: pare quando tiver informações suficientes
+
+Responda APENAS em formato JSON:
+{{
+    "acao": "executar_modulo|parar|gerar_relatorio",
+    "modulo": "nome_do_modulo_se_aplicavel",
+    "alvos": ["lista_de_alvos_especificos"],
+    "parametros": {{"parametros_especiais": "se_necessario"}},
+    "justificativa": "explicação_da_decisão",
+    "prioridade": "alta|media|baixa",
+    "expectativa": "o_que_espera_descobrir"
+}}
+
+IMPORTANTE: 
+- Use EXATAMENTE os nomes dos módulos listados
+- Evite repetir análises já feitas
+- Pare quando análise estiver completa ou descobertas se esgotaram
+- Priorize módulos que podem revelar vulnerabilidades críticas
 """,
             
             'analisar_servicos_encontrados': """
@@ -145,14 +184,21 @@ Formate como um plano executável em português.
                 self.logger.info("Gemini desabilitado por configuração (api.gemini.habilitado=false)")
                 return False
             if not self.chave_api or self.chave_api.startswith('${'):
-                self.logger.error("Chave da API Gemini não configurada")
+                self.logger.warning("Chave da API Gemini não configurada - usando modo fallback")
                 return False
             
             # Configurar API
             genai.configure(api_key=self.chave_api)
             
             # Inicializar modelo
-            self.modelo = genai.GenerativeModel(self.modelo_nome)
+            try:
+                self.modelo = genai.GenerativeModel(self.modelo_nome)
+                if self.modelo is None:
+                    self.logger.error("Falha ao inicializar modelo Gemini")
+                    return False
+            except Exception as e:
+                self.logger.error(f"Erro ao inicializar modelo: {str(e)}")
+                return False
             
             # Teste de conexão com prompt mais simples
             resposta_teste = self.modelo.generate_content("Responda apenas: OK")
@@ -191,20 +237,32 @@ Formate como um plano executável em português.
             self.logger.error(f"Erro ao conectar com Gemini: {str(e)}")
             return False
     
-    def _executar_consulta_gemini(self, prompt: str) -> Optional[str]:
+    def _executar_consulta_gemini(self, prompt: str, tipo_prompt: str = "consulta_geral") -> Optional[str]:
         """
         Executa consulta ao Gemini com retry e timeout por tentativa.
         Usa thread para impor timeout definido em self.timeout.
+        Registra interação no histórico.
         """
+        # Verificar se modelo está inicializado
+        if self.modelo is None:
+            self.logger.warning("Modelo Gemini não inicializado")
+            return None
+        
         # DEBUG: Informações básicas do prompt
         self.logger.info(f"Enviando prompt para Gemini ({len(prompt)} caracteres)")
+        
+        # Marcar tempo de início
+        tempo_inicio = time.time()
         
         for tentativa in range(self.max_tentativas):
             result_container: Dict[str, Any] = {'resp': None, 'err': None}
 
             def worker():
                 try:
-                    result_container['resp'] = self.modelo.generate_content(prompt)
+                    if self.modelo is not None:
+                        result_container['resp'] = self.modelo.generate_content(prompt)
+                    else:
+                        result_container['err'] = Exception("Modelo não inicializado")
                 except Exception as e:
                     result_container['err'] = e
 
@@ -253,7 +311,25 @@ Formate como um plano executável em português.
                     # Tentar acessar o texto direto
                     try:
                         if getattr(resposta, 'text', None) and resposta.text.strip():
+                            tempo_resposta = time.time() - tempo_inicio
                             self.logger.info(f"Resposta recebida com sucesso ({len(resposta.text)} caracteres)")
+                            
+                            # Registrar no histórico
+                            try:
+                                self.historico.registrar_interacao(
+                                    prompt_enviado=prompt,
+                                    resposta_recebida=resposta.text.strip(),
+                                    tempo_resposta=tempo_resposta,
+                                    tipo_prompt=tipo_prompt,
+                                    contexto_adicional={
+                                        'tentativa': tentativa + 1,
+                                        'finish_reason': finish_reason_desc,
+                                        'modelo': self.modelo_nome
+                                    }
+                                )
+                            except Exception as e:
+                                self.logger.warning(f"Erro ao registrar histórico: {e}")
+                            
                             return resposta.text.strip()
                     except Exception as e:
                         self.logger.debug(f"Erro ao acessar resposta.text: {e}")
@@ -263,7 +339,26 @@ Formate como um plano executável em português.
                             hasattr(candidate.content, 'parts') and candidate.content.parts):
                         for part in candidate.content.parts:
                             if hasattr(part, 'text') and part.text:
+                                tempo_resposta = time.time() - tempo_inicio
                                 self.logger.info(f"Resposta recebida via parts ({len(part.text)} caracteres)")
+                                
+                                # Registrar no histórico
+                                try:
+                                    self.historico.registrar_interacao(
+                                        prompt_enviado=prompt,
+                                        resposta_recebida=part.text.strip(),
+                                        tempo_resposta=tempo_resposta,
+                                        tipo_prompt=tipo_prompt,
+                                        contexto_adicional={
+                                            'tentativa': tentativa + 1,
+                                            'finish_reason': finish_reason_desc,
+                                            'modelo': self.modelo_nome,
+                                            'via_parts': True
+                                        }
+                                    )
+                                except Exception as e:
+                                    self.logger.warning(f"Erro ao registrar histórico: {e}")
+                                
                                 return part.text.strip()
 
                     # Se chegou aqui, a resposta está vazia
@@ -305,6 +400,23 @@ Formate como um plano executável em português.
             else:
                 self.logger.warning(f"Nenhuma resposta válida na tentativa {tentativa + 1}")
 
+        # Se chegou aqui, todas as tentativas falharam - registrar falha no histórico
+        tempo_resposta = time.time() - tempo_inicio
+        try:
+            self.historico.registrar_interacao(
+                prompt_enviado=prompt,
+                resposta_recebida=None,
+                tempo_resposta=tempo_resposta,
+                tipo_prompt=tipo_prompt,
+                contexto_adicional={
+                    'tentativas_totais': self.max_tentativas,
+                    'status': 'falhou_todas_tentativas',
+                    'modelo': self.modelo_nome
+                }
+            )
+        except Exception as e:
+            self.logger.warning(f"Erro ao registrar falha no histórico: {e}")
+        
         return None
     
     def _simplificar_prompt(self, prompt: str) -> str:

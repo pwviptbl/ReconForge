@@ -33,6 +33,32 @@ class VarreduraNikto:
         # Verificar se o Nikto está disponível
         self.verificar_nikto()
     
+    def scan(self, alvo: str, **parametros) -> Dict[str, Any]:
+        """
+        Método padronizado para o orquestrador inteligente
+        Args:
+            alvo (str): URL ou IP do alvo
+            **parametros: Parâmetros adicionais
+        Returns:
+            Dict[str, Any]: Resultados da varredura
+        """
+        # Extrair parâmetros
+        porta = parametros.get('porta')
+        ssl = parametros.get('ssl', False)
+        tipo = parametros.get('tipo', 'basica')
+        
+        # Executar baseado no tipo
+        if tipo == 'completa':
+            return self.varredura_completa(alvo, porta, ssl)
+        elif tipo == 'cgi':
+            return self.varredura_cgi(alvo, porta, ssl)
+        elif tipo == 'arquivos':
+            return self.varredura_arquivos_interessantes(alvo, porta, ssl)
+        elif tipo == 'injecao':
+            return self.varredura_injecao(alvo, porta, ssl)
+        else:
+            return self.varredura_basica(alvo, porta, ssl)
+
     def verificar_nikto(self) -> bool:
         """
         Verifica se o Nikto está instalado e acessível

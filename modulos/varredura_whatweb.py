@@ -100,6 +100,21 @@ class VarreduraWhatWeb:
         
         return self._executar_varredura(comando, "varredura_passiva")
     
+    def scan(self, alvo: str, **kwargs) -> Dict[str, Any]:
+        """
+        Método padrão de execução para o orquestrador
+        Args:
+            alvo (str): URL do alvo
+            **kwargs: Parâmetros adicionais
+        Returns:
+            Dict[str, Any]: Resultados da varredura
+        """
+        agressividade = kwargs.get('agressividade', 1)
+        if agressividade >= 3:
+            return self.varredura_agressiva(alvo)
+        else:
+            return self.varredura_passiva(alvo)
+    
     def varredura_agressiva(self, alvo: str) -> Dict[str, Any]:
         """
         Executa varredura agressiva (agressividade 3)
