@@ -1,16 +1,20 @@
 venv/
 logs/
 logs/sistema.log
-cli/__pycache__/
-core/__pycache__/
-modulos/__pycache__/
-utils/__pycache__/
-settings.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Configuração sensível
 config/default.yaml
+settings.json
+
+# Dados e saídas
 dados/
 relatorios/*.html
-relatorios/__pycache__/
-historico_ia/__pycache__/
-infra/__pycache__/
 temp/
+
+# Arquivos de teste
 *.xml
