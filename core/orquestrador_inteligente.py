@@ -119,9 +119,11 @@ class OrquestradorInteligente:
             from modulos.varredura_sqlmap import VarreduraSQLMap
             from modulos.varredura_searchsploit import VarreduraSearchSploit
             
-            # Módulos especializados
-            from modulos.varredura_zap_python import VarreduraZap
-            from modulos.varredura_openvas_python import VarreduraOpenvas
+            # Módulos de scanner
+            from modulos.scanner_vulnerabilidades import ScannerVulnerabilidades
+            from modulos.scanner_web_avancado import ScannerWebAvancado
+            
+            # Módulos especializados (ZAP e OpenVAS removidos)
             
             # Instanciar módulos
             self.modulos_disponiveis = {
@@ -135,9 +137,8 @@ class OrquestradorInteligente:
                 'sqlmap_teste_url': VarreduraSQLMap(),
                 'sqlmap_teste_formulario': VarreduraSQLMap(),
                 'searchsploit_check': VarreduraSearchSploit(),
-                'zap_spider': VarreduraZap(),
-                'zap_active_scan': VarreduraZap(),
-                'openvas_scan': VarreduraOpenvas(),
+                'scanner_vulnerabilidades': ScannerVulnerabilidades(),
+                'scanner_web_avancado': ScannerWebAvancado(),
                 
                 # Módulos Nmap
                 'nmap_varredura_basica': self.scanner_nmap,
@@ -489,8 +490,8 @@ PORTAS ABERTAS POR HOST:
             'Exploração': [
                 'sqlmap_teste_url', 'sqlmap_teste_formulario', 'searchsploit_check'
             ],
-            'Análise Avançada': [
-                'zap_spider', 'zap_active_scan', 'openvas_scan'
+            'Scanner de Vulnerabilidades': [
+                'scanner_vulnerabilidades', 'scanner_web_avancado'
             ],
             'Nmap Especializado': [
                 'nmap_varredura_completa', 'nmap_varredura_vulnerabilidades',
@@ -556,10 +557,8 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_feroxbuster(nome_modulo, alvo, modulo, parametros)
                     elif nome_modulo.startswith('sqlmap_'):
                         resultado = self._executar_modulo_sqlmap(nome_modulo, alvo, modulo, parametros)
-                    elif nome_modulo.startswith('zap_'):
-                        resultado = self._executar_modulo_zap(nome_modulo, alvo, modulo, parametros)
-                    elif nome_modulo == 'openvas_scan':
-                        resultado = self._executar_modulo_openvas(nome_modulo, alvo, modulo, parametros)
+                    elif nome_modulo.startswith('scanner_'):
+                        resultado = self._executar_modulo_scanner(nome_modulo, alvo, modulo, parametros)
                     else:
                         # Módulos genéricos
                         resultado = self._executar_modulo_generico(nome_modulo, alvo, modulo, parametros)
@@ -688,33 +687,24 @@ PORTAS ABERTAS POR HOST:
         else:
             return {'sucesso': False, 'erro': f'Método não encontrado para {nome_modulo}'}
 
-    def _executar_modulo_zap(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
-        """Executa módulos de scanner web Python nativo"""
-        # Construir URL se necessário
-        if not alvo.startswith('http'):
-            url = f"http://{alvo}"
-        else:
-            url = alvo
-        
-        mapa_metodos = {
-            'zap_spider': modulo.spider_scan,
-            'zap_active_scan': modulo.active_scan,
-        }
-        
-        metodo = mapa_metodos.get(nome_modulo)
-        if metodo:
-            return metodo(url, **parametros)
-        else:
-            return {'sucesso': False, 'erro': f'Método não encontrado para {nome_modulo}'}
-
-    def _executar_modulo_openvas(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
-        """Executa módulos OpenVAS"""
+    def _executar_modulo_scanner(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulos de scanner"""
         try:
-            # Obter portas abertas do contexto se disponível
-            portas_abertas = parametros.get('portas_abertas', None)
-            return modulo.scan_vulnerabilidades(alvo, portas_abertas)
+            if nome_modulo == 'scanner_vulnerabilidades':
+                # Obter portas abertas do contexto se disponível
+                portas_abertas = parametros.get('portas_abertas', None)
+                return modulo.scan_vulnerabilidades(alvo, portas_abertas)
+            elif nome_modulo == 'scanner_web_avancado':
+                # Construir URL se necessário
+                if not alvo.startswith('http'):
+                    url = f"http://{alvo}"
+                else:
+                    url = alvo
+                return modulo.scan_completo(url)
+            else:
+                return {'sucesso': False, 'erro': f'Scanner não implementado: {nome_modulo}'}
         except Exception as e:
-            return {'sucesso': False, 'erro': f'Erro OpenVAS: {str(e)}'}
+            return {'sucesso': False, 'erro': f'Erro no scanner: {str(e)}'}
 
     def _executar_modulo_generico(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
         """Executa módulos genéricos baseado em convenções"""
