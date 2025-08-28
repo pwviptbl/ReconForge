@@ -18,3 +18,5 @@ temp/
 
 # Arquivos de teste
 *.xml
+
+historico_ia/*.json

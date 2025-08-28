@@ -64,7 +64,7 @@ class OrquestradorInteligente:
         self._carregar_modulos()
         
         # Configurações do loop
-        self.max_iteracoes = 20  # Aumentado conforme solicitado - sem limites restritivos
+        self.max_iteracoes = 50  # Aumentado conforme solicitado - sem limites restritivos
         self.min_intervalo_iteracao = 2  # Segundos entre iterações
         
         self.logger.info("Orquestrador Inteligente inicializado")
@@ -508,6 +508,8 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_feroxbuster(nome_modulo, alvo, modulo, parametros)
                     elif nome_modulo.startswith('sqlmap_'):
                         resultado = self._executar_modulo_sqlmap(nome_modulo, alvo, modulo, parametros)
+                    elif nome_modulo.startswith('zap_'):
+                        resultado = self._executar_modulo_zap(nome_modulo, alvo, modulo, parametros)
                     else:
                         # Módulos genéricos
                         resultado = self._executar_modulo_generico(nome_modulo, alvo, modulo, parametros)
@@ -587,6 +589,26 @@ PORTAS ABERTAS POR HOST:
             return modulo.testar_url(url, **parametros)
         elif nome_modulo == 'sqlmap_teste_formulario':
             return modulo.testar_formulario(url, **parametros)
+        else:
+            return {'sucesso': False, 'erro': f'Método não encontrado para {nome_modulo}'}
+
+    def _executar_modulo_zap(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulos OWASP ZAP"""
+        # Construir URL se necessário
+        if not alvo.startswith('http'):
+            url = f"http://{alvo}"
+        else:
+            url = alvo
+        
+        mapa_metodos = {
+            'zap_spider': modulo.varredura_spider,
+            'zap_active_scan': modulo.varredura_ativa,
+            'zap_passive_scan': modulo.varredura_passiva,
+        }
+        
+        metodo = mapa_metodos.get(nome_modulo)
+        if metodo:
+            return metodo(url, **parametros)
         else:
             return {'sucesso': False, 'erro': f'Método não encontrado para {nome_modulo}'}
 
