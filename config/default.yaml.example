@@ -1,11 +1,16 @@
 # Configuração padrão do sistema de pentest
 # Este arquivo contém as configurações básicas para o funcionamento do sistema
+# 
+# INSTRUÇÕES:
+# 1. Copie este arquivo para 'default.yaml'
+# 2. Configure suas chaves API e preferências
+# 3. Ajuste os caminhos conforme necessário
 
 # Configurações da API Gemini
 api:
   gemini:
     modelo: "gemini-2.5-flash"
-    chave_api: "${GEMINI_API_KEY}"  # Variável de ambiente
+    chave_api: "SUA_CHAVE_API_AQUI"  # Obtenha em: https://aistudio.google.com/app/apikey
     timeout: 30
     max_tentativas: 3
     habilitado: true
@@ -73,3 +78,49 @@ seguranca:
   validar_entrada: true
   timeout_operacoes: 600  # 10 minutos
   log_comandos: true
+
+# Configurações do OpenVAS/GVM (para módulos futuros)
+openvas:
+  host: "localhost"
+  port: 9390
+  username: "admin"
+  password: "admin"
+  socket: "/run/gvmd/gvmd.sock"
+
+# Configurações de proxy (opcional)
+proxy:
+  http_proxy: ""
+  https_proxy: ""
+  no_proxy: "localhost,127.0.0.1"
+
+# Configurações de desenvolvimento
+desenvolvimento:
+  debug_mode: false
+  verbose_mode: false
+  save_debug_data: false
+
+# Configurações de notificações (opcional)
+notificacoes:
+  email: ""
+  smtp_server: ""
+  smtp_port: 587
+  smtp_user: ""
+  smtp_password: ""
+  smtp_use_tls: true
+  webhook_url: ""
+  webhook_token: ""
+  slack_webhook_url: ""
+  discord_webhook_url: ""
+
+# Configurações de cache
+cache:
+  diretorio: "cache"
+  ttl: 3600  # 1 hora
+  max_size_mb: 100
+
+# Configurações de backup
+backup:
+  diretorio: "backups"
+  auto_backup: true
+  intervalo_horas: 24
+  max_backups: 7

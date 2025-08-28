@@ -6,7 +6,7 @@ core/__pycache__/
 modulos/__pycache__/
 utils/__pycache__/
 settings.json
-.env
+config/default.yaml
 dados/
 relatorios/*.html
 relatorios/__pycache__/

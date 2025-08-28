@@ -66,7 +66,21 @@ venv\Scripts\activate
 
 # 4. Instalar dependências
 pip install -r requirements.txt
+
+# 5. Configuração inicial
+python setup.py --setup
 ```
+
+### Configuração
+
+O sistema usa um arquivo de configuração YAML único:
+
+- **Automática**: Execute `python setup.py --setup` para configuração interativa
+- **Manual**: Copie `config/default.yaml.example` para `config/default.yaml` e edite
+
+⚠️ **Obrigatório**: Configure sua chave API do Gemini em `config/default.yaml`
+
+Veja `config/README.md` para detalhes completos da configuração.
 
 ## Uso - Pentest Inicial: DNS + Scan de Portas
 

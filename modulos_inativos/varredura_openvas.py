@@ -37,12 +37,13 @@ class VarreduraOpenVAS:
         self.gmp = None
         self.transform = EtreeTransform()
         
-        # Configurações padrão
-        self.host = os.getenv('OPENVAS_HOST', 'localhost')
-        self.port = int(os.getenv('OPENVAS_PORT', 9390))
-        self.username = os.getenv('OPENVAS_USERNAME', 'admin')
-        self.password = os.getenv('OPENVAS_PASSWORD', 'admin')
-        self.socket_path = os.getenv('OPENVAS_SOCKET', '/run/gvmd/gvmd.sock')
+        # Carregar configurações do YAML
+        from core.configuracao import obter_config
+        self.host = obter_config('openvas.host', 'localhost')
+        self.port = obter_config('openvas.port', 9390)
+        self.username = obter_config('openvas.username', 'admin')
+        self.password = obter_config('openvas.password', 'admin')
+        self.socket_path = obter_config('openvas.socket', '/run/gvmd/gvmd.sock')
         
         # IDs de configurações padrão do OpenVAS
         self.config_ids = {
