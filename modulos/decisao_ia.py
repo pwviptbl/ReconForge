@@ -9,12 +9,13 @@ Inclui análise completa com Gemini AI integrada
 import json
 import time
 import threading
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 
 import google.generativeai as genai
 from core.configuracao import obter_config
 from utils.logger import obter_logger
+from utils.anonimizador_ip import anonimizar_contexto_ia, criar_contexto_seguro_para_ia
 from historico_ia.gerenciador_historico import obter_gerenciador_historico
 
 class DecisaoIA:
@@ -31,11 +32,20 @@ class DecisaoIA:
         self.max_tentativas = obter_config('api.gemini.max_tentativas', 3)
         self.habilitado = obter_config('api.gemini.habilitado', True)
         
+        # Configuração de segurança - anonimização de IPs
+        self.anonimizar_ips = obter_config('api.gemini.anonimizar_ips', True)
+        self.seed_anonimizacao = obter_config('api.gemini.seed_anonimizacao', 'varredura_ia_default')
+        
         self.modelo = None
         self.conectado = False
         
         # Gerenciador de histórico
         self.historico = obter_gerenciador_historico()
+        
+        # Mapeamento de IPs para manter consistência durante sessão
+        self.mapeamento_ips_sessao = {}
+        
+        self.logger.info(f"Anonimização de IPs: {'✓ HABILITADA' if self.anonimizar_ips else '✗ DESABILITADA'}")
         
         # Templates de prompts para decisão e análise completa
         self.templates_prompts = {
@@ -465,6 +475,77 @@ Responda APENAS:
         
         return prompt_neutralizado
     
+    def _preparar_contexto_seguro_para_ia(self, dados: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """
+        Prepara contexto seguro para envio à IA
+        Args:
+            dados (Dict): Dados originais
+        Returns:
+            Tuple[Dict, Dict]: Contexto seguro e mapeamento de IPs
+        """
+        if not self.anonimizar_ips:
+            self.logger.warning("⚠️ Anonimização desabilitada - IPs reais serão enviados à IA")
+            return dados, {}
+        
+        try:
+            # Criar contexto seguro
+            contexto_seguro = criar_contexto_seguro_para_ia(dados)
+            
+            # Extrair mapeamento de IPs para log (sem armazenar)
+            _, mapeamento_ips = anonimizar_contexto_ia(dados, self.seed_anonimizacao)
+            
+            # Log da anonimização (apenas estatísticas)
+            if mapeamento_ips:
+                self.logger.info(f"🔒 {len(mapeamento_ips)} IPs anonimizados para contexto IA")
+                self.logger.debug("Tipos de IP anonimizados: " + ", ".join(
+                    [self._classificar_tipo_ip(ip) for ip in mapeamento_ips.keys()]
+                ))
+            
+            return contexto_seguro, mapeamento_ips
+            
+        except Exception as e:
+            self.logger.error(f"Erro na anonimização: {e}")
+            # Fallback: remover IPs completamente
+            return self._remover_ips_completamente(dados), {}
+    
+    def _classificar_tipo_ip(self, ip: str) -> str:
+        """Classifica tipo de IP para log"""
+        try:
+            import ipaddress
+            ip_obj = ipaddress.ip_address(ip)
+            if ip_obj.is_private:
+                return "PRIVADO"
+            elif ip_obj.is_loopback:
+                return "LOCALHOST"
+            elif ip_obj.is_link_local:
+                return "LINK_LOCAL"
+            else:
+                return "PÚBLICO"
+        except:
+            return "INVÁLIDO"
+    
+    def _remover_ips_completamente(self, dados: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove IPs completamente como fallback de segurança"""
+        def limpar_recursivo(obj):
+            if isinstance(obj, dict):
+                resultado = {}
+                for chave, valor in obj.items():
+                    if any(termo in chave.lower() for termo in ['ip', 'endereco', 'address', 'host']):
+                        resultado[chave] = "[IP_REMOVIDO]"
+                    else:
+                        resultado[chave] = limpar_recursivo(valor)
+                return resultado
+            elif isinstance(obj, list):
+                return [limpar_recursivo(item) for item in obj]
+            elif isinstance(obj, str):
+                # Substituir padrões de IP
+                import re
+                return re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[IP_REMOVIDO]', obj)
+            else:
+                return obj
+        
+        return limpar_recursivo(dados)
+    
     def _encurtar_prompt(self, prompt: str) -> str:
         """
         Encurta o prompt para reduzir tokens
@@ -500,8 +581,11 @@ Responda APENAS:
             if not self.conectado and not self.conectar_gemini():
                 return self._decisao_fallback(resultados_scan_inicial)
             
-            # Preparar dados para análise
-            dados_formatados = self._formatar_resultados_scan(resultados_scan_inicial)
+            # Preparar contexto seguro para IA
+            contexto_seguro, mapeamento_ips = self._preparar_contexto_seguro_para_ia(resultados_scan_inicial)
+            
+            # Preparar dados para análise (usando contexto seguro)
+            dados_formatados = self._formatar_resultados_scan(contexto_seguro)
             
             # Gerar prompt de decisão
             prompt = self.templates_prompts['decidir_proximos_passos'].format(
@@ -516,8 +600,14 @@ Responda APENAS:
                 decisao_ia = self._parsear_decisao_ia(resposta_ia)
                 
                 if decisao_ia:
-                    # Enriquecer decisão com análise local
+                    # Enriquecer decisão com análise local (usando dados originais)
                     decisao_final = self._enriquecer_decisao(decisao_ia, resultados_scan_inicial)
+                    
+                    # Adicionar informações de segurança
+                    decisao_final['seguranca'] = {
+                        'ips_anonimizados': len(mapeamento_ips) if mapeamento_ips else 0,
+                        'contexto_seguro_usado': self.anonimizar_ips
+                    }
                     
                     self.logger.info(f"Decisão IA: {decisao_final.get('executar_nmap_avancado', False)}")
                     return decisao_final
@@ -541,7 +631,7 @@ Responda APENAS:
             Dict[str, Any]: Análise dos serviços
         """
         try:
-            # Extrair serviços dos resultados
+            # Extrair serviços dos resultados (dados originais para análise local)
             servicos = self._extrair_servicos_scan(resultados_scan)
             
             if not servicos:
@@ -556,8 +646,12 @@ Responda APENAS:
             if not self.conectado and not self.conectar_gemini():
                 return self._analise_servicos_local(servicos)
             
-            # Formatar serviços para análise
-            servicos_formatados = json.dumps(servicos, indent=2, ensure_ascii=False)
+            # Preparar contexto seguro para IA
+            dados_servicos_para_ia = {'servicos_detectados': servicos}
+            contexto_seguro, mapeamento_ips = self._preparar_contexto_seguro_para_ia(dados_servicos_para_ia)
+            
+            # Formatar serviços para análise (usando dados seguros)
+            servicos_formatados = json.dumps(contexto_seguro['servicos_detectados'], indent=2, ensure_ascii=False)
             
             # Gerar prompt
             prompt = self.templates_prompts['analisar_servicos_encontrados'].format(
@@ -570,9 +664,14 @@ Responda APENAS:
             if resposta_ia:
                 analise_ia = self._parsear_analise_servicos(resposta_ia)
                 if analise_ia:
+                    # Adicionar informações de segurança
+                    analise_ia['seguranca'] = {
+                        'ips_anonimizados': len(mapeamento_ips) if mapeamento_ips else 0,
+                        'contexto_seguro_usado': self.anonimizar_ips
+                    }
                     return analise_ia
             
-            # Fallback para análise local
+            # Fallback para análise local (usando dados originais)
             return self._analise_servicos_local(servicos)
             
         except Exception as e:
@@ -1261,8 +1360,11 @@ Portas Abertas:
             return {'erro': 'Não foi possível conectar ao Gemini'}
         
         try:
-            # Preparar dados para análise
-            dados_formatados = self._formatar_dados_varredura_completa(resultados_varredura)
+            # Preparar contexto seguro para IA
+            contexto_seguro, mapeamento_ips = self._preparar_contexto_seguro_para_ia(resultados_varredura)
+            
+            # Preparar dados para análise (usando contexto seguro)
+            dados_formatados = self._formatar_dados_varredura_completa(contexto_seguro)
             
             # Gerar prompt
             prompt = self.templates_prompts['analise_completa_varredura'].format(
@@ -1277,11 +1379,15 @@ Portas Abertas:
                     'timestamp': datetime.now().isoformat(),
                     'tipo_analise': 'completa',
                     'modelo_utilizado': self.modelo_nome,
-                    'resultados_originais': resultados_varredura,
                     'analise_ia': resposta,
                     'resumo_tecnico': self._extrair_resumo_tecnico(resposta),
-                    'nivel_risco_geral': self._determinar_nivel_risco_geral(resultados_varredura),
-                    'recomendacoes_prioritarias': self._extrair_recomendacoes(resposta)
+                    'nivel_risco_geral': self._determinar_nivel_risco_geral(resultados_varredura),  # Usar dados originais
+                    'recomendacoes_prioritarias': self._extrair_recomendacoes(resposta),
+                    'seguranca': {
+                        'ips_anonimizados': len(mapeamento_ips) if mapeamento_ips else 0,
+                        'contexto_seguro_usado': self.anonimizar_ips,
+                        'dados_originais_preservados': True
+                    }
                 }
                 
                 self.logger.info("Análise completa executada com sucesso")

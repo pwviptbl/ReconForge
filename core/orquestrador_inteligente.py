@@ -4,13 +4,16 @@ Orquestrador Inteligente com Loop Adaptativo
 Implementa estratégia de loop inteligente onde a IA decide os próximos passos
 baseada em todos os resultados acumulados anteriormente.
 
+SEGURANÇA: IPs são anonimizados antes do envio para IA, preservando privacidade
+sem comprometer a funcionalidade do sistema.
+
 Fluxo:
 1. Resolução DNS inicial
 2. RustScan básico (todas as portas)
 3. Loop inteligente:
-   - IA analisa contexto acumulado
+   - IA analisa contexto acumulado (com IPs anonimizados)
    - Decide próximo módulo ou parar
-   - Executa módulo escolhido
+   - Executa módulo escolhido (com IPs reais)
    - Acumula resultados
    - Repete até decisão de parar
 4. Gera relatório final
@@ -24,6 +27,7 @@ from dataclasses import dataclass, field
 from utils.logger import obter_logger, log_manager
 from utils.rede import extrair_ips_para_scan
 from utils.resumo import gerar_resumo_scan_completo
+from utils.anonimizador_ip import anonimizar_contexto_ia, criar_contexto_seguro_para_ia
 
 
 @dataclass
@@ -116,8 +120,8 @@ class OrquestradorInteligente:
             from modulos.varredura_searchsploit import VarreduraSearchSploit
             
             # Módulos especializados
-            from modulos.varredura_zap import VarreduraZAP
-            from modulos.varredura_openvas import VarreduraOpenVAS
+            from modulos.varredura_zap_python import VarreduraZap
+            from modulos.varredura_openvas_python import VarreduraOpenvas
             
             # Instanciar módulos
             self.modulos_disponiveis = {
@@ -131,9 +135,9 @@ class OrquestradorInteligente:
                 'sqlmap_teste_url': VarreduraSQLMap(),
                 'sqlmap_teste_formulario': VarreduraSQLMap(),
                 'searchsploit_check': VarreduraSearchSploit(),
-                'zap_spider': VarreduraZAP(),
-                'zap_active_scan': VarreduraZAP(),
-                'openvas_scan': VarreduraOpenVAS(),
+                'zap_spider': VarreduraZap(),
+                'zap_active_scan': VarreduraZap(),
+                'openvas_scan': VarreduraOpenvas(),
                 
                 # Módulos Nmap
                 'nmap_varredura_basica': self.scanner_nmap,
@@ -336,12 +340,18 @@ class OrquestradorInteligente:
     def _consultar_ia_proximos_passos(self, contexto: ContextoExecucao) -> Dict[str, Any]:
         """Consulta IA para decidir próximos passos baseado no contexto atual (OBRIGATÓRIO)"""
         try:
-            # Preparar prompt universal com contexto completo
-            prompt_contexto = self._gerar_prompt_contexto_completo(contexto)
+            # Preparar contexto completo para análise
+            contexto_completo = self._montar_contexto_completo(contexto)
+            
+            # Criar contexto seguro para IA (anonimizar IPs)
+            contexto_seguro = criar_contexto_seguro_para_ia(contexto_completo)
+            
+            # Preparar prompt universal com contexto seguro
+            prompt_contexto = self._gerar_prompt_contexto_completo_seguro(contexto_seguro, contexto)
             
             # Template de prompt universal
             prompt_universal = f"""
-CONTEXTO ATUAL DO PENTEST:
+CONTEXTO ATUAL DO PENTEST (IPs anonimizados por segurança):
 {prompt_contexto}
 
 MÓDULOS DISPONÍVEIS:
@@ -354,11 +364,16 @@ Com base no contexto atual, decida o próximo passo. Você pode:
 1. Executar um módulo específico
 2. Parar e gerar relatório final
 
+IMPORTANTE SOBRE SEGURANÇA:
+- Os IPs foram anonimizados para proteger a privacidade
+- A estrutura e tipos de rede foram preservados para análise
+- Suas decisões serão aplicadas aos alvos reais pelo sistema
+
 Responda APENAS em formato JSON:
 {{
     "acao": "executar_modulo|parar",
     "modulo": "nome_do_modulo_se_aplicavel",
-    "alvos": ["lista_de_alvos_especificos"],
+    "alvos": ["use_alvos_descobertos"],
     "parametros": {{"parametros_especiais": "se_necessario"}},
     "justificativa": "explicação_da_decisão",
     "prioridade": "alta|media|baixa",
@@ -367,14 +382,15 @@ Responda APENAS em formato JSON:
 
 IMPORTANTE: 
 - Use EXATAMENTE os nomes dos módulos listados acima
+- Para alvos, use sempre "use_alvos_descobertos" - o sistema aplicará aos IPs reais
 - Considere os resultados anteriores para não repetir análises desnecessárias
 - Pare quando tiver informações suficientes ou não houver mais descobertas úteis
 - Priorize módulos que podem revelar vulnerabilidades críticas
 """
             
             # Enviar para IA (OBRIGATÓRIO - sem fallback)
-            self.logger.info(" Consultando Gemini AI para próxima decisão...")
-            resposta_ia = self.decisao_ia._executar_consulta_gemini(prompt_universal, "decisao_loop")
+            self.logger.info("🔒 Consultando Gemini AI com contexto seguro...")
+            resposta_ia = self.decisao_ia._executar_consulta_gemini(prompt_universal, "decisao_loop_seguro")
             
             if not resposta_ia:
                 raise RuntimeError(" Gemini AI não retornou resposta válida")
@@ -383,46 +399,80 @@ IMPORTANTE:
             if not decisao:
                 raise RuntimeError(" Não foi possível parsear resposta da IA")
             
-            self.logger.info(f" IA decidiu: {decisao.get('acao', 'N/A')}")
+            self.logger.info(f"🧠 IA decidiu: {decisao.get('acao', 'N/A')}")
+            
+            # Log de segurança
+            self.logger.info("🔒 Contexto enviado com IPs anonimizados - privacidade preservada")
+            
             return decisao
             
         except Exception as e:
-            self.logger.error(f" ERRO CRÍTICO na consulta IA: {str(e)}")
+            self.logger.error(f"💥 ERRO CRÍTICO na consulta IA: {str(e)}")
             # SEM FALLBACK - sistema deve parar se IA falhar
             raise RuntimeError(f"Sistema requer IA funcional. Erro: {str(e)}")
-
-    def _gerar_prompt_contexto_completo(self, contexto: ContextoExecucao) -> str:
-        """Gera prompt com contexto completo para IA"""
+    
+    def _montar_contexto_completo(self, contexto: ContextoExecucao) -> Dict[str, Any]:
+        """Monta contexto completo para análise"""
+        return {
+            'alvo_original': contexto.alvo_original,
+            'timestamp_inicio': contexto.timestamp_inicio,
+            'tempo_decorrido': self._calcular_tempo_decorrido(contexto),
+            'pontuacao_risco': contexto.pontuacao_risco,
+            'ips_descobertos': contexto.ips_descobertos,
+            'portas_abertas': contexto.portas_abertas,
+            'servicos_detectados': contexto.servicos_detectados,
+            'vulnerabilidades_encontradas': contexto.vulnerabilidades_encontradas,
+            'modulos_executados': contexto.modulos_executados,
+            'ultimos_resultados': {
+                modulo: resultado for modulo, resultado in 
+                list(contexto.resultados_por_modulo.items())[-3:]  # Últimos 3 resultados
+            }
+        }
+    
+    def _gerar_prompt_contexto_completo_seguro(self, contexto_seguro: Dict[str, Any], contexto_original: ContextoExecucao) -> str:
+        """Gera prompt com contexto seguro para IA"""
         prompt = f"""
-ALVO ORIGINAL: {contexto.alvo_original}
-TEMPO DECORRIDO: {self._calcular_tempo_decorrido(contexto)}
-PONTUAÇÃO DE RISCO ATUAL: {contexto.pontuacao_risco}/100
+ALVO ORIGINAL: {contexto_seguro.get('alvo_original', '[ANONIMIZADO]')}
+TEMPO DECORRIDO: {contexto_seguro.get('tempo_decorrido', 'N/A')}
+PONTUAÇÃO DE RISCO ATUAL: {contexto_seguro.get('pontuacao_risco', 0)}/100
 
-IPS DESCOBERTOS: {', '.join(contexto.ips_descobertos)}
+IPS DESCOBERTOS: {', '.join(contexto_seguro.get('ips_descobertos', []))}
 
 PORTAS ABERTAS POR HOST:
 """
         
-        for ip, portas in contexto.portas_abertas.items():
+        for ip, portas in contexto_seguro.get('portas_abertas', {}).items():
             prompt += f"  {ip}: {', '.join(map(str, portas))}\n"
         
-        prompt += f"\nSERVIÇOS DETECTADOS: {len(contexto.servicos_detectados)}\n"
-        for ip, servicos in contexto.servicos_detectados.items():
+        servicos_detectados = contexto_seguro.get('servicos_detectados', {})
+        prompt += f"\nSERVIÇOS DETECTADOS: {sum(len(s) for s in servicos_detectados.values())}\n"
+        for ip, servicos in servicos_detectados.items():
             prompt += f"  {ip}: {len(servicos)} serviços\n"
         
-        prompt += f"\nVULNERABILIDADES ENCONTRADAS: {len(contexto.vulnerabilidades_encontradas)}\n"
+        vulnerabilidades = contexto_seguro.get('vulnerabilidades_encontradas', [])
+        prompt += f"\nVULNERABILIDADES ENCONTRADAS: {len(vulnerabilidades)}\n"
         
-        if contexto.vulnerabilidades_encontradas:
-            for vuln in contexto.vulnerabilidades_encontradas[-3:]:
-                prompt += f"  - {vuln.get('tipo', 'N/A')}: {vuln.get('descricao', 'N/A')[:100]}...\n"
+        if vulnerabilidades:
+            for vuln in vulnerabilidades[-3:]:  # Últimas 3
+                tipo = vuln.get('tipo', 'N/A')
+                descricao = vuln.get('descricao', 'N/A')[:100]
+                prompt += f"  - {tipo}: {descricao}...\n"
         
         prompt += f"\nRESUMO DOS ÚLTIMOS RESULTADOS:\n"
-        for modulo in contexto.modulos_executados[-3:]:
-            resultado = contexto.resultados_por_modulo.get(modulo, {})
-            if resultado.get('sucesso'):
+        for modulo in contexto_original.modulos_executados[-3:]:
+            resultado = contexto_original.resultados_por_modulo.get(modulo, {})
+            if resultado.get('sucesso_geral', resultado.get('sucesso', False)):
                 prompt += f"  ✓ {modulo}: executado com sucesso\n"
             else:
                 prompt += f"  ✗ {modulo}: falha na execução\n"
+        
+        # Adicionar aviso sobre anonimização
+        prompt += f"\n📋 INFORMAÇÕES DE SEGURANÇA:\n"
+        aviso = contexto_seguro.get('_aviso_anonimizacao', {})
+        if aviso:
+            prompt += f"  • {aviso.get('status', 'IPs anonimizados')}\n"
+            prompt += f"  • {aviso.get('preservado', 'Estrutura mantida')}\n"
+            prompt += f"  • Total anonimizado: {aviso.get('total_anonimizado', 0)}\n"
         
         return prompt
 
@@ -483,20 +533,19 @@ PORTAS ABERTAS POR HOST:
 
     def _executar_modulo(self, nome_modulo: str, contexto: ContextoExecucao, decisao_ia: Dict) -> Dict[str, Any]:
         """Executa um módulo específico"""
-        self.logger.info(f" Executando módulo: {nome_modulo}")
+        self.logger.info(f"⚡ Executando módulo: {nome_modulo}")
         
         try:
             modulo = self.modulos_disponiveis[nome_modulo]
-            alvos = decisao_ia.get('alvos', [])
+            alvos_ia = decisao_ia.get('alvos', [])
             parametros = decisao_ia.get('parametros', {})
             
-            # Se não há alvos específicos, usar IPs descobertos
-            if not alvos:
-                alvos = contexto.ips_descobertos
+            # Processar alvos: converter alvos anonimizados ou especiais para reais
+            alvos_reais = self._resolver_alvos_para_execucao(alvos_ia, contexto)
             
             resultados = {}
             
-            for alvo in alvos:
+            for alvo in alvos_reais:
                 try:
                     self.logger.info(f"   Executando {nome_modulo} em {alvo}")
                     
@@ -509,6 +558,8 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_sqlmap(nome_modulo, alvo, modulo, parametros)
                     elif nome_modulo.startswith('zap_'):
                         resultado = self._executar_modulo_zap(nome_modulo, alvo, modulo, parametros)
+                    elif nome_modulo == 'openvas_scan':
+                        resultado = self._executar_modulo_openvas(nome_modulo, alvo, modulo, parametros)
                     else:
                         # Módulos genéricos
                         resultado = self._executar_modulo_generico(nome_modulo, alvo, modulo, parametros)
@@ -516,9 +567,9 @@ PORTAS ABERTAS POR HOST:
                     resultados[alvo] = resultado
                     
                     if resultado.get('sucesso'):
-                        self.logger.info(f"  ✓ {nome_modulo} executado com sucesso em {alvo}")
+                        self.logger.info(f"  ✅ {nome_modulo} executado com sucesso em {alvo}")
                     else:
-                        self.logger.warning(f"   Falha em {nome_modulo} para {alvo}: {resultado.get('erro')}")
+                        self.logger.warning(f"  ⚠️ Falha em {nome_modulo} para {alvo}: {resultado.get('erro')}")
                 
                 except Exception as e:
                     self.logger.error(f"Erro ao executar {nome_modulo} em {alvo}: {str(e)}")
@@ -532,6 +583,8 @@ PORTAS ABERTAS POR HOST:
                 'nome_modulo': nome_modulo,
                 'resultados_por_alvo': resultados,
                 'parametros_utilizados': parametros,
+                'alvos_executados': alvos_reais,
+                'alvos_ia_originais': alvos_ia,
                 'timestamp': datetime.now().isoformat(),
                 'sucesso_geral': any(r.get('sucesso', False) for r in resultados.values())
             }
@@ -544,6 +597,50 @@ PORTAS ABERTAS POR HOST:
                 'erro': f'Erro crítico: {str(e)}',
                 'timestamp': datetime.now().isoformat()
             }
+    
+    def _resolver_alvos_para_execucao(self, alvos_ia: List[str], contexto: ContextoExecucao) -> List[str]:
+        """
+        Resolve alvos da IA para alvos reais de execução
+        Args:
+            alvos_ia (List[str]): Alvos indicados pela IA (podem ser anonimizados ou especiais)
+            contexto (ContextoExecucao): Contexto com IPs reais
+        Returns:
+            List[str]: Lista de alvos reais para execução
+        """
+        if not alvos_ia:
+            # Se IA não especificou alvos, usar IPs descobertos
+            return contexto.ips_descobertos
+        
+        alvos_reais = []
+        
+        for alvo_ia in alvos_ia:
+            if alvo_ia == "use_alvos_descobertos":
+                # Comando especial para usar todos os IPs descobertos
+                alvos_reais.extend(contexto.ips_descobertos)
+            elif alvo_ia.startswith("[") and alvo_ia.endswith("]"):
+                # IP foi removido/anonimizado - usar todos os IPs descobertos como fallback
+                self.logger.warning(f"Alvo anonimizado detectado: {alvo_ia}, usando todos os IPs descobertos")
+                alvos_reais.extend(contexto.ips_descobertos)
+            else:
+                # Tentar usar o alvo diretamente (pode ser IP anonimizado válido)
+                # Neste caso, precisaríamos de um mapeamento reverso, mas para simplificar
+                # vamos usar os IPs descobertos
+                self.logger.info(f"Resolvendo alvo da IA: {alvo_ia} → usando IPs descobertos")
+                alvos_reais.extend(contexto.ips_descobertos)
+        
+        # Remover duplicatas mantendo ordem
+        alvos_unicos = []
+        for alvo in alvos_reais:
+            if alvo not in alvos_unicos:
+                alvos_unicos.append(alvo)
+        
+        # Garantir que temos pelo menos um alvo
+        if not alvos_unicos:
+            alvos_unicos = contexto.ips_descobertos
+        
+        self.logger.info(f"🎯 Alvos resolvidos: {len(alvos_unicos)} IPs → {', '.join(alvos_unicos[:3])}{'...' if len(alvos_unicos) > 3 else ''}")
+        
+        return alvos_unicos
 
     def _executar_modulo_nmap(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
         """Executa módulos Nmap específicos"""
@@ -592,7 +689,7 @@ PORTAS ABERTAS POR HOST:
             return {'sucesso': False, 'erro': f'Método não encontrado para {nome_modulo}'}
 
     def _executar_modulo_zap(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
-        """Executa módulos OWASP ZAP"""
+        """Executa módulos de scanner web Python nativo"""
         # Construir URL se necessário
         if not alvo.startswith('http'):
             url = f"http://{alvo}"
@@ -600,9 +697,8 @@ PORTAS ABERTAS POR HOST:
             url = alvo
         
         mapa_metodos = {
-            'zap_spider': modulo.varredura_spider,
-            'zap_active_scan': modulo.varredura_ativa,
-            'zap_passive_scan': modulo.varredura_passiva,
+            'zap_spider': modulo.spider_scan,
+            'zap_active_scan': modulo.active_scan,
         }
         
         metodo = mapa_metodos.get(nome_modulo)
@@ -610,6 +706,15 @@ PORTAS ABERTAS POR HOST:
             return metodo(url, **parametros)
         else:
             return {'sucesso': False, 'erro': f'Método não encontrado para {nome_modulo}'}
+
+    def _executar_modulo_openvas(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulos OpenVAS"""
+        try:
+            # Obter portas abertas do contexto se disponível
+            portas_abertas = parametros.get('portas_abertas', None)
+            return modulo.scan_vulnerabilidades(alvo, portas_abertas)
+        except Exception as e:
+            return {'sucesso': False, 'erro': f'Erro OpenVAS: {str(e)}'}
 
     def _executar_modulo_generico(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
         """Executa módulos genéricos baseado em convenções"""
