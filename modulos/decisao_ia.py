@@ -48,6 +48,10 @@ MÓDULOS DISPONÍVEIS:
 4. varredura_servicos_web - Análise específica de HTTP/HTTPS
 5. varredura_smb - Análise de serviços SMB/NetBIOS
 6. varredura_descoberta_rede - Discovery de hosts na rede
+7. feroxbuster_basico - Descoberta de diretórios e arquivos web
+8. feroxbuster_recursivo - Descoberta recursiva de diretórios
+9. sqlmap_teste_url - Teste de SQL Injection em URLs
+10. sqlmap_teste_formulario - Teste de SQL Injection em formulários
 
 Com base nos serviços encontrados, responda APENAS em formato JSON:
 {{
@@ -645,6 +649,10 @@ Total de portas: {host.get('portas_abertas', 0)}
             'Nmap Serviços Web': 'varredura_servicos_web',
             'Nmap SMB': 'varredura_smb',
             'Nmap Descoberta de Rede': 'varredura_descoberta_rede',
+            'Feroxbuster Básico': 'feroxbuster_basico',
+            'Feroxbuster Recursivo': 'feroxbuster_recursivo',
+            'SQLMap URL': 'sqlmap_teste_url',
+            'SQLMap Formulário': 'sqlmap_teste_formulario',
             
             # Nomes descritivos completos
             'Nmap Básico - Varredura simples de portas': 'varredura_basica',
@@ -653,6 +661,10 @@ Total de portas: {host.get('portas_abertas', 0)}
             'Nmap Serviços Web - Análise específica de HTTP/HTTPS': 'varredura_servicos_web',
             'Nmap SMB - Análise de serviços SMB/NetBIOS': 'varredura_smb',
             'Nmap Descoberta de Rede - Discovery de hosts na rede': 'varredura_descoberta_rede',
+            'Feroxbuster Básico - Descoberta de diretórios e arquivos web': 'feroxbuster_basico',
+            'Feroxbuster Recursivo - Descoberta recursiva de diretórios': 'feroxbuster_recursivo',
+            'SQLMap URL - Teste de SQL Injection em URLs': 'sqlmap_teste_url',
+            'SQLMap Formulário - Teste de SQL Injection em formulários': 'sqlmap_teste_formulario',
             
             # Já normalizados (pass-through)
             'varredura_basica': 'varredura_basica',
@@ -660,7 +672,11 @@ Total de portas: {host.get('portas_abertas', 0)}
             'varredura_vulnerabilidades': 'varredura_vulnerabilidades',
             'varredura_servicos_web': 'varredura_servicos_web',
             'varredura_smb': 'varredura_smb',
-            'varredura_descoberta_rede': 'varredura_descoberta_rede'
+            'varredura_descoberta_rede': 'varredura_descoberta_rede',
+            'feroxbuster_basico': 'feroxbuster_basico',
+            'feroxbuster_recursivo': 'feroxbuster_recursivo',
+            'sqlmap_teste_url': 'sqlmap_teste_url',
+            'sqlmap_teste_formulario': 'sqlmap_teste_formulario'
         }
         
         modulos_normalizados = []

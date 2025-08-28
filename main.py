@@ -41,6 +41,8 @@ def main():
     from modulos.varredura_rustscan import VarreduraRustScan
     from modulos.varredura_nmap import VarreduraNmap
     from modulos.decisao_ia import DecisaoIA
+    from modulos.varredura_feroxbuster import VarreduraFeroxbuster
+    from modulos.varredura_sqlmap import VarreduraSQLMap
 
     from core.orquestrador_pentest import OrquestradorPentest
     from relatorios.gerador_html import gerar_relatorio_automatico
@@ -58,9 +60,12 @@ def main():
         scanner_portas = VarreduraRustScan()
         scanner_nmap = VarreduraNmap()
         decisao_ia = DecisaoIA()
+        varredura_feroxbuster = VarreduraFeroxbuster()
+        varredura_sqlmap = VarreduraSQLMap()
 
         orquestrador = OrquestradorPentest(
-            resolver_dns, scanner_portas, scanner_nmap, decisao_ia, obter_logger
+            resolver_dns, scanner_portas, scanner_nmap, decisao_ia, 
+            varredura_feroxbuster, varredura_sqlmap, obter_logger
         )
 
         cli_logger.info(f"=== Orquestrador Inteligente - Pentest Inicial ===")

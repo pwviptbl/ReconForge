@@ -220,12 +220,11 @@ class VarreduraRustScan:
         comando = [
             self.binario_nmap,
             '-sT',  # TCP connect scan (não precisa root)
-            '--top-ports', str(top),
+            '-p', '1-65535',  # Todas as portas
             '-T4',  # Timing agressivo
             '--open',  # Apenas portas abertas
             alvo
         ]
-        
         return self._executar_varredura_nmap(comando, "varredura_nmap_top_ports")
     
     def varredura_nmap_rapida(self, alvo: str, portas: Optional[str] = None) -> Dict[str, Any]:
