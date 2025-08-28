@@ -25,25 +25,25 @@ def diagnosticar_xml():
     
     # Verificar se Nmap está disponível
     if not varredura.verificar_nmap():
-        logger.error("❌ Nmap não está disponível")
+        logger.error(" Nmap não está disponível")
         return
     
-    logger.info("✅ Nmap está disponível")
+    logger.info(" Nmap está disponível")
     
     # Teste 1: Comando muito simples
     logger.info("\n1️⃣ Testando comando Nmap simples...")
     resultado = varredura.testar_nmap_xml('127.0.0.1')
     
     if resultado.get('sucesso'):
-        logger.info("✅ Teste simples passou - XML gerado corretamente")
+        logger.info(" Teste simples passou - XML gerado corretamente")
     else:
-        logger.error("❌ Teste simples falhou")
+        logger.error(" Teste simples falhou")
         logger.error(f"Erro: {resultado.get('erro')}")
         
         # Mostrar diagnóstico detalhado
         diagnostico = resultado.get('diagnostico_xml')
         if diagnostico:
-            logger.info("\n🔍 Diagnóstico detalhado:")
+            logger.info("\n Diagnóstico detalhado:")
             logger.info(f"Arquivo existe: {diagnostico['arquivo_existe']}")
             logger.info(f"Tamanho: {diagnostico['tamanho_bytes']} bytes")
             logger.info(f"XML válido: {diagnostico['xml_valido']}")
@@ -90,7 +90,7 @@ def diagnosticar_xml():
         # Verificar arquivo XML
         if os.path.exists(arquivo_xml):
             tamanho = os.path.getsize(arquivo_xml)
-            logger.info(f"✅ Arquivo XML criado: {tamanho} bytes")
+            logger.info(f" Arquivo XML criado: {tamanho} bytes")
             
             if tamanho > 0:
                 with open(arquivo_xml, 'r') as f:
@@ -98,9 +98,9 @@ def diagnosticar_xml():
                 logger.info(f"Primeiros 200 caracteres do XML:")
                 logger.info(conteudo[:200])
             else:
-                logger.error("❌ Arquivo XML está vazio")
+                logger.error(" Arquivo XML está vazio")
         else:
-            logger.error("❌ Arquivo XML não foi criado")
+            logger.error(" Arquivo XML não foi criado")
         
         # Limpar arquivo temporário
         try:
@@ -120,9 +120,9 @@ def diagnosticar_xml():
     logger.info(f"Diretório temporário: {temp_dir}")
     
     if os.access(temp_dir, os.W_OK):
-        logger.info("✅ Diretório temporário tem permissão de escrita")
+        logger.info(" Diretório temporário tem permissão de escrita")
     else:
-        logger.error("❌ Diretório temporário não tem permissão de escrita")
+        logger.error(" Diretório temporário não tem permissão de escrita")
     
     # Verificar espaço em disco
     try:

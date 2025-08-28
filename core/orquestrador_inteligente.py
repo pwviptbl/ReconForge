@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Orquestrador Inteligente com Loop Adaptativo
 Implementa estratégia de loop inteligente onde a IA decide os próximos passos
@@ -55,17 +54,17 @@ class OrquestradorInteligente:
         self.scanner_nmap = scanner_nmap
         self.decisao_ia = decisao_ia
         
-        # OBRIGATÓRIO: Verificar se Gemini está disponível
+        # Verificar se Gemini está disponível
         if not self._verificar_gemini_obrigatorio():
-            raise RuntimeError("❌ Sistema requer Gemini AI ativo. Configure a chave API no config/default.yaml")
+            raise RuntimeError(" Sistema requer Gemini AI ativo. Configure a chave API no config/default.yaml")
         
-        # Módulos disponíveis (serão carregados dinamicamente)
+        # Módulos disponíveis (carregados dinamicamente)
         self.modulos_disponiveis = {}
         self._carregar_modulos()
         
         # Configurações do loop
-        self.max_iteracoes = 50  # Aumentado conforme solicitado - sem limites restritivos
-        self.min_intervalo_iteracao = 2  # Segundos entre iterações
+        self.max_iteracoes = 50
+        self.min_intervalo_iteracao = 2
         
         self.logger.info("Orquestrador Inteligente inicializado")
         self.logger.info(f"Módulos disponíveis: {list(self.modulos_disponiveis.keys())}")
@@ -77,11 +76,11 @@ class OrquestradorInteligente:
             bool: True se Gemini está ativo, False caso contrário
         """
         try:
-            self.logger.info("🤖 Verificando Gemini AI (OBRIGATÓRIO)...")
+            self.logger.info(" Verificando Gemini AI (OBRIGATÓRIO)...")
             
             # Tentar conectar
             if not self.decisao_ia.conectar_gemini():
-                self.logger.error("❌ Falha ao conectar com Gemini AI")
+                self.logger.error(" Falha ao conectar com Gemini AI")
                 return False
             
             # Testar uma consulta simples
@@ -89,14 +88,14 @@ class OrquestradorInteligente:
             resposta = self.decisao_ia._executar_consulta_gemini(teste_prompt)
             
             if resposta and "TESTE_OK" in resposta:
-                self.logger.info("✅ Gemini AI verificado e funcionando!")
+                self.logger.info(" Gemini AI verificado e funcionando!")
                 return True
             else:
-                self.logger.error("❌ Gemini AI não respondeu corretamente ao teste")
+                self.logger.error(" Gemini AI não respondeu corretamente ao teste")
                 return False
                 
         except Exception as e:
-            self.logger.error(f"❌ Erro na verificação do Gemini: {str(e)}")
+            self.logger.error(f" Erro na verificação do Gemini: {str(e)}")
             return False
 
     def _carregar_modulos(self):
@@ -136,7 +135,7 @@ class OrquestradorInteligente:
                 'zap_active_scan': VarreduraZAP(),
                 'openvas_scan': VarreduraOpenVAS(),
                 
-                # Módulos Nmap (já existentes)
+                # Módulos Nmap
                 'nmap_varredura_basica': self.scanner_nmap,
                 'nmap_varredura_completa': self.scanner_nmap,
                 'nmap_varredura_vulnerabilidades': self.scanner_nmap,
@@ -149,7 +148,7 @@ class OrquestradorInteligente:
             
         except ImportError as e:
             self.logger.warning(f"Alguns módulos não puderam ser carregados: {e}")
-            # Carregar apenas módulos básicos
+            # Carregar módulos básicos
             self.modulos_disponiveis = {
                 'nmap_varredura_basica': self.scanner_nmap,
                 'nmap_varredura_completa': self.scanner_nmap,
@@ -166,12 +165,12 @@ class OrquestradorInteligente:
         Returns:
             Dict[str, Any]: Resultados completos do pentest
         """
-        self.logger.info(f"🚀 Iniciando pentest inteligente para {alvo}")
+        self.logger.info(f" Iniciando pentest inteligente para {alvo}")
         
         # Iniciar sessão de histórico
         try:
             sessao_id = self.decisao_ia.historico.iniciar_sessao(alvo, "pentest_inteligente")
-            self.logger.info(f"📝 Sessão de histórico iniciada: {sessao_id}")
+            self.logger.info(f" Sessão de histórico iniciada: {sessao_id}")
         except Exception as e:
             self.logger.warning(f"Erro ao iniciar sessão de histórico: {e}")
         
@@ -204,7 +203,7 @@ class OrquestradorInteligente:
             self.logger.info("=== FASE 4: Finalização ===")
             resultado_final = self._finalizar_pentest(contexto)
             
-            self.logger.info("🎉 Pentest inteligente concluído com sucesso!")
+            self.logger.info(" Pentest inteligente concluído com sucesso!")
             return resultado_final
             
         except Exception as e:
@@ -242,7 +241,7 @@ class OrquestradorInteligente:
             resultados_scan = {}
             
             for ip in contexto.ips_descobertos:
-                self.logger.info(f"🔍 Escaneando portas em {ip}")
+                self.logger.info(f" Escaneando portas em {ip}")
                 resultado_scan = self.scanner_portas.varredura_completa(ip)
                 resultados_scan[ip] = resultado_scan
                 
@@ -253,7 +252,7 @@ class OrquestradorInteligente:
                     
                     self.logger.info(f"✓ {len(portas_abertas)} portas abertas em {ip}")
                 else:
-                    self.logger.warning(f"⚠️ Falha no scan de {ip}")
+                    self.logger.warning(f" Falha no scan de {ip}")
             
             # Armazenar resultados
             contexto.resultados_por_modulo['scan_inicial'] = resultados_scan
@@ -274,7 +273,7 @@ class OrquestradorInteligente:
         
         while not contexto.finalizado and iteracao < self.max_iteracoes:
             iteracao += 1
-            self.logger.info(f"🔄 Iteração {iteracao} do loop inteligente")
+            self.logger.info(f" Iteração {iteracao} do loop inteligente")
             
             try:
                 # IA analisa contexto atual e decide próximo passo
@@ -282,12 +281,12 @@ class OrquestradorInteligente:
                 contexto.decisoes_ia.append(decisao_ia)
                 
                 acao = decisao_ia.get('acao', 'parar')
-                self.logger.info(f"🤖 IA decidiu: {acao}")
+                self.logger.info(f" IA decidiu: {acao}")
                 
                 if acao == 'parar':
                     contexto.finalizado = True
                     contexto.motivo_finalizacao = decisao_ia.get('justificativa', 'IA decidiu parar')
-                    self.logger.info(f"🛑 IA decidiu parar: {contexto.motivo_finalizacao}")
+                    self.logger.info(f" IA decidiu parar: {contexto.motivo_finalizacao}")
                     break
                 
                 elif acao == 'executar_modulo':
@@ -304,20 +303,20 @@ class OrquestradorInteligente:
                         contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
                         
                     else:
-                        self.logger.warning(f"⚠️ Módulo desconhecido: {modulo_escolhido}")
+                        self.logger.warning(f" Módulo desconhecido: {modulo_escolhido}")
                 
                 elif acao == 'parar':
                     contexto.finalizado = True
                     contexto.motivo_finalizacao = decisao_ia.get('justificativa', 'IA decidiu parar')
-                    self.logger.info(f"🛑 IA decidiu parar: {contexto.motivo_finalizacao}")
+                    self.logger.info(f" IA decidiu parar: {contexto.motivo_finalizacao}")
                     break
                 
                 else:
-                    self.logger.warning(f"⚠️ Ação desconhecida da IA: {acao}")
+                    self.logger.warning(f" Ação desconhecida da IA: {acao}")
                 
             except RuntimeError as e:
                 # Erro crítico da IA - sistema deve parar
-                self.logger.error(f"❌ ERRO CRÍTICO: {str(e)}")
+                self.logger.error(f" ERRO CRÍTICO: {str(e)}")
                 contexto.finalizado = True
                 contexto.motivo_finalizacao = f"Erro crítico da IA: {str(e)}"
                 break
@@ -330,7 +329,7 @@ class OrquestradorInteligente:
         if iteracao >= self.max_iteracoes:
             contexto.finalizado = True
             contexto.motivo_finalizacao = f"Limite máximo de iterações atingido ({self.max_iteracoes})"
-            self.logger.warning(f"⚠️ {contexto.motivo_finalizacao}")
+            self.logger.warning(f" {contexto.motivo_finalizacao}")
         
         return {'iteracoes_executadas': iteracao, 'contexto_final': contexto}
 
@@ -374,21 +373,21 @@ IMPORTANTE:
 """
             
             # Enviar para IA (OBRIGATÓRIO - sem fallback)
-            self.logger.info("🤖 Consultando Gemini AI para próxima decisão...")
+            self.logger.info(" Consultando Gemini AI para próxima decisão...")
             resposta_ia = self.decisao_ia._executar_consulta_gemini(prompt_universal, "decisao_loop")
             
             if not resposta_ia:
-                raise RuntimeError("❌ Gemini AI não retornou resposta válida")
+                raise RuntimeError(" Gemini AI não retornou resposta válida")
             
             decisao = self._parsear_decisao_ia_loop(resposta_ia)
             if not decisao:
-                raise RuntimeError("❌ Não foi possível parsear resposta da IA")
+                raise RuntimeError(" Não foi possível parsear resposta da IA")
             
-            self.logger.info(f"✅ IA decidiu: {decisao.get('acao', 'N/A')}")
+            self.logger.info(f" IA decidiu: {decisao.get('acao', 'N/A')}")
             return decisao
             
         except Exception as e:
-            self.logger.error(f"❌ ERRO CRÍTICO na consulta IA: {str(e)}")
+            self.logger.error(f" ERRO CRÍTICO na consulta IA: {str(e)}")
             # SEM FALLBACK - sistema deve parar se IA falhar
             raise RuntimeError(f"Sistema requer IA funcional. Erro: {str(e)}")
 
@@ -414,11 +413,11 @@ PORTAS ABERTAS POR HOST:
         prompt += f"\nVULNERABILIDADES ENCONTRADAS: {len(contexto.vulnerabilidades_encontradas)}\n"
         
         if contexto.vulnerabilidades_encontradas:
-            for vuln in contexto.vulnerabilidades_encontradas[-3:]:  # Últimas 3
+            for vuln in contexto.vulnerabilidades_encontradas[-3:]:
                 prompt += f"  - {vuln.get('tipo', 'N/A')}: {vuln.get('descricao', 'N/A')[:100]}...\n"
         
         prompt += f"\nRESUMO DOS ÚLTIMOS RESULTADOS:\n"
-        for modulo in contexto.modulos_executados[-3:]:  # Últimos 3 módulos
+        for modulo in contexto.modulos_executados[-3:]:
             resultado = contexto.resultados_por_modulo.get(modulo, {})
             if resultado.get('sucesso'):
                 prompt += f"  ✓ {modulo}: executado com sucesso\n"
@@ -461,7 +460,7 @@ PORTAS ABERTAS POR HOST:
     def _parsear_decisao_ia_loop(self, resposta_ia: str) -> Optional[Dict[str, Any]]:
         """Parseia decisão da IA para o loop"""
         try:
-            # Tentar extrair JSON da resposta
+            # Extrair JSON da resposta
             resposta_limpa = resposta_ia.strip()
             inicio_json = resposta_limpa.find('{')
             fim_json = resposta_limpa.rfind('}') + 1
@@ -484,7 +483,7 @@ PORTAS ABERTAS POR HOST:
 
     def _executar_modulo(self, nome_modulo: str, contexto: ContextoExecucao, decisao_ia: Dict) -> Dict[str, Any]:
         """Executa um módulo específico"""
-        self.logger.info(f"🔧 Executando módulo: {nome_modulo}")
+        self.logger.info(f" Executando módulo: {nome_modulo}")
         
         try:
             modulo = self.modulos_disponiveis[nome_modulo]
@@ -499,7 +498,7 @@ PORTAS ABERTAS POR HOST:
             
             for alvo in alvos:
                 try:
-                    self.logger.info(f"  🎯 Executando {nome_modulo} em {alvo}")
+                    self.logger.info(f"   Executando {nome_modulo} em {alvo}")
                     
                     # Executar baseado no tipo de módulo
                     if nome_modulo.startswith('nmap_'):
@@ -519,7 +518,7 @@ PORTAS ABERTAS POR HOST:
                     if resultado.get('sucesso'):
                         self.logger.info(f"  ✓ {nome_modulo} executado com sucesso em {alvo}")
                     else:
-                        self.logger.warning(f"  ⚠️ Falha em {nome_modulo} para {alvo}: {resultado.get('erro')}")
+                        self.logger.warning(f"   Falha em {nome_modulo} para {alvo}: {resultado.get('erro')}")
                 
                 except Exception as e:
                     self.logger.error(f"Erro ao executar {nome_modulo} em {alvo}: {str(e)}")
@@ -660,7 +659,7 @@ PORTAS ABERTAS POR HOST:
                     else:
                         contexto.portas_abertas[ip] = portas
             
-            self.logger.info(f"  📊 Contexto atualizado com resultados de {nome_modulo}")
+            self.logger.info(f"   Contexto atualizado com resultados de {nome_modulo}")
             
         except Exception as e:
             self.logger.error(f"Erro ao atualizar contexto: {str(e)}")
@@ -885,7 +884,7 @@ PORTAS ABERTAS POR HOST:
                                    datetime.fromisoformat(contexto.timestamp_inicio)).total_seconds() / 60)
         })
         
-        self.logger.info(f"📊 Estatísticas finais:")
+        self.logger.info(f" Estatísticas finais:")
         self.logger.info(f"  • IPs: {resumo_final['estatisticas']['ips_descobertos']}")
         self.logger.info(f"  • Portas: {resumo_final['estatisticas']['total_portas_abertas']}")
         self.logger.info(f"  • Serviços: {resumo_final['estatisticas']['servicos_detectados']}")
@@ -897,7 +896,7 @@ PORTAS ABERTAS POR HOST:
         try:
             arquivo_historico = self.decisao_ia.historico.finalizar_sessao(resumo_final)
             if arquivo_historico:
-                self.logger.info(f"📝 Histórico salvo: {arquivo_historico}")
+                self.logger.info(f" Histórico salvo: {arquivo_historico}")
         except Exception as e:
             self.logger.warning(f"Erro ao finalizar sessão de histórico: {e}")
         
@@ -1105,10 +1104,10 @@ if __name__ == "__main__":
         if decisao_ia.conectar_gemini():
             logger.info("✓ Gemini conectado para teste")
         else:
-            logger.error("❌ Gemini não disponível - sistema requer IA")
+            logger.error(" Gemini não disponível - sistema requer IA")
             exit(1)
     except Exception as e:
-        logger.error(f"❌ Erro ao conectar Gemini - sistema requer IA: {e}")
+        logger.error(f" Erro ao conectar Gemini - sistema requer IA: {e}")
         exit(1)
     
     orquestrador = OrquestradorInteligente(
@@ -1119,4 +1118,4 @@ if __name__ == "__main__":
     )
     
     logger.info("✓ Orquestrador Inteligente inicializado com sucesso!")
-    logger.info("🚀 Pronto para execução com loop adaptativo!")
+    logger.info(" Pronto para execução com loop adaptativo!")

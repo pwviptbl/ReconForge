@@ -50,4 +50,4 @@ O arquivo YAML contém as seguintes seções:
 
 ## Segurança
 
-⚠️ **IMPORTANTE**: O arquivo `config/default.yaml` contém informações sensíveis (chaves API) e está incluído no `.gitignore`. **NUNCA** faça commit deste arquivo.
+ **IMPORTANTE**: O arquivo `config/default.yaml` contém informações sensíveis (chaves API) e está incluído no `.gitignore`. **NUNCA** faça commit deste arquivo.

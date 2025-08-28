@@ -29,17 +29,17 @@ def listar_timeouts():
     """Lista os timeouts atuais"""
     config = carregar_config()
     if not config:
-        print("❌ Arquivo de configuração não encontrado!")
+        print(" Arquivo de configuração não encontrado!")
         return
     
-    print("📋 Timeouts Atuais:")
+    print(" Timeouts Atuais:")
     print("=" * 50)
     
     for varredura, timeout in config['timeouts'].items():
         minutos = timeout / 60
         print(f"  {varredura:<25} {timeout:>4}s ({minutos:>4.1f} min)")
     
-    print("\n📊 Configurações de Performance:")
+    print("\n Configurações de Performance:")
     for chave, valor in config['performance'].items():
         print(f"  {chave:<25} {valor}")
 
@@ -47,11 +47,11 @@ def ajustar_timeout(tipo_varredura, novo_timeout):
     """Ajusta o timeout de um tipo específico de varredura"""
     config = carregar_config()
     if not config:
-        print("❌ Arquivo de configuração não encontrado!")
+        print(" Arquivo de configuração não encontrado!")
         return
     
     if tipo_varredura not in config['timeouts']:
-        print(f"❌ Tipo de varredura '{tipo_varredura}' não encontrado!")
+        print(f" Tipo de varredura '{tipo_varredura}' não encontrado!")
         print("Tipos disponíveis:", list(config['timeouts'].keys()))
         return
     
@@ -60,7 +60,7 @@ def ajustar_timeout(tipo_varredura, novo_timeout):
     
     salvar_config(config)
     
-    print(f"✅ Timeout ajustado para '{tipo_varredura}':")
+    print(f" Timeout ajustado para '{tipo_varredura}':")
     print(f"   Anterior: {timeout_anterior}s ({timeout_anterior/60:.1f} min)")
     print(f"   Novo:     {novo_timeout}s ({novo_timeout/60:.1f} min)")
 
@@ -68,11 +68,11 @@ def ajustar_performance(parametro, novo_valor):
     """Ajusta um parâmetro de performance"""
     config = carregar_config()
     if not config:
-        print("❌ Arquivo de configuração não encontrado!")
+        print(" Arquivo de configuração não encontrado!")
         return
     
     if parametro not in config['performance']:
-        print(f"❌ Parâmetro '{parametro}' não encontrado!")
+        print(f" Parâmetro '{parametro}' não encontrado!")
         print("Parâmetros disponíveis:", list(config['performance'].keys()))
         return
     
@@ -88,13 +88,13 @@ def ajustar_performance(parametro, novo_valor):
     
     salvar_config(config)
     
-    print(f"✅ Parâmetro '{parametro}' ajustado:")
+    print(f" Parâmetro '{parametro}' ajustado:")
     print(f"   Anterior: {valor_anterior}")
     print(f"   Novo:     {novo_valor}")
 
 def recomendar_timeouts():
     """Recomenda timeouts baseados no ambiente"""
-    print("🔧 Recomendações de Timeout por Ambiente:")
+    print(" Recomendações de Timeout por Ambiente:")
     print("=" * 50)
     
     print("\n🏠 Rede Local (LAN):")
@@ -125,7 +125,7 @@ def aplicar_preset(preset):
     """Aplica um preset de configurações"""
     config = carregar_config()
     if not config:
-        print("❌ Arquivo de configuração não encontrado!")
+        print(" Arquivo de configuração não encontrado!")
         return
     
     presets = {
@@ -172,14 +172,14 @@ def aplicar_preset(preset):
     }
     
     if preset not in presets:
-        print(f"❌ Preset '{preset}' não encontrado!")
+        print(f" Preset '{preset}' não encontrado!")
         print("Presets disponíveis:", list(presets.keys()))
         return
     
     config['timeouts'].update(presets[preset])
     salvar_config(config)
     
-    print(f"✅ Preset '{preset}' aplicado com sucesso!")
+    print(f" Preset '{preset}' aplicado com sucesso!")
     listar_timeouts()
 
 def main():

@@ -24,21 +24,21 @@ def setup_configuracao() -> bool:
     
     # Verificar se o arquivo de exemplo existe
     if not arquivo_exemplo.exists():
-        print(f"❌ Arquivo de exemplo não encontrado: {arquivo_exemplo}")
+        print(f" Arquivo de exemplo não encontrado: {arquivo_exemplo}")
         return False
     
     # Verificar se já existe configuração
     if arquivo_config.exists():
-        resposta = input(f"⚠️  Arquivo de configuração já existe em {arquivo_config}\n"
+        resposta = input(f"  Arquivo de configuração já existe em {arquivo_config}\n"
                         "Deseja sobrescrever? (s/N): ").strip().lower()
         if resposta not in ['s', 'sim', 'y', 'yes']:
-            print("📄 Mantendo configuração existente")
+            print(" Mantendo configuração existente")
             return True
     
     try:
         # Copiar arquivo de exemplo
         shutil.copy2(arquivo_exemplo, arquivo_config)
-        print(f"✅ Arquivo de configuração criado: {arquivo_config}")
+        print(f" Arquivo de configuração criado: {arquivo_config}")
         
         # Configuração interativa básica
         print("\n=== Configuração Básica ===")
@@ -64,17 +64,17 @@ def setup_configuracao() -> bool:
             with open(arquivo_config, 'w', encoding='utf-8') as f:
                 f.write(conteudo)
             
-            print("✅ Chave API configurada!")
+            print(" Chave API configurada!")
         else:
-            print("⚠️  Lembre-se de editar o arquivo e configurar sua chave API")
+            print("  Lembre-se de editar o arquivo e configurar sua chave API")
         
-        print(f"\n✅ Configuração inicial concluída!")
-        print(f"📝 Para ajustes adicionais, edite: {arquivo_config}")
+        print(f"\n Configuração inicial concluída!")
+        print(f" Para ajustes adicionais, edite: {arquivo_config}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Erro durante a configuração: {str(e)}")
+        print(f" Erro durante a configuração: {str(e)}")
         return False
 
 def verificar_configuracao() -> bool:
@@ -87,7 +87,7 @@ def verificar_configuracao() -> bool:
     arquivo_config = config_dir / "default.yaml"
     
     if not arquivo_config.exists():
-        print(f"❌ Arquivo de configuração não encontrado: {arquivo_config}")
+        print(f" Arquivo de configuração não encontrado: {arquivo_config}")
         print("Execute: python setup.py para criar a configuração inicial")
         return False
     
@@ -100,17 +100,17 @@ def verificar_configuracao() -> bool:
         erros = config.validar_configuracoes()
         
         if erros:
-            print("⚠️  Problemas encontrados na configuração:")
+            print("  Problemas encontrados na configuração:")
             for erro, descricao in erros.items():
                 print(f"   - {erro}: {descricao}")
-            print(f"\n📝 Edite o arquivo: {arquivo_config}")
+            print(f"\n Edite o arquivo: {arquivo_config}")
             return False
         else:
-            print("✅ Configuração válida!")
+            print(" Configuração válida!")
             return True
             
     except Exception as e:
-        print(f"❌ Erro ao validar configuração: {str(e)}")
+        print(f" Erro ao validar configuração: {str(e)}")
         return False
 
 def main():
@@ -141,7 +141,7 @@ def main():
         arquivo_config = config_dir / "default.yaml"
         
         if not arquivo_config.exists():
-            print("📋 Primeira execução detectada. Iniciando configuração...")
+            print(" Primeira execução detectada. Iniciando configuração...")
             sucesso = setup_configuracao()
         else:
             sucesso = verificar_configuracao()

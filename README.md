@@ -16,28 +16,28 @@ varreduras Nmap avançadas. Mantém compatibilidade de CLI e caminhos de saída.
 
 ## Características do Pentest Inicial
 
-### 🎯 Resolução DNS
+###  Resolução DNS
 - Resolução direta: Domínio → IP(s)
 - Resolução reversa: IP → Domínio(s)
 - Registros: A, AAAA, MX, CNAME, TXT
 - Identificação do tipo de alvo
 
-### 🔍 Scan de Portas
+###  Scan de Portas
 - Integração com RustScan (descoberta rápida)
 - Resumo consolidado por host
 - Total de portas e serviços expostos
 
-### 🤖 Decisão IA (Gemini)
+### Decisão IA (Gemini)
 - Avalia os resultados do scan inicial
 - Recomenda módulos Nmap avançados (básico, completo, vuln, web, smb, discovery)
 - Define prioridade e portas de interesse
 - Fallback local por regras quando IA indisponível
 
-### 📡 Nmap Avançado (opcional)
+### Nmap Avançado (opcional)
 - Execução por módulo com agregação de métricas
 - Resumo por módulo e total de vulnerabilidades/serviços
 
-### 📊 Relatórios e Logs
+###  Relatórios e Logs
 - HTML: templates Jinja2 com base e relatório DNS
 - JSON: dump completo de resultados
 - Logs: arquivo rotativo e console verboso opcional
@@ -78,7 +78,7 @@ O sistema usa um arquivo de configuração YAML único:
 - **Automática**: Execute `python setup.py --setup` para configuração interativa
 - **Manual**: Copie `config/default.yaml.example` para `config/default.yaml` e edite
 
-⚠️ **Obrigatório**: Configure sua chave API do Gemini em `config/default.yaml`
+ **Obrigatório**: Configure sua chave API do Gemini em `config/default.yaml`
 
 Veja `config/README.md` para detalhes completos da configuração.
 
@@ -284,10 +284,10 @@ python main.py --alvo <alvo> --verbose
 
 ## Desenvolvimento e Próximas Fases
 
-1. Pentest inicial (esta fase) ✅
-2. Enumeração de serviços e versões 🔄
-3. Varreduras especializadas (web, vuln, etc.) 🔄
-4. Relatório consolidado 🔄
+1. Pentest inicial (esta fase) 
+2. Enumeração de serviços e versões 
+3. Varreduras especializadas (web, vuln, etc.) 
+4. Relatório consolidado 
 
 ## Licença
 
@@ -295,4 +295,4 @@ Este projeto está sob licença MIT.
 
 ---
 
-Orquestrador Inteligente - Construindo o futuro das varreduras de segurança 🚀
+Orquestrador Inteligente - Construindo o futuro das varreduras de segurança 
