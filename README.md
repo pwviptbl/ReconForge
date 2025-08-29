@@ -95,36 +95,14 @@ Veja `config/README.md` para detalhes completos da configuração.
 ## Uso - Web Scraping com Autenticação (NOVO!)
 
 ```bash
-# Scraping básico (sem autenticação)
-python main.py --web-scan --alvo httpbin.org --tipo-web-scan basico
+# Estudo Web inicial (sem autenticação) → LOOP-IA
+python main.py --web-scan --alvo https://exemplo.com
 
-# Scraping com autenticação
-python main.py --web-scan --alvo exemplo.com --usuario admin --senha minha_senha --tipo-web-scan autenticado
+# Estudo Web com autenticação → LOOP-IA
+python main.py --web-scan --alvo https://exemplo.com --usuario admin --senha minha_senha
 
-# Scraping completo (com testes de vulnerabilidades)
-python main.py --web-scan --alvo exemplo.com --tipo-web-scan completo
-
-# Modo verboso para mais detalhes
-python main.py --web-scan --alvo exemplo.com --verbose --tipo-web-scan completo
-
-# ============================================
-# TESTES DE VULNERABILIDADES (NOVO!)
-# ============================================
-
-# Teste completo de vulnerabilidades (Web + API + Mobile)
-python main.py --alvo exemplo.com --teste-vulnerabilidades
-
-# Teste apenas de vulnerabilidades web
-python main.py --alvo exemplo.com --teste-web
-
-# Teste apenas de segurança de API
-python main.py --alvo exemplo.com --teste-api
-
-# Teste apenas de segurança mobile/web
-python main.py --alvo exemplo.com --teste-mobile
-
-# Modo verboso para ver detalhes dos testes
-python main.py --alvo exemplo.com --teste-vulnerabilidades --verbose
+# Modo verboso
+python main.py --web-scan --alvo https://exemplo.com --verbose
 ```
 
 ### Funcionalidades do Web Scraping
@@ -252,10 +230,13 @@ Autenticação: Desabilitada
 ## Uso - Pentest Completo com IA
 
 ```bash
-# Pentest completo com loop inteligente
+# Fluxo Redes (padrão): DNS → RustScan → LOOP-IA
 python main.py --alvo exemplo.com
 
-# Com saída verbosa
+# Fluxo Web: Estudo com navegador → LOOP-IA
+python main.py --web-scan --alvo https://exemplo.com [--usuario USER --senha PASS]
+
+# Verbose
 python main.py --alvo exemplo.com --verbose
 ```
 
@@ -312,7 +293,6 @@ Alvo: 8.8.8.8
 ```
 VarreduraIA/
 ├── main.py                          # CLI principal com argumentos web
-├── exemplo_scraper.py               # Exemplos de uso do web scraping
 ├── requirements.txt
 ├── README.md
 │
@@ -334,6 +314,8 @@ VarreduraIA/
 │   ├── resolucao_dns.py
 │   ├── varredura_rustscan.py
 │   ├── varredura_nmap.py
+│   ├── navegacao_web_ia.py             # 🆕 Módulo navegador Selenium/Playwright
+│   ├── varredura_scraper_multi_engine.py  # 🆕 Multi-engine (Selenium/Playwright/Requests-HTML)
 │   ├── varredura_scraper_auth.py    # 🆕 Web scraping com auth
 │   ├── testador_vulnerabilidades_web.py    # 🆕 Testes web (XSS, SQLi, etc.)
 │   ├── testador_seguranca_api.py           # 🆕 Segurança de APIs
@@ -378,8 +360,8 @@ quanto como pasta de saída dos relatórios HTML, para manter compatibilidade de
   - Instancia módulos e delega execução ao orquestrador
   - Chama persistência e gerador de HTML
 
-- Orquestração: core/orquestrador_pentest.py
-  - Fluxo DNS → Scan de Portas → Decisão IA → Nmap Avançado (opcional)
+- Orquestração: core/orquestrador_inteligente.py
+  - Fluxos: Redes (DNS → RustScan → LOOP-IA) e Web (Navegador → LOOP-IA)
   - Usa utils/rede.py para extrair/validar IPs
   - Usa utils/resumo.py para consolidar resumos
   - Loga sessão via utils/logger.py
@@ -412,50 +394,14 @@ O gerador utiliza o contexto "resultados" com os campos:
 ## Comandos Disponíveis
 
 ```bash
-# Ajuda completa
+# Ajuda
 python main.py --help
 
-# ============================================
-# PENTEST COMPLETO COM IA (Loop Inteligente)
-# ============================================
+# Redes (padrão): DNS → RustScan → LOOP-IA
+python main.py --alvo ALVO [--verbose]
 
-# Pentest completo com decisão IA
-python main.py --alvo exemplo.com
-
-# Modo verboso
-python main.py --alvo exemplo.com --verbose
-
-# ============================================
-# WEB SCRAPING ESPECÍFICO (NOVO!)
-# ============================================
-
-# Scraping básico (sem autenticação)
-python main.py --web-scan --alvo httpbin.org --tipo-web-scan basico
-
-# Scraping com autenticação
-python main.py --web-scan --alvo exemplo.com --usuario admin --senha senha123 --tipo-web-scan autenticado
-
-# Scraping completo com testes de vuln
-python main.py --web-scan --alvo exemplo.com --tipo-web-scan completo
-
-# ============================================
-# TESTES DE VULNERABILIDADES (NOVO!)
-# ============================================
-
-# Teste completo de vulnerabilidades (Web + API + Mobile)
-python main.py --alvo exemplo.com --teste-vulnerabilidades
-
-# Teste apenas de vulnerabilidades web
-python main.py --alvo exemplo.com --teste-web
-
-# Teste apenas de segurança de API
-python main.py --alvo exemplo.com --teste-api
-
-# Teste apenas de segurança mobile/web
-python main.py --alvo exemplo.com --teste-mobile
-
-# Modo verboso para ver detalhes dos testes
-python main.py --alvo exemplo.com --teste-vulnerabilidades --verbose
+# Web: Estudo com navegador → LOOP-IA
+python main.py --web-scan --alvo URL [--usuario USER --senha PASS] [--verbose]
 ```
 
 ## Formato de Saída JSON (exemplo)
@@ -505,7 +451,7 @@ python main.py --alvo exemplo.com --teste-vulnerabilidades --verbose
 1. **Análise de Contexto**: A IA recebe informações sobre IPs descobertos, portas abertas e serviços detectados
 2. **Anonimização**: Os IPs são anonimizados antes do envio para proteger privacidade
 3. **Decisão Inteligente**: Baseado no contexto, a IA escolhe os módulos mais apropriados
-4. **Mapeamento Automático**: Termos como "web scraping" são automaticamente mapeados para `scraper_auth`
+4. **Mapeamento Automático**: Termos como "web scraping" são automaticamente mapeados para `navegador_web` ou `scraper_auth`
 
 ### Módulos que a IA Pode Escolher
 

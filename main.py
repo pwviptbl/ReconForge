@@ -255,37 +255,20 @@ def main():
                     """
     )
 
-    # Parâmetros principais
-    parser.add_argument('--alvo', required=True, help='Domínio ou IP para resolver')
-    parser.add_argument('--verbose', action='store_true', help='Saída verbosa')
-    
-    # Parâmetros específicos para web scraping
-    parser.add_argument('--web-scan', action='store_true', 
-                       help='Executar apenas varredura web (pula scans gerais)')
-    parser.add_argument('--usuario', help='Usuário para autenticação web')
-    parser.add_argument('--senha', help='Senha para autenticação web')
-    parser.add_argument('--tipo-web-scan', choices=['basico', 'autenticado', 'completo'], 
-                       default='completo', help='Tipo de scan web (padrão: completo)')
-    
-    # Novos parâmetros para testes de vulnerabilidades
-    parser.add_argument('--teste-vulnerabilidades', action='store_true',
-                       help='Executar testes específicos de vulnerabilidades')
-    parser.add_argument('--teste-web', action='store_true',
-                       help='Executar apenas testes de vulnerabilidades web')
-    parser.add_argument('--teste-api', action='store_true',
-                       help='Executar apenas testes de segurança de API')
-    parser.add_argument('--teste-mobile', action='store_true',
-                       help='Executar apenas testes de segurança mobile/web')
+    # Parâmetros principais (CLI simplificado)
+    parser.add_argument('--alvo', required=True, help='Domínio, IP ou URL base do alvo')
+    parser.add_argument('--verbose', action='store_true', help='Saída verbosa no console')
+    parser.add_argument('--web-scan', action='store_true', help='Modo Web: estudo com navegador → LOOP-IA')
+    parser.add_argument('--usuario', help='Usuário para autenticação web (opcional)')
+    parser.add_argument('--senha', help='Senha para autenticação web (opcional)')
 
     args = parser.parse_args()
 
-    # Verificar se é scan web específico
-    if args.web_scan:
-        return executar_scan_web(args)
-    
-    # Verificar se são testes de vulnerabilidades
-    if args.teste_vulnerabilidades or args.teste_web or args.teste_api or args.teste_mobile:
-        return executar_testes_vulnerabilidades(args)
+    # Determinar modo de execução e credenciais (CLI simplificado)
+    modo_execucao = 'web' if args.web_scan else 'rede'
+    credenciais = None
+    if args.usuario and args.senha:
+        credenciais = {'usuario': args.usuario, 'senha': args.senha}
 
     # Importações pós-args para respeitar verbosidade de console
     from modulos.resolucao_dns import ResolucaoDNS
@@ -318,8 +301,12 @@ def main():
         cli_logger.info(f"Alvo: {args.alvo}")
         cli_logger.info("")
 
-        # Executar pentest inteligente
-        resultados = orquestrador.executar_pentest_inteligente(args.alvo)
+        # Executar pentest inteligente conforme modo selecionado
+        resultados = orquestrador.executar_pentest_inteligente(
+            args.alvo,
+            modo=modo_execucao,
+            credenciais_web=credenciais
+        )
 
         # Gerar nomes de arquivos com timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
