@@ -743,7 +743,24 @@ PORTAS ABERTAS POR HOST:
                     url = f"http://{alvo}"
                 else:
                     url = alvo
-                return modulo.scan_completo(url)
+
+                # Executar o scanner
+                resultado_scanner = modulo.scan_completo(url)
+
+                # Verificar se o scanner retornou erro
+                if 'erro' in resultado_scanner:
+                    return {
+                        'sucesso': False,
+                        'erro': resultado_scanner['erro'],
+                        'timestamp': datetime.now().isoformat()
+                    }
+                else:
+                    # Scanner executado com sucesso
+                    return {
+                        'sucesso': True,
+                        'dados': resultado_scanner,
+                        'timestamp': datetime.now().isoformat()
+                    }
             else:
                 return {'sucesso': False, 'erro': f'Scanner não implementado: {nome_modulo}'}
         except Exception as e:
@@ -775,7 +792,7 @@ PORTAS ABERTAS POR HOST:
             contexto.resultados_por_modulo[nome_modulo] = resultado
             
             # Extrair informações específicas baseado no tipo de resultado
-            if resultado.get('sucesso_geral'):
+            if resultado.get('sucesso'):
                 
                 # Extrair novos serviços descobertos
                 servicos = self._extrair_servicos_do_resultado(resultado)
@@ -856,12 +873,12 @@ PORTAS ABERTAS POR HOST:
         try:
             for alvo, resultado_alvo in resultado.get('resultados_por_alvo', {}).items():
                 dados = resultado_alvo.get('dados', {})
-                
+
                 # Scripts NSE de vulnerabilidades
                 if 'hosts' in dados:
                     for host in dados['hosts']:
                         ip = host.get('endereco', alvo)
-                        
+
                         # Scripts de host
                         for script in host.get('scripts', []):
                             if 'vuln' in script.get('id', '').lower():
@@ -872,7 +889,7 @@ PORTAS ABERTAS POR HOST:
                                     'descricao': script.get('saida', ''),
                                     'fonte': resultado.get('nome_modulo', 'unknown')
                                 })
-                        
+
                         # Scripts de portas
                         for porta in host.get('portas', []):
                             for script in porta.get('scripts', []):
@@ -885,7 +902,7 @@ PORTAS ABERTAS POR HOST:
                                         'descricao': script.get('saida', ''),
                                         'fonte': resultado.get('nome_modulo', 'unknown')
                                     })
-                
+
                 # Outras ferramentas
                 if 'vulnerabilidades' in dados:
                     for vuln in dados['vulnerabilidades']:
@@ -896,10 +913,26 @@ PORTAS ABERTAS POR HOST:
                             'severidade': vuln.get('severidade', 'unknown'),
                             'fonte': resultado.get('nome_modulo', 'unknown')
                         })
-                
+
+            # Suporte específico para scanner_web_avancado
+            if resultado.get('nome_modulo') == 'scanner_web_avancado':
+                # Verificar se há dados diretos do scanner (formato antigo)
+                dados_diretos = resultado.get('dados', {})
+                if 'vulnerabilidades' in dados_diretos:
+                    for vuln in dados_diretos['vulnerabilidades']:
+                        vulnerabilidades.append({
+                            'ip': dados_diretos.get('url_base', 'unknown').replace('http://', '').replace('https://', '').split('/')[0],
+                            'tipo': 'web',
+                            'titulo': vuln.get('titulo', 'Vulnerabilidade Web'),
+                            'descricao': vuln.get('descricao', ''),
+                            'criticidade': vuln.get('criticidade', 'BAIXA'),
+                            'url': vuln.get('url', ''),
+                            'fonte': 'scanner_web_avancado'
+                        })
+
         except Exception as e:
             self.logger.warning(f"Erro ao extrair vulnerabilidades: {str(e)}")
-        
+
         return vulnerabilidades
 
     def _extrair_portas_do_resultado(self, resultado: Dict) -> Dict[str, List[int]]:
@@ -978,7 +1011,11 @@ PORTAS ABERTAS POR HOST:
             'timestamp_inicio': contexto.timestamp_inicio,
             'timestamp_fim': timestamp_fim,
             'tempo_total': self._calcular_tempo_decorrido(contexto),
-            'sucesso_geral': True,
+            'sucesso_geral': any(
+                resultado.get('sucesso', False) 
+                for resultado in contexto.resultados_por_modulo.values()
+                if isinstance(resultado, dict)
+            ),
             
             # Estatísticas gerais
             'estatisticas': {
