@@ -122,6 +122,12 @@ class OrquestradorInteligente:
             # Módulos de scanner
             from modulos.scanner_vulnerabilidades import ScannerVulnerabilidades
             from modulos.scanner_web_avancado import ScannerWebAvancado
+            from modulos.varredura_scraper_auth import VarreduraScraperAuth
+            
+            # Novos módulos de teste de vulnerabilidades web
+            from modulos.testador_vulnerabilidades_web import TestadorVulnerabilidadesWeb
+            from modulos.testador_seguranca_api import TestadorSegurancaAPI
+            from modulos.testador_seguranca_mobile_web import TestadorSegurancaMobileWeb
             
             # Módulos especializados (ZAP e OpenVAS removidos)
             
@@ -139,6 +145,12 @@ class OrquestradorInteligente:
                 'searchsploit_check': VarreduraSearchSploit(),
                 'scanner_vulnerabilidades': ScannerVulnerabilidades(),
                 'scanner_web_avancado': ScannerWebAvancado(),
+                'scraper_auth': VarreduraScraperAuth(),
+                
+                # Novos módulos de teste de vulnerabilidades
+                'testador_vulnerabilidades_web': TestadorVulnerabilidadesWeb(),
+                'testador_seguranca_api': TestadorSegurancaAPI(),
+                'testador_seguranca_mobile_web': TestadorSegurancaMobileWeb(),
                 
                 # Módulos Nmap
                 'nmap_varredura_basica': self.scanner_nmap,
@@ -490,7 +502,7 @@ PORTAS ABERTAS POR HOST:
         categorias = {
             'Varredura Web': [
                 'feroxbuster_basico', 'feroxbuster_recursivo', 'nikto_scan', 
-                'whatweb_scan', 'nuclei_scan'
+                'whatweb_scan', 'nuclei_scan', 'scraper_auth'
             ],
             'Descoberta de Subdomínios': [
                 'subfinder_enum', 'sublist3r_enum'
@@ -500,6 +512,15 @@ PORTAS ABERTAS POR HOST:
             ],
             'Scanner de Vulnerabilidades': [
                 'scanner_vulnerabilidades', 'scanner_web_avancado'
+            ],
+            'Testes de Vulnerabilidades Web': [
+                'testador_vulnerabilidades_web'
+            ],
+            'Testes de Segurança de API': [
+                'testador_seguranca_api'
+            ],
+            'Testes de Segurança Mobile/Web': [
+                'testador_seguranca_mobile_web'
             ],
             'Nmap Especializado': [
                 'nmap_varredura_completa', 'nmap_varredura_vulnerabilidades',
@@ -533,6 +554,9 @@ PORTAS ABERTAS POR HOST:
             'nikto': 'nikto_scan',
             'whatweb': 'whatweb_scan',
             'nuclei': 'nuclei_scan',
+            'scraper': 'scraper_auth',
+            'scraping': 'scraper_auth',
+            'web scraping': 'scraper_auth',
             'nmap': 'nmap_varredura_completa',
             'nmap completo': 'nmap_varredura_completa',
             'scan de vulnerabilidades': 'scanner_vulnerabilidades',
@@ -540,6 +564,27 @@ PORTAS ABERTAS POR HOST:
             'sqlmap': 'sqlmap_teste_url',
             'subfinder': 'subfinder_enum',
             'sublist3r': 'sublist3r_enum',
+            'teste vulnerabilidades web': 'testador_vulnerabilidades_web',
+            'teste xss': 'testador_vulnerabilidades_web',
+            'teste sql injection': 'testador_vulnerabilidades_web',
+            'teste lfi': 'testador_vulnerabilidades_web',
+            'teste command injection': 'testador_vulnerabilidades_web',
+            'teste csrf': 'testador_vulnerabilidades_web',
+            'teste open redirect': 'testador_vulnerabilidades_web',
+            'teste api': 'testador_seguranca_api',
+            'teste seguranca api': 'testador_seguranca_api',
+            'teste autenticacao api': 'testador_seguranca_api',
+            'teste injection api': 'testador_seguranca_api',
+            'teste idor': 'testador_seguranca_api',
+            'teste rate limiting': 'testador_seguranca_api',
+            'teste cors': 'testador_seguranca_api',
+            'teste graphql': 'testador_seguranca_api',
+            'teste mobile': 'testador_seguranca_mobile_web',
+            'teste pwa': 'testador_seguranca_mobile_web',
+            'teste ssl': 'testador_seguranca_mobile_web',
+            'teste certificado': 'testador_seguranca_mobile_web',
+            'teste service worker': 'testador_seguranca_mobile_web',
+            'teste manifest': 'testador_seguranca_mobile_web',
         }
         
         # Busca direta no mapeamento
@@ -602,6 +647,12 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_sqlmap(nome_modulo, alvo, modulo, parametros)
                     elif nome_modulo.startswith('scanner_'):
                         resultado = self._executar_modulo_scanner(nome_modulo, alvo, modulo, parametros)
+                    elif nome_modulo == 'testador_vulnerabilidades_web':
+                        resultado = self._executar_modulo_testador_vulnerabilidades_web(alvo, modulo, parametros)
+                    elif nome_modulo == 'testador_seguranca_api':
+                        resultado = self._executar_modulo_testador_seguranca_api(alvo, modulo, parametros)
+                    elif nome_modulo == 'testador_seguranca_mobile_web':
+                        resultado = self._executar_modulo_testador_seguranca_mobile_web(alvo, modulo, parametros)
                     else:
                         # Módulos genéricos
                         resultado = self._executar_modulo_generico(nome_modulo, alvo, modulo, parametros)
@@ -783,6 +834,51 @@ PORTAS ABERTAS POR HOST:
                 
         except Exception as e:
             return {'sucesso': False, 'erro': f'Erro na execução genérica: {str(e)}'}
+
+    def _executar_modulo_testador_vulnerabilidades_web(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulo de teste de vulnerabilidades web"""
+        try:
+            # Construir URL se necessário
+            if not alvo.startswith('http'):
+                url = f"http://{alvo}"
+            else:
+                url = alvo
+
+            # Executar teste completo de vulnerabilidades web
+            return modulo.executar_teste_completo(url)
+
+        except Exception as e:
+            return {'sucesso': False, 'erro': f'Erro no teste de vulnerabilidades web: {str(e)}'}
+
+    def _executar_modulo_testador_seguranca_api(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulo de teste de segurança de API"""
+        try:
+            # Construir URL base da API se necessário
+            if not alvo.startswith('http'):
+                base_url = f"http://{alvo}"
+            else:
+                base_url = alvo
+
+            # Executar teste completo de segurança de API
+            return modulo.executar_teste_completo_api(base_url)
+
+        except Exception as e:
+            return {'sucesso': False, 'erro': f'Erro no teste de segurança de API: {str(e)}'}
+
+    def _executar_modulo_testador_seguranca_mobile_web(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulo de teste de segurança mobile/web"""
+        try:
+            # Construir URL se necessário
+            if not alvo.startswith('http'):
+                url = f"https://{alvo}"  # Preferir HTTPS para aplicações modernas
+            else:
+                url = alvo
+
+            # Executar teste completo de segurança mobile/web
+            return modulo.executar_teste_completo_mobile_web(url)
+
+        except Exception as e:
+            return {'sucesso': False, 'erro': f'Erro no teste de segurança mobile/web: {str(e)}'}
 
     def _atualizar_contexto_com_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict):
         """Atualiza contexto com resultados do módulo executado"""

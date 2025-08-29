@@ -18,6 +18,224 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 
 
+def executar_scan_web(args):
+    """Executa varredura web específica"""
+    from modulos.varredura_scraper_auth import executar_scraper_web
+    from relatorios.gerador_html import gerar_relatorio_automatico
+    from infra.persistencia import salvar_json_resultados
+    from utils.logger import obter_logger, log_manager
+
+    # Console só mostra quando --verbose
+    log_manager.definir_console_verbose(args.verbose)
+    logger = obter_logger("WebScanCLI")
+
+    try:
+        logger.info(f"=== Varredura Web Específica ===")
+        logger.info(f"Alvo: {args.alvo}")
+        logger.info(f"Tipo: {args.tipo_web_scan}")
+
+        # Preparar credenciais se fornecidas
+        credenciais = None
+        if args.usuario is not None and args.senha is not None:
+            credenciais = {
+                'usuario': args.usuario,
+                'senha': args.senha
+            }
+            logger.info("Autenticação: Habilitada")
+        else:
+            logger.info("Autenticação: Desabilitada")
+
+        # Executar scraping
+        resultados = executar_scraper_web(
+            args.alvo,
+            credenciais,
+            args.tipo_web_scan
+        )
+
+        if 'erro' in resultados:
+            logger.error(f"✗ Erro na varredura web: {resultados['erro']}")
+            return 1
+
+        # Gerar nomes de arquivos
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        arquivo_json = f"dados/webscan_{timestamp}.json"
+        arquivo_html = f"relatorios/webscan_{timestamp}.html"
+
+        # Salvar resultados
+        salvar_json_resultados(resultados, arquivo_json)
+        gerar_relatorio_automatico(resultados, arquivo_html)
+
+        # Exibir estatísticas
+        logger.info("✓ Varredura web concluída com sucesso!")
+
+        analise = resultados.get('analise_final', {})
+        logger.info(f"\n=== Estatísticas Web ===")
+        logger.info(f"  URLs descobertas: {analise.get('total_urls', 0)}")
+        logger.info(f"  Formulários: {analise.get('total_formularios', 0)}")
+        logger.info(f"  Endpoints API: {analise.get('total_apis', 0)}")
+        logger.info(f"  Parâmetros: {analise.get('total_parametros', 0)}")
+        logger.info(f"  Vulnerabilidades: {analise.get('total_vulnerabilidades', 0)}")
+
+        # Tecnologias detectadas
+        tech = resultados.get('tecnologias', {})
+        if tech:
+            logger.info(f"\n=== Tecnologias Detectadas ===")
+            for categoria, tecnologia in tech.items():
+                logger.info(f"  {categoria.title()}: {tecnologia}")
+
+        # Vulnerabilidades por criticidade
+        vuln_por_crit = analise.get('por_criticidade', {})
+        if vuln_por_crit:
+            logger.info(f"\n=== Vulnerabilidades ===")
+            for nivel, count in vuln_por_crit.items():
+                logger.info(f"  {nivel.title()}: {count}")
+
+        logger.info(f"\n✓ Arquivos salvos:")
+        logger.info(f"  JSON: {arquivo_json}")
+        logger.info(f"  HTML: {arquivo_html}")
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"✗ Erro inesperado: {str(e)}")
+        return 1
+
+
+def executar_testes_vulnerabilidades(args):
+    """Executa testes específicos de vulnerabilidades"""
+    import time
+    from modulos.testador_vulnerabilidades_web import TestadorVulnerabilidadesWeb
+    from modulos.testador_seguranca_api import TestadorSegurancaAPI
+    from modulos.testador_seguranca_mobile_web import TestadorSegurancaMobileWeb
+    from relatorios.gerador_html import gerar_relatorio_automatico
+    from infra.persistencia import salvar_json_resultados
+    from utils.logger import obter_logger, log_manager
+
+    # Console só mostra quando --verbose
+    log_manager.definir_console_verbose(args.verbose)
+    logger = obter_logger("VulnTestCLI")
+
+    try:
+        logger.info(f"=== Testes de Vulnerabilidades ===")
+        logger.info(f"Alvo: {args.alvo}")
+
+        # Determinar quais testes executar
+        executar_web = args.teste_web or args.teste_vulnerabilidades
+        executar_api = args.teste_api or args.teste_vulnerabilidades
+        executar_mobile = args.teste_mobile or args.teste_vulnerabilidades
+
+        if not any([executar_web, executar_api, executar_mobile]):
+            executar_web = executar_api = executar_mobile = True
+
+        logger.info(f"Testes a executar: Web={executar_web}, API={executar_api}, Mobile={executar_mobile}")
+
+        # URLs base
+        url_base = args.alvo
+        if not url_base.startswith('http'):
+            url_base = f"http://{url_base}"
+
+        url_login = f"{url_base}/login.php" if not url_base.endswith('.php') else url_base
+        url_api = f"{url_base}/api"
+        url_main = url_base.rstrip('/')
+
+        resultados_totais = {
+            'alvo': args.alvo,
+            'timestamp': datetime.now().isoformat(),
+            'testes_executados': [],
+            'vulnerabilidades_totais': 0,
+            'tempo_total': 0
+        }
+
+        inicio_total = time.time()
+
+        # 1. Teste de Vulnerabilidades Web
+        if executar_web:
+            logger.info(f"\n🕷️ Executando testes de vulnerabilidades web...")
+            testador_web = TestadorVulnerabilidadesWeb()
+            resultado_web = testador_web.executar_teste_completo(url_login)
+
+            resultados_totais['testes_executados'].append({
+                'teste': 'vulnerabilidades_web',
+                'resultado': resultado_web
+            })
+            resultados_totais['vulnerabilidades_totais'] += resultado_web['vulnerabilidades_totais']
+
+            logger.info(f"✅ Web: {resultado_web['vulnerabilidades_totais']} vulnerabilidades encontradas")
+
+        # 2. Teste de Segurança de API
+        if executar_api:
+            logger.info(f"\n🔗 Executando testes de segurança de API...")
+            testador_api = TestadorSegurancaAPI()
+            resultado_api = testador_api.executar_teste_completo_api(url_api)
+
+            resultados_totais['testes_executados'].append({
+                'teste': 'seguranca_api',
+                'resultado': resultado_api
+            })
+            resultados_totais['vulnerabilidades_totais'] += resultado_api['vulnerabilidades_totais']
+
+            logger.info(f"✅ API: {resultado_api['vulnerabilidades_totais']} vulnerabilidades encontradas")
+
+        # 3. Teste de Segurança Mobile/Web
+        if executar_mobile:
+            logger.info(f"\n📱 Executando testes de segurança mobile/web...")
+            testador_mobile = TestadorSegurancaMobileWeb()
+            resultado_mobile = testador_mobile.executar_teste_completo_mobile_web(url_main)
+
+            resultados_totais['testes_executados'].append({
+                'teste': 'seguranca_mobile_web',
+                'resultado': resultado_mobile
+            })
+            resultados_totais['vulnerabilidades_totais'] += resultado_mobile['vulnerabilidades_totais']
+
+            logger.info(f"✅ Mobile/Web: {resultado_mobile['vulnerabilidades_totais']} vulnerabilidades encontradas")
+
+        resultados_totais['tempo_total'] = time.time() - inicio_total
+
+        # Gerar nomes de arquivos
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        arquivo_json = f"dados/vulntest_{timestamp}.json"
+        arquivo_html = f"relatorios/vulntest_{timestamp}.html"
+
+        # Salvar resultados
+        salvar_json_resultados(resultados_totais, arquivo_json)
+        gerar_relatorio_automatico(resultados_totais, arquivo_html)
+
+        # Exibir estatísticas finais
+        logger.info(f"\n✓ Testes de vulnerabilidades concluídos com sucesso!")
+        logger.info(f"\n=== Estatísticas Finais ===")
+        logger.info(f"  Total de vulnerabilidades: {resultados_totais['vulnerabilidades_totais']}")
+        logger.info(f"  Tempo total: {resultados_totais['tempo_total']:.2f}s")
+        logger.info(f"  Média: {resultados_totais['vulnerabilidades_totais']/resultados_totais['tempo_total']:.1f} vuln/segundo")
+
+        # Mostrar vulnerabilidades críticas
+        for teste_info in resultados_totais['testes_executados']:
+            teste_nome = teste_info['teste']
+            resultado = teste_info['resultado']
+
+            if 'testes_executados' in resultado:
+                for subteste in resultado['testes_executados']:
+                    if 'resultado' in subteste and 'vulnerabilidades' in subteste['resultado']:
+                        vulns = subteste['resultado']['vulnerabilidades']
+                        vulns_criticas = [v for v in vulns if v.get('severidade') == 'critica']
+
+                        if vulns_criticas:
+                            logger.info(f"\n🚨 {teste_nome.upper()} - {subteste['teste'].upper()}:")
+                            for vuln in vulns_criticas[:3]:
+                                logger.info(f"   • {vuln['tipo']}: {vuln['evidencia'][:60]}...")
+
+        logger.info(f"\n✓ Arquivos salvos:")
+        logger.info(f"  JSON: {arquivo_json}")
+        logger.info(f"  HTML: {arquivo_html}")
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"✗ Erro inesperado: {str(e)}")
+        return 1
+
+
 def main():
     """Função principal - Pentest Inteligente com Loop Adaptativo"""
     parser = argparse.ArgumentParser(
@@ -40,8 +258,34 @@ def main():
     # Parâmetros principais
     parser.add_argument('--alvo', required=True, help='Domínio ou IP para resolver')
     parser.add_argument('--verbose', action='store_true', help='Saída verbosa')
+    
+    # Parâmetros específicos para web scraping
+    parser.add_argument('--web-scan', action='store_true', 
+                       help='Executar apenas varredura web (pula scans gerais)')
+    parser.add_argument('--usuario', help='Usuário para autenticação web')
+    parser.add_argument('--senha', help='Senha para autenticação web')
+    parser.add_argument('--tipo-web-scan', choices=['basico', 'autenticado', 'completo'], 
+                       default='completo', help='Tipo de scan web (padrão: completo)')
+    
+    # Novos parâmetros para testes de vulnerabilidades
+    parser.add_argument('--teste-vulnerabilidades', action='store_true',
+                       help='Executar testes específicos de vulnerabilidades')
+    parser.add_argument('--teste-web', action='store_true',
+                       help='Executar apenas testes de vulnerabilidades web')
+    parser.add_argument('--teste-api', action='store_true',
+                       help='Executar apenas testes de segurança de API')
+    parser.add_argument('--teste-mobile', action='store_true',
+                       help='Executar apenas testes de segurança mobile/web')
 
     args = parser.parse_args()
+
+    # Verificar se é scan web específico
+    if args.web_scan:
+        return executar_scan_web(args)
+    
+    # Verificar se são testes de vulnerabilidades
+    if args.teste_vulnerabilidades or args.teste_web or args.teste_api or args.teste_mobile:
+        return executar_testes_vulnerabilidades(args)
 
     # Importações pós-args para respeitar verbosidade de console
     from modulos.resolucao_dns import ResolucaoDNS

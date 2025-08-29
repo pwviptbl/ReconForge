@@ -25,6 +25,7 @@ markdown>=3.4.0
 
 # Segurança e criptografia
 cryptography>=40.0.0
+pyopenssl>=23.0.0  # Para análise avançada de certificados SSL
 
 # Configuração e validação
 pydantic>=1.10.0
@@ -33,6 +34,14 @@ toml>=0.10.0
 # Análise web e parsing
 beautifulsoup4>=4.11.0
 urllib3>=1.26.0
+xmltodict>=0.13.0  # Para parsing de XML (Cordova config.xml)
+
+# Simulação de navegador e automação web
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+playwright>=1.40.0
+requests-html>=0.10.0
+mechanicalsoup>=1.3.0
 
 # SSH e protocolos de rede
 paramiko>=3.0.0

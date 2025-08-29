@@ -1,46 +1,56 @@
-# Orquestrador Inteligente de Varreduras - Pentest Inicial (DNS + Portas)
+# Orquestrador Inteligente de Varreduras - Pentest com IA
 
 ## Descrição
 
-Pentest inicial automatizado com foco em:
-- Resolução DNS inteligente (domínio ↔ IP)
-- Scan de portas inicial (RustScan/Nmap básico)
-- Decisão assistida por IA para próximos passos
-- Nmap avançado opcional conforme recomendação
-- Relatórios em HTML (Jinja2) e JSON
-- Logging centralizado
+Sistema completo de pentest automatizado com IA integrada:
+- **Fase 1**: Resolução DNS + Scan inicial de portas
+- **Fase 2**: Loop inteligente com IA decidindo próximos módulos
+- **Fase 3**: Execução especializada (Web Scraping, Vuln Scan, etc.)
+- **Fase 4**: Relatórios consolidados em HTML/JSON
 
-Este repositório implementa a fase inicial do orquestrador: a partir de um alvo (domínio ou IP),
-resolve DNS, executa varredura de portas, consolida resumos e utiliza IA para decidir se executa
-varreduras Nmap avançadas. Mantém compatibilidade de CLI e caminhos de saída.
+**🆕 NOVO**: Módulo de Web Scraping com Autenticação!
+- Descoberta de URLs, formulários e APIs
+- Suporte a autenticação para áreas protegidas
+- Detecção de vulnerabilidades web
+- Integração completa com orquestrador IA
 
-## Características do Pentest Inicial
+## Características Principais
 
-###  Resolução DNS
-- Resolução direta: Domínio → IP(s)
-- Resolução reversa: IP → Domínio(s)
-- Registros: A, AAAA, MX, CNAME, TXT
-- Identificação do tipo de alvo
+### 🔍 Resolução DNS Inteligente
+- Domínio → IPs e registros DNS
+- IP → Domínios (resolução reversa)
+- Detecção automática do tipo de alvo
 
-###  Scan de Portas
-- Integração com RustScan (descoberta rápida)
-- Resumo consolidado por host
-- Total de portas e serviços expostos
+### 📡 Scan de Portas
+- RustScan para descoberta rápida
+- Nmap para análise detalhada
+- Detecção de serviços e versões
 
-### Decisão IA (Gemini)
-- Avalia os resultados do scan inicial
-- Recomenda módulos Nmap avançados (básico, completo, vuln, web, smb, discovery)
-- Define prioridade e portas de interesse
-- Fallback local por regras quando IA indisponível
+### 🤖 IA com Gemini
+- Decisão inteligente de próximos passos
+- Análise de contexto e risco
+- Recomendações personalizadas
+- Privacidade: IPs anonimizados antes do envio
 
-### Nmap Avançado (opcional)
-- Execução por módulo com agregação de métricas
-- Resumo por módulo e total de vulnerabilidades/serviços
+### 🕷️ Web Scraping com Autenticação (NOVO!)
+- **Spidering**: Descoberta automática de URLs
+- **Formulários**: Detecção e análise de formulários
+- **APIs**: Descoberta de endpoints REST/GraphQL
+- **Autenticação**: Login automático com credenciais
+- **Vulnerabilidades**: Testes de XSS, SQLi, LFI
+- **Tecnologias**: Detecção de CMS, frameworks, linguagens
 
-###  Relatórios e Logs
-- HTML: templates Jinja2 com base e relatório DNS
-- JSON: dump completo de resultados
-- Logs: arquivo rotativo e console verboso opcional
+### �️ Testes de Vulnerabilidades (NOVO!)
+- **Vulnerabilidades Web**: XSS, SQL Injection, LFI, Command Injection, CSRF, Open Redirect
+- **Segurança de API**: Broken Authentication, Injection, IDOR, Rate Limiting, CORS, GraphQL
+- **Segurança Mobile/Web**: SSL/TLS, PWA, Service Workers, Mobile Security, Hybrid Apps
+- **Integração CLI**: Opções específicas para cada tipo de teste
+- **Relatórios Detalhados**: Vulnerabilidades por criticidade e tipo
+
+### �📊 Relatórios Avançados
+- HTML responsivo com gráficos
+- JSON estruturado para integração
+- Logging centralizado com rotação
 
 ## Instalação
 
@@ -82,24 +92,187 @@ O sistema usa um arquivo de configuração YAML único:
 
 Veja `config/README.md` para detalhes completos da configuração.
 
-## Uso - Pentest Inicial: DNS + Scan de Portas
+## Uso - Web Scraping com Autenticação (NOVO!)
 
 ```bash
-# Resolver domínio para IP (modo silencioso - padrão)
-python main.py --alvo google.com
+# Scraping básico (sem autenticação)
+python main.py --web-scan --alvo httpbin.org --tipo-web-scan basico
 
-# Resolver IP para domínio (resolução reversa)
-python main.py --alvo 8.8.8.8
+# Scraping com autenticação
+python main.py --web-scan --alvo exemplo.com --usuario admin --senha minha_senha --tipo-web-scan autenticado
 
-# Com saída verbosa (detalhes no terminal)
-python main.py --alvo github.com --verbose
+# Scraping completo (com testes de vulnerabilidades)
+python main.py --web-scan --alvo exemplo.com --tipo-web-scan completo
+
+# Modo verboso para mais detalhes
+python main.py --web-scan --alvo exemplo.com --verbose --tipo-web-scan completo
+
+# ============================================
+# TESTES DE VULNERABILIDADES (NOVO!)
+# ============================================
+
+# Teste completo de vulnerabilidades (Web + API + Mobile)
+python main.py --alvo exemplo.com --teste-vulnerabilidades
+
+# Teste apenas de vulnerabilidades web
+python main.py --alvo exemplo.com --teste-web
+
+# Teste apenas de segurança de API
+python main.py --alvo exemplo.com --teste-api
+
+# Teste apenas de segurança mobile/web
+python main.py --alvo exemplo.com --teste-mobile
+
+# Modo verboso para ver detalhes dos testes
+python main.py --alvo exemplo.com --teste-vulnerabilidades --verbose
 ```
 
-### Arquivos Gerados Automaticamente
-- JSON: dados/resultado_YYYYMMDD_HHMMSS.json
-- HTML: relatorios/relatorio_YYYYMMDD_HHMMSS.html
+### Funcionalidades do Web Scraping
 
-Os diretórios são criados automaticamente, mantendo o comportamento anterior.
+#### 🕷️ Spidering Inteligente
+- Descoberta automática de URLs no mesmo domínio
+- Análise de links em HTML, JavaScript e formulários
+- Controle de profundidade e limite de páginas
+- Detecção de áreas autenticadas
+
+#### 🔐 Autenticação Automática
+- Detecção automática de formulários de login
+- Tentativa de login com credenciais fornecidas
+- Manutenção de sessão autenticada
+- Spidering em áreas protegidas
+
+#### 📝 Análise de Formulários
+- Detecção de todos os formulários da página
+- Classificação: login, busca, contato, etc.
+- Análise de campos obrigatórios/opcionais
+- Verificação de proteções CSRF
+
+#### 🔗 Descoberta de APIs
+- Detecção de endpoints REST/GraphQL
+- Análise de JavaScript para APIs
+- Extração de parâmetros de URL
+- Mapeamento da superfície de ataque
+
+#### 🛡️ Testes de Segurança
+- SQL Injection básico
+- XSS (Cross-Site Scripting)
+- LFI (Local File Inclusion)
+- Detecção de headers de segurança ausentes
+
+#### 🔍 Detecção de Tecnologias
+- CMS (WordPress, Joomla, Drupal)
+- Frameworks (Laravel, Django, React, Vue)
+- Servidores web (Apache, Nginx, IIS)
+- Linguagens (PHP, ASP.NET, Java)
+
+### Funcionalidades dos Testes de Vulnerabilidades
+
+#### 🕷️ Vulnerabilidades Web
+- **XSS (Cross-Site Scripting)**: Teste de injeção de scripts em formulários e parâmetros
+- **SQL Injection**: Detecção de vulnerabilidades de injeção SQL
+- **LFI (Local File Inclusion)**: Teste de inclusão de arquivos locais
+- **Command Injection**: Verificação de execução de comandos remotos
+- **CSRF (Cross-Site Request Forgery)**: Análise de proteção contra CSRF
+- **Open Redirect**: Detecção de redirecionamentos abertos
+
+#### 🔗 Segurança de API
+- **Broken Authentication**: Teste de autenticação quebrada
+- **API Injection**: Injeção em endpoints de API
+- **IDOR (Insecure Direct Object References)**: Referências diretas inseguras
+- **Rate Limiting**: Verificação de controle de taxa
+- **CORS (Cross-Origin Resource Sharing)**: Análise de políticas CORS
+- **GraphQL Security**: Segurança em APIs GraphQL
+
+#### 📱 Segurança Mobile/Web
+- **SSL/TLS Analysis**: Análise de certificados e configurações SSL
+- **PWA (Progressive Web Apps)**: Verificação de manifestos PWA
+- **Service Workers**: Análise de service workers
+- **Mobile Security**: Segurança específica para aplicações móveis
+- **Hybrid Security**: Segurança em aplicações híbridas
+
+### Exemplo de Saída - Testes de Vulnerabilidades
+
+```
+=== Testes de Vulnerabilidades ===
+Alvo: example.com
+Testes a executar: Web=True, API=True, Mobile=True
+
+🕷️ Executando testes de vulnerabilidades web...
+✅ Web: 0 vulnerabilidades encontradas
+
+🔗 Executando testes de segurança de API...
+✅ API: 0 vulnerabilidades encontradas
+
+📱 Executando testes de segurança mobile/web...
+✅ Mobile/Web: 13 vulnerabilidades encontradas
+
+✓ Testes de vulnerabilidades concluídos com sucesso!
+
+=== Estatísticas Finais ===
+  Total de vulnerabilidades: 13
+  Tempo total: 26.10s
+  Média: 0.5 vuln/segundo
+
+✓ Arquivos salvos:
+  JSON: dados/vulntest_20250829_000258.json
+  HTML: relatorios/vulntest_20250829_000258.html
+```
+
+### Exemplo de Saída - Web Scraping
+
+```
+=== Varredura Web Específica ===
+Alvo: httpbin.org
+Tipo: basico
+Autenticação: Desabilitada
+
+🕷️ Iniciando scraping para: httpbin.org
+🔍 Fase 1: Spider básico...
+🔧 Fase 2: Detectando tecnologias...
+📝 Fase 3: Analisando formulários...
+🔗 Fase 4: Descobrindo APIs...
+
+✅ Scraping concluído: 0 vulnerabilidades encontradas
+
+=== Estatísticas Web ===
+  URLs descobertas: 3
+  Formulários: 1
+  Endpoints API: 2
+  Parâmetros: 0
+  Vulnerabilidades: 0
+
+=== Tecnologias Detectadas ===
+  Frontend: React
+
+✓ Arquivos salvos:
+  JSON: dados/webscan_20250828_214513.json
+  HTML: relatorios/webscan_20250828_214513.html
+```
+
+## Uso - Pentest Completo com IA
+
+```bash
+# Pentest completo com loop inteligente
+python main.py --alvo exemplo.com
+
+# Com saída verbosa
+python main.py --alvo exemplo.com --verbose
+```
+
+### Funcionamento do Loop Inteligente
+
+1. **Fase 1**: DNS + Scan inicial
+2. **Fase 2**: IA analisa contexto e decide próximos módulos
+3. **Fase 3**: Execução dos módulos escolhidos
+4. **Fase 4**: Geração de relatório final
+
+A IA pode escolher entre:
+- `nmap_varredura_completa`
+- `nmap_varredura_vulnerabilidades`
+- `scanner_web_avancado`
+- `scraper_auth` (novo módulo de web scraping)
+- `feroxbuster_basico`
+- E outros módulos especializados
 
 ## Exemplos de Saída
 
@@ -138,21 +311,41 @@ Alvo: 8.8.8.8
 
 ```
 VarreduraIA/
-├── main.py
+├── main.py                          # CLI principal com argumentos web
+├── exemplo_scraper.py               # Exemplos de uso do web scraping
 ├── requirements.txt
 ├── README.md
 │
 ├── core/
 │   ├── __init__.py
 │   ├── configuracao.py
-│   └── orquestrador_pentest.py
+│   └── orquestrador_inteligente.py  # Orquestrador com IA
 │
 ├── infra/
+│   ├── __init__.py
 │   └── persistencia.py
 │
 ├── relatorios/
 │   ├── __init__.py
 │   └── gerador_html.py
+│
+├── modulos/
+│   ├── __init__.py
+│   ├── resolucao_dns.py
+│   ├── varredura_rustscan.py
+│   ├── varredura_nmap.py
+│   ├── varredura_scraper_auth.py    # 🆕 Web scraping com auth
+│   ├── testador_vulnerabilidades_web.py    # 🆕 Testes web (XSS, SQLi, etc.)
+│   ├── testador_seguranca_api.py           # 🆕 Segurança de APIs
+│   ├── testador_seguranca_mobile_web.py    # 🆕 Segurança mobile/web
+│   ├── scanner_web_avancado.py
+│   ├── scanner_vulnerabilidades.py
+│   └── decisao_ia.py
+│
+├── config/
+│   ├── __init__.py
+│   ├── default.yaml
+│   └── default.yaml.example
 │
 ├── templates/
 │   └── relatorios/
@@ -163,22 +356,15 @@ VarreduraIA/
 │   ├── __init__.py
 │   ├── logger.py
 │   ├── rede.py
-│   └── resumo.py
+│   ├── resumo.py
+│   ├── anonimizador_ip.py
+│   └── config_timeouts.py
 │
-├── modulos/
-│   ├── __init__.py
-│   ├── resolucao_dns.py
-│   ├── varredura_rustscan.py
-│   ├── varredura_nmap.py
-│   └── decisao_ia.py
-│
-├── config/
-│   ├── __init__.py
-│   └── default.yaml
-│
-├── dados/
-├── relatorios/        # arquivos HTML gerados (mesmo diretório do pacote)
-└── logs/
+├── dados/                          # Resultados JSON
+├── relatorios/                     # Relatórios HTML
+├── logs/                          # Logs do sistema
+├── temp/                          # Arquivos temporários
+└── wordlists/                     # Wordlists para brute force
 ```
 
 Observação: o diretório relatorios/ serve tanto como pacote Python (código do gerador)
@@ -226,14 +412,50 @@ O gerador utiliza o contexto "resultados" com os campos:
 ## Comandos Disponíveis
 
 ```bash
-# Ajuda
+# Ajuda completa
 python main.py --help
 
-# Execução padrão
-python main.py --alvo <dominio_ou_ip>
+# ============================================
+# PENTEST COMPLETO COM IA (Loop Inteligente)
+# ============================================
+
+# Pentest completo com decisão IA
+python main.py --alvo exemplo.com
 
 # Modo verboso
-python main.py --alvo <alvo> --verbose
+python main.py --alvo exemplo.com --verbose
+
+# ============================================
+# WEB SCRAPING ESPECÍFICO (NOVO!)
+# ============================================
+
+# Scraping básico (sem autenticação)
+python main.py --web-scan --alvo httpbin.org --tipo-web-scan basico
+
+# Scraping com autenticação
+python main.py --web-scan --alvo exemplo.com --usuario admin --senha senha123 --tipo-web-scan autenticado
+
+# Scraping completo com testes de vuln
+python main.py --web-scan --alvo exemplo.com --tipo-web-scan completo
+
+# ============================================
+# TESTES DE VULNERABILIDADES (NOVO!)
+# ============================================
+
+# Teste completo de vulnerabilidades (Web + API + Mobile)
+python main.py --alvo exemplo.com --teste-vulnerabilidades
+
+# Teste apenas de vulnerabilidades web
+python main.py --alvo exemplo.com --teste-web
+
+# Teste apenas de segurança de API
+python main.py --alvo exemplo.com --teste-api
+
+# Teste apenas de segurança mobile/web
+python main.py --alvo exemplo.com --teste-mobile
+
+# Modo verboso para ver detalhes dos testes
+python main.py --alvo exemplo.com --teste-vulnerabilidades --verbose
 ```
 
 ## Formato de Saída JSON (exemplo)
@@ -276,23 +498,98 @@ python main.py --alvo <alvo> --verbose
 }
 ```
 
-## Solução de Problemas
+## 🤖 Integração com IA (Gemini)
 
-- Confirme dependências externas (nmap, rustscan) se módulos avançados falharem.
-- Verifique os logs em logs/sistema.log para detalhes de erros.
-- Ajuste --verbose para inspecionar a saída de console.
+### Como a IA Decide os Próximos Passos
 
-## Desenvolvimento e Próximas Fases
+1. **Análise de Contexto**: A IA recebe informações sobre IPs descobertos, portas abertas e serviços detectados
+2. **Anonimização**: Os IPs são anonimizados antes do envio para proteger privacidade
+3. **Decisão Inteligente**: Baseado no contexto, a IA escolhe os módulos mais apropriados
+4. **Mapeamento Automático**: Termos como "web scraping" são automaticamente mapeados para `scraper_auth`
 
-1. Pentest inicial (esta fase) 
-2. Enumeração de serviços e versões 
-3. Varreduras especializadas (web, vuln, etc.) 
-4. Relatório consolidado 
+### Módulos que a IA Pode Escolher
 
-## Licença
+- **Web Scraping**: `scraper_auth` (novo módulo)
+- **Nmap Avançado**: `nmap_varredura_completa`, `nmap_varredura_vulnerabilidades`
+- **Web Scanning**: `scanner_web_avancado`, `feroxbuster_basico`
+- **Descoberta**: `subfinder_enum`, `sublist3r_enum`
+- **Exploração**: `sqlmap_teste_url`, `searchsploit_check`
 
-Este projeto está sob licença MIT.
+### Exemplo de Decisão IA
+
+```
+Contexto: Site com porta 80/443 aberta, suspeita de aplicação web
+IA Decide: executar_modulo
+Módulo: scraper_auth
+Justificativa: Descobrir estrutura web e possíveis vulnerabilidades
+```
+
+## 🔒 Segurança e Privacidade
+
+- **Anonimização de IPs**: Dados sensíveis são mascarados antes do envio para IA
+- **Logs Seguros**: Informações sensíveis são mascaradas nos logs
+- **Credenciais**: Tratamento seguro de senhas e tokens
+- **HTTPS**: Preferência por conexões seguras quando disponíveis
+
+## 📈 Desenvolvimento e Roadmap
+
+### ✅ Implementado
+- [x] Resolução DNS inteligente
+- [x] Scan inicial de portas (RustScan)
+- [x] Loop inteligente com IA
+- [x] Web scraping com autenticação
+- [x] Testes de vulnerabilidades web (XSS, SQLi, LFI, etc.)
+- [x] Testes de segurança de API
+- [x] Testes de segurança mobile/web
+- [x] Relatórios HTML/JSON
+- [x] Logging centralizado
+
+### 🚧 Em Desenvolvimento
+- [ ] Módulos adicionais (Nikto, Nuclei, etc.)
+- [ ] Dashboard web para visualização
+- [ ] Integração com ferramentas externas
+- [ ] Análise de vulnerabilidades avançada
+
+### 📋 Próximas Features
+- [ ] Suporte a proxies
+- [ ] Rate limiting inteligente
+- [ ] Detecção de WAF
+- [ ] Análise de JavaScript avançada
+- [ ] Integração com Burp Suite
+
+## 🐛 Solução de Problemas
+
+### Erro de Conexão com IA
+```bash
+# Verificar chave API
+grep "chave_api" config/default.yaml
+
+# Testar conectividade
+python -c "from modulos.decisao_ia import DecisaoIA; ia = DecisaoIA(); print(ia.conectar_gemini())"
+```
+
+### Módulo Web Scraping não Funciona
+```bash
+# Verificar instalação do BeautifulSoup
+pip install beautifulsoup4 lxml
+
+# Teste básico
+python -c "from modulos.varredura_scraper_auth import VarreduraScraperAuth; s = VarreduraScraperAuth(); print('OK')"
+```
+
+### Erros de Permissão
+```bash
+# Verificar permissões dos diretórios
+ls -la dados/ relatorios/ logs/
+
+# Criar diretórios se necessário
+mkdir -p dados relatorios logs
+```
+
+## 📝 Licença
+
+Este projeto está sob licença MIT. Veja o arquivo LICENSE para detalhes.
 
 ---
 
-Orquestrador Inteligente - Construindo o futuro das varreduras de segurança 
+**Orquestrador Inteligente** - Construindo o futuro das varreduras de segurança com IA 🤖
