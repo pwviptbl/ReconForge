@@ -308,7 +308,15 @@ class OrquestradorInteligente:
                         contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
                         
                     else:
-                        self.logger.warning(f" Módulo desconhecido: {modulo_escolhido}")
+                        # Mapear nomes de categoria para módulos específicos
+                        modulo_mapeado = self._mapear_categoria_para_modulo(modulo_escolhido)
+                        if modulo_mapeado:
+                            self.logger.info(f" Mapeando '{modulo_escolhido}' → {modulo_mapeado}")
+                            resultado_modulo = self._executar_modulo(modulo_mapeado, contexto, decisao_ia)
+                            self._atualizar_contexto_com_resultado(contexto, modulo_mapeado, resultado_modulo)
+                            contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
+                        else:
+                            self.logger.warning(f" Módulo desconhecido: {modulo_escolhido}")
                 
                 elif acao == 'parar':
                     contexto.finalizado = True
@@ -507,6 +515,41 @@ PORTAS ABERTAS POR HOST:
                     lista += f"  - {modulo}\n"
         
         return lista
+
+    def _mapear_categoria_para_modulo(self, nome_categoria: str) -> Optional[str]:
+        """
+        Mapeia categorias ou nomes genéricos da IA para módulos específicos disponíveis
+        """
+        nome_lower = nome_categoria.lower().strip()
+        
+        # Mapeamento direto de categorias para módulos preferenciais
+        mapeamento_categorias = {
+            'varredura web': 'feroxbuster_basico',
+            'varredura de web': 'feroxbuster_basico',
+            'web scanner': 'scanner_web_avancado',
+            'scanner web': 'scanner_web_avancado',
+            'web scan': 'feroxbuster_basico',
+            'feroxbuster': 'feroxbuster_basico',
+            'nikto': 'nikto_scan',
+            'whatweb': 'whatweb_scan',
+            'nuclei': 'nuclei_scan',
+            'nmap': 'nmap_varredura_completa',
+            'nmap completo': 'nmap_varredura_completa',
+            'scan de vulnerabilidades': 'scanner_vulnerabilidades',
+            'scanner de vulnerabilidades': 'scanner_vulnerabilidades',
+            'sqlmap': 'sqlmap_teste_url',
+            'subfinder': 'subfinder_enum',
+            'sublist3r': 'sublist3r_enum',
+        }
+        
+        # Busca direta no mapeamento
+        if nome_lower in mapeamento_categorias:
+            modulo_mapeado = mapeamento_categorias[nome_lower]
+            if modulo_mapeado in self.modulos_disponiveis:
+                return modulo_mapeado
+        
+        # Se não encontrou, retorna None
+        return None
 
     def _parsear_decisao_ia_loop(self, resposta_ia: str) -> Optional[Dict[str, Any]]:
         """Parseia decisão da IA para o loop"""

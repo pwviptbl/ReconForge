@@ -107,15 +107,18 @@ class ScannerVulnerabilidades:
             duracao = time.time() - inicio
             
             resultado = {
+                'sucesso': True,
                 'alvo': alvo,
                 'timestamp': datetime.now().isoformat(),
                 'duracao_segundos': round(duracao, 2),
-                'servicos_detectados': self.servicos_detectados,
-                'vulnerabilidades': self.vulnerabilidades,
-                'total_vulnerabilidades': len(self.vulnerabilidades),
-                'criticidade_alta': len([v for v in self.vulnerabilidades if v.get('criticidade') == 'ALTA']),
-                'criticidade_media': len([v for v in self.vulnerabilidades if v.get('criticidade') == 'MÉDIA']),
-                'criticidade_baixa': len([v for v in self.vulnerabilidades if v.get('criticidade') == 'BAIXA'])
+                'dados': {
+                    'servicos_detectados': self.servicos_detectados,
+                    'vulnerabilidades': self.vulnerabilidades,
+                    'total_vulnerabilidades': len(self.vulnerabilidades),
+                    'criticidade_alta': len([v for v in self.vulnerabilidades if v.get('criticidade') == 'ALTA']),
+                    'criticidade_media': len([v for v in self.vulnerabilidades if v.get('criticidade') == 'MÉDIA']),
+                    'criticidade_baixa': len([v for v in self.vulnerabilidades if v.get('criticidade') == 'BAIXA'])
+                }
             }
             
             self.logger.info(f"✅ Scan concluído: {len(self.vulnerabilidades)} vulnerabilidades encontradas")
@@ -123,7 +126,16 @@ class ScannerVulnerabilidades:
             
         except Exception as e:
             self.logger.error(f"❌ Erro no scan: {e}")
-            return {'erro': str(e), 'alvo': alvo}
+            return {
+                'sucesso': False,
+                'erro': str(e), 
+                'alvo': alvo,
+                'timestamp': datetime.now().isoformat(),
+                'dados': {
+                    'vulnerabilidades': [],
+                    'total_vulnerabilidades': 0
+                }
+            }
     
     def _scan_portas_basico(self, alvo):
         """Scan básico de portas se não fornecidas"""
