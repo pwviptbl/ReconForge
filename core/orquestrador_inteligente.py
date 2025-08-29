@@ -106,6 +106,9 @@ class OrquestradorInteligente:
             from modulos.scanner_web_avancado import ScannerWebAvancado
             from modulos.varredura_scraper_auth import VarreduraScraperAuth
             from modulos.navegacao_web_ia import NavegadorWebIA
+            
+            # Navegação Web com Gemini
+            from modulos.integrador_web_gemini import IntegradorWebGemini
 
             # Testes
             from modulos.testador_vulnerabilidades_web import TestadorVulnerabilidadesWeb
@@ -127,6 +130,9 @@ class OrquestradorInteligente:
                 'scanner_web_avancado': ScannerWebAvancado(),
                 'scraper_auth': VarreduraScraperAuth(),
                 'navegador_web': NavegadorWebIA(),
+                
+                # Navegação Web com Gemini
+                'navegador_web_gemini': IntegradorWebGemini(),
 
                 'testador_vulnerabilidades_web': TestadorVulnerabilidadesWeb(),
                 'testador_seguranca_api': TestadorSegurancaAPI(),
@@ -166,7 +172,21 @@ class OrquestradorInteligente:
         )
 
         try:
-            if modo == 'web':
+            if modo == 'web_gemini':
+                # Fluxo WEB com GEMINI
+                self.credenciais_web = credenciais_web
+                self.logger.info("=== FASE 1 (WEB + GEMINI): Análise Inteligente com Login Automático ===")
+                resultado_web_gemini = self._executar_estudo_web_gemini_preloop(alvo, contexto, credenciais_web)
+                if not resultado_web_gemini.get('sucesso'):
+                    return self._finalizar_com_erro(contexto, f"Falha no estudo web com Gemini: {resultado_web_gemini.get('erro')}")
+
+                self.logger.info("=== FASE 2: Loop Inteligente ===")
+                self._executar_loop_inteligente(contexto)
+
+                self.logger.info("=== FASE 3: Finalização ===")
+                return self._finalizar_pentest(contexto)
+            
+            elif modo == 'web':
                 # Fluxo WEB
                 self.credenciais_web = credenciais_web
                 self.logger.info("=== FASE 1 (WEB): Estudo com Navegador ===")
@@ -200,6 +220,68 @@ class OrquestradorInteligente:
         except Exception as e:
             self.logger.error(f"Erro crítico no pentest: {str(e)}")
             return self._finalizar_com_erro(contexto, f"Erro crítico: {str(e)}")
+
+    def _executar_estudo_web_gemini_preloop(self, alvo: str, contexto: ContextoExecucao, credenciais: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Executa estudo web com Gemini e atualiza o contexto."""
+        try:
+            if 'navegador_web_gemini' not in self.modulos_disponiveis:
+                return {'sucesso': False, 'erro': 'Módulo navegador_web_gemini não disponível'}
+
+            modulo = self.modulos_disponiveis['navegador_web_gemini']
+
+            url = (alvo or '').strip()
+            if not url.startswith('http://') and not url.startswith('https://'):
+                url = f"http://{url}"
+
+            self.logger.info(f"🚀 Executando análise web com Gemini para: {url}")
+            if credenciais:
+                self.logger.info(f"🔐 Usando credenciais: {credenciais.get('usuario', 'N/A')}")
+
+            # Executar análise completa com Gemini
+            resultado_bruto = modulo.executar_para_orquestrador(
+                alvo=url,
+                credenciais=credenciais,
+                modo='web_gemini'
+            )
+
+            resultado_por_alvo = {
+                url: {
+                    'sucesso': bool(resultado_bruto.get('sucesso', False)),
+                    'dados': resultado_bruto.get('dados', {}),
+                    'timestamp': resultado_bruto.get('timestamp', datetime.now().isoformat())
+                }
+            }
+
+            resultado_normalizado = {
+                'nome_modulo': 'navegador_web_gemini',
+                'sucesso': bool(resultado_bruto.get('sucesso', False)),
+                'resultados_por_alvo': resultado_por_alvo,
+                'parametros_utilizados': {'credenciais': bool(credenciais), 'gemini_habilitado': True},
+                'alvos_executados': [url],
+                'alvos_ia_originais': [url],
+                'timestamp': datetime.now().isoformat(),
+                'sucesso_geral': bool(resultado_bruto.get('sucesso', False)),
+                'analise_gemini': resultado_bruto.get('analises_detalhadas', []),
+                'recomendacoes': resultado_bruto.get('recomendacoes', []),
+                'proximos_passos': resultado_bruto.get('proximos_passos', [])
+            }
+
+            self._atualizar_contexto_com_resultado(contexto, 'navegador_web_gemini', resultado_normalizado)
+            
+            # Log dos resultados principais
+            dados = resultado_bruto.get('dados', {})
+            self.logger.info(f"✅ Análise Gemini concluída:")
+            self.logger.info(f"   🔐 Login realizado: {dados.get('login_realizado', False)}")
+            self.logger.info(f"   📝 Formulários: {dados.get('total_formularios', 0)}")
+            self.logger.info(f"   🔗 Links: {dados.get('total_links', 0)}")
+            self.logger.info(f"   🧠 Análise IA: {dados.get('analise_ia_executada', False)}")
+            self.logger.info(f"   🚨 Vulnerabilidades: {dados.get('total_vulnerabilidades', 0)}")
+            
+            return {'sucesso': bool(resultado_bruto.get('sucesso', False)), 'dados': resultado_bruto}
+            
+        except Exception as e:
+            self.logger.error(f"Erro no estudo web com Gemini: {str(e)}")
+            return {'sucesso': False, 'erro': f'Erro no estudo web com Gemini: {str(e)}'}
 
     def _executar_estudo_web_preloop(self, alvo: str, contexto: ContextoExecucao, credenciais: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Executa estudo web com 'navegador_web' e atualiza o contexto."""
@@ -467,6 +549,9 @@ PORTAS ABERTAS POR HOST:
                 'feroxbuster_basico', 'feroxbuster_recursivo', 'nikto_scan',
                 'whatweb_scan', 'nuclei_scan', 'scraper_auth', 'navegador_web'
             ],
+            'Navegação Web com IA': [
+                'navegador_web_gemini'
+            ],
             'Descoberta de Subdomínios': ['subfinder_enum', 'sublist3r_enum'],
             'Exploração': ['sqlmap_teste_url', 'sqlmap_teste_formulario', 'searchsploit_check'],
             'Scanner de Vulnerabilidades': ['scanner_vulnerabilidades', 'scanner_web_avancado'],
@@ -504,6 +589,11 @@ PORTAS ABERTAS POR HOST:
             'selenium': 'navegador_web',
             'navegador': 'navegador_web',
             'browser': 'navegador_web',
+            'navegador gemini': 'navegador_web_gemini',
+            'web gemini': 'navegador_web_gemini',
+            'analise web ia': 'navegador_web_gemini',
+            'login automatico': 'navegador_web_gemini',
+            'analise pagina protegida': 'navegador_web_gemini',
             'nmap': 'nmap_varredura_completa',
             'nmap completo': 'nmap_varredura_completa',
             'scan de vulnerabilidades': 'scanner_vulnerabilidades',
@@ -560,7 +650,8 @@ PORTAS ABERTAS POR HOST:
             alvos_ia = decisao_ia.get('alvos', [])
             parametros = decisao_ia.get('parametros', {})
 
-            if nome_modulo == 'navegador_web' and 'credenciais' not in parametros and getattr(self, 'credenciais_web', None):
+            # Adicionar credenciais para módulos web se disponíveis
+            if nome_modulo in ['navegador_web', 'navegador_web_gemini'] and 'credenciais' not in parametros and getattr(self, 'credenciais_web', None):
                 parametros = {**parametros, 'credenciais': self.credenciais_web}
 
             alvos_reais = self._resolver_alvos_para_execucao(alvos_ia, contexto)
@@ -583,6 +674,8 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_testador_seguranca_api(alvo, modulo, parametros)
                     elif nome_modulo == 'testador_seguranca_mobile_web':
                         resultado = self._executar_modulo_testador_seguranca_mobile_web(alvo, modulo, parametros)
+                    elif nome_modulo == 'navegador_web_gemini':
+                        resultado = self._executar_modulo_navegador_web_gemini(alvo, modulo, parametros)
                     else:
                         resultado = self._executar_modulo_generico(nome_modulo, alvo, modulo, parametros)
 
@@ -709,6 +802,36 @@ PORTAS ABERTAS POR HOST:
             return modulo.executar_teste_completo_mobile_web(url)
         except Exception as e:
             return {'sucesso': False, 'erro': f'Erro no teste de segurança mobile/web: {str(e)}'}
+
+    def _executar_modulo_navegador_web_gemini(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa módulo de navegação web com Gemini"""
+        try:
+            # Normalizar URL
+            url = alvo
+            if not alvo.startswith(('http://', 'https://')):
+                url = f"http://{alvo}"
+            
+            # Extrair credenciais dos parâmetros
+            credenciais = parametros.get('credenciais')
+            modo = parametros.get('modo', 'web')
+            
+            # Executar análise completa com Gemini
+            resultado = modulo.executar_para_orquestrador(
+                alvo=url,
+                credenciais=credenciais,
+                modo=modo,
+                **parametros
+            )
+            
+            return resultado
+            
+        except Exception as e:
+            self.logger.error(f"Erro no navegador web com Gemini: {e}")
+            return {
+                'sucesso': False,
+                'erro': f'Erro no navegador web com Gemini: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            }
 
     def _atualizar_contexto_com_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict):
         try:

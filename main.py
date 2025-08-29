@@ -259,15 +259,22 @@ def main():
     parser.add_argument('--alvo', required=True, help='Domínio, IP ou URL base do alvo')
     parser.add_argument('--verbose', action='store_true', help='Saída verbosa no console')
     parser.add_argument('--web-scan', action='store_true', help='Modo Web: estudo com navegador → LOOP-IA')
+    parser.add_argument('--web-gemini', action='store_true', help='Modo Web com Gemini: login automático + análise IA de páginas protegidas')
     parser.add_argument('--usuario', help='Usuário para autenticação web (opcional)')
     parser.add_argument('--senha', help='Senha para autenticação web (opcional)')
 
     args = parser.parse_args()
 
     # Determinar modo de execução e credenciais (CLI simplificado)
-    modo_execucao = 'web' if args.web_scan else 'rede'
+    if args.web_gemini:
+        modo_execucao = 'web_gemini'
+    elif args.web_scan:
+        modo_execucao = 'web'
+    else:
+        modo_execucao = 'rede'
+    
     credenciais = None
-    if args.usuario and args.senha:
+    if args.usuario is not None and args.senha is not None:
         credenciais = {'usuario': args.usuario, 'senha': args.senha}
 
     # Importações pós-args para respeitar verbosidade de console

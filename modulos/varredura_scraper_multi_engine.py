@@ -10,6 +10,7 @@ import time
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
+import re
 
 # Selenium
 from selenium import webdriver
@@ -194,20 +195,29 @@ class VarreduraScraperMultiEngine:
                 user_agent=self.config.user_agent
             )
             page = await context.new_page()
+            # Ajustar timeout padrão para todas as operações na página
+            try:
+                page.set_default_timeout(self.config.timeout * 1000)
+            except Exception:
+                # versões antigas podem não suportar set_default_timeout sincrono; usar async
+                try:
+                    await page.set_default_timeout(self.config.timeout * 1000)  # type: ignore
+                except Exception:
+                    pass
 
             try:
                 await page.goto(url, wait_until='networkidle' if self.config.wait_for_network else 'load')
 
-                # Extrair dados
+                # Autenticação se fornecida (antes da extração para refletir pós-login)
+                if credenciais:
+                    await self._autenticar_playwright(page, credenciais)
+
+                # Extrair dados (pós-login ou estado atual)
                 titulo = await page.title()
                 formularios = await self._extrair_formularios_playwright(page)
                 links = await self._extrair_links_playwright(page)
                 tecnologias = await self._detectar_tecnologias_playwright(page)
                 cookies = await self._extrair_cookies_playwright(context)
-
-                # Autenticação se fornecida
-                if credenciais:
-                    await self._autenticar_playwright(page, credenciais)
 
                 # Screenshot
                 screenshot_path = f"screenshot_playwright_{int(time.time())}.png"
@@ -611,12 +621,166 @@ class VarreduraScraperMultiEngine:
             self.logger.debug(f"Erro na autenticação Selenium: {e}")
 
     async def _autenticar_playwright(self, page, credenciais: Dict):
-        """Autenticação básica com Playwright"""
+        """Autenticação robusta com Playwright com múltiplos seletores e fallbacks extras (inclui e-cidade)"""
         try:
-            await page.fill('input[name="login"]', credenciais.get('usuario', ''))
-            await page.fill('input[name="senha"]', credenciais.get('senha', ''))
-            await page.click('input[type="submit"], button[type="submit"]')
-            await page.wait_for_load_state('networkidle')
+            usuario = credenciais.get('usuario', '')
+            senha = credenciais.get('senha', '')
+            pre_url = page.url
+            max_timeout_ms = max(self.config.timeout, 45) * 1000  # elevar timeout efetivo
+
+            # Variantes comuns e específicas (e-cidade e legados)
+            user_selectors = [
+                'input[name="login"]',
+                'input[name="usuario"]',
+                'input[name="username"]',
+                'input[name="txtlogin"]',
+                'input[name="txt_login"]',
+                'input[name="LOGIN"]',
+                'input#login',
+                'input#usuario',
+                'input#username',
+                'input[type="text"]'
+            ]
+            pass_selectors = [
+                'input[name="senha"]',
+                'input[name="password"]',
+                'input[name="txtsenha"]',
+                'input[name="txt_senha"]',
+                'input[name="SENHA"]',
+                'input#senha',
+                'input#password',
+                'input[type="password"]'
+            ]
+            submit_selectors = [
+                'input[type="submit"]',
+                'button[type="submit"]',
+                'input[type="image"]',
+                'button:has-text("Entrar")',
+                'button:has-text("Acessar")',
+                'button:has-text("Login")',
+                'button:has-text("OK")',
+                'button:has-text("Enviar")',
+                'button:has-text("Continuar")',
+                'input[name="entrar"]',
+                'input[name="submit"]',
+                'a[onclick*="submit"]',
+                'a:has-text("Entrar")',
+                'a:has-text("Acessar")'
+            ]
+
+            async def find_first(ctx, selectors):
+                for sel in selectors:
+                    loc = ctx.locator(sel)
+                    try:
+                        if await loc.count() > 0:
+                            first = loc.first
+                            try:
+                                await first.wait_for(state="visible", timeout=5000)
+                            except Exception:
+                                # mesmo que não fique visível, tente prosseguir
+                                pass
+                            return first
+                    except Exception:
+                        continue
+                return None
+
+            async def wait_login_transition():
+                # Aguarda mudança de URL ou saída de 'login' na URL
+                try:
+                    await page.wait_for_load_state('domcontentloaded', timeout=max_timeout_ms)
+                except Exception:
+                    pass
+                try:
+                    await page.wait_for_function(
+                        """(prev) => {
+                            try { return window.location.href !== prev && !/login/i.test(window.location.href); }
+                            catch(e) { return false; }
+                        }""",
+                        pre_url,
+                        timeout=max_timeout_ms
+                    )
+                except Exception:
+                    # fallback de pequena espera
+                    await asyncio.sleep(2)
+
+            # Considerar página e iframes
+            contexts = [page] + page.frames
+
+            for ctx in contexts:
+                try:
+                    user_loc = await find_first(ctx, user_selectors)
+                    pass_loc = await find_first(ctx, pass_selectors)
+
+                    if user_loc and pass_loc:
+                        self.logger.info("🔐 Localizados campos de usuário e senha. Preenchendo credenciais...")
+                        await user_loc.fill(usuario)
+                        await pass_loc.fill(senha)
+
+                        # Estratégia 1: clicar no botão de submit
+                        submit_loc = await find_first(ctx, submit_selectors)
+                        if submit_loc:
+                            self.logger.info("🖱️ Botão de envio localizado. Tentando clique para autenticar...")
+                            try:
+                                await submit_loc.click()
+                                await wait_login_transition()
+                                if ("login" not in page.url.lower()) or (page.url != pre_url):
+                                    return
+                            except Exception as e1:
+                                self.logger.debug(f"Falha ao clicar no submit: {e1}")
+
+                        # Estratégia 2: pressionar ENTER no campo de senha
+                        self.logger.info("↵ Tentando submit via ENTER no campo de senha...")
+                        try:
+                            await pass_loc.press("Enter")
+                            await wait_login_transition()
+                            if ("login" not in page.url.lower()) or (page.url != pre_url):
+                                return
+                        except Exception as e2:
+                            self.logger.debug(f"Falha ao enviar ENTER: {e2}")
+
+                        # Estratégia 3: submit por JavaScript no primeiro formulário do contexto
+                        self.logger.info("📜 Tentando submit via JavaScript do primeiro formulário...")
+                        try:
+                            js_ok = await ctx.evaluate("""() => {
+                                try {
+                                    const forms = document.getElementsByTagName('form');
+                                    if (forms && forms.length > 0) {
+                                        const f = forms[0];
+                                        // Disparar evento 'submit' e chamar submit nativo
+                                        const evt = new Event('submit', {bubbles: true, cancelable: true});
+                                        f.dispatchEvent(evt);
+                                        if (typeof f.submit === 'function') f.submit();
+                                        return true;
+                                    }
+                                } catch(e) {}
+                                return false;
+                            }""")
+                            if js_ok:
+                                await wait_login_transition()
+                                if ("login" not in page.url.lower()) or (page.url != pre_url):
+                                    return
+                        except Exception as e3:
+                            self.logger.debug(f"Falha no submit JS: {e3}")
+
+                        # Estratégia 4: clique genérico no primeiro botão/submit visível
+                        self.logger.info("🧪 Tentando clique genérico no primeiro botão/submit visível...")
+                        try:
+                            generic = ctx.locator('button, input[type="submit"], input[type="image"]').first
+                            await generic.wait_for(state="attached", timeout=3000)
+                            await generic.click()
+                            await wait_login_transition()
+                            if ("login" not in page.url.lower()) or (page.url != pre_url):
+                                return
+                        except Exception as e4:
+                            self.logger.debug(f"Falha no clique genérico: {e4}")
+
+                        # Se chegou aqui, tentou todas as estratégias neste contexto
+                        self.logger.debug("Todas as estratégias de submit falharam neste contexto; tentando próximo (se houver).")
+                except Exception as inner_e:
+                    self.logger.debug(f"Tentativa de autenticação em contexto falhou: {inner_e}")
+                    continue
+
+            self.logger.warning("⚠️ Não foi possível autenticar: campos/submit não encontrados ou sem efeito.")
         except Exception as e:
             self.logger.debug(f"Erro na autenticação Playwright: {e}")
 
