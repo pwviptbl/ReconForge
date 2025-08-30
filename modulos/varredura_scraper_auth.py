@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """
-Módulo de Scraping Web com Autenticação
-Realiza scraping avançado de páginas web com suporte a autenticação,
-descoberta de APIs, formulários e parâmetros para análise de vulnerabilidades.
+Módulo de Scraping Web Auxiliar
+Realiza scraping de páginas web com suporte a autenticação para descoberta de:
+- URLs e estrutura do site
+- Formulários e campos de entrada
+- Endpoints de API
+- Tecnologias utilizadas
+
+Nota: Este módulo é auxiliar e não realiza testes de vulnerabilidades.
+Para testes de segurança, use scanner_web_avancado.py
 """
 
 import requests
@@ -37,7 +43,6 @@ class VarreduraScraperAuth:
         self.formularios = []
         self.endpoints_api = []
         self.parametros_encontrados = set()
-        self.vulnerabilidades = []
         self.tecnologias = {}
         self.estrutura_site = {}
 
@@ -60,21 +65,6 @@ class VarreduraScraperAuth:
         self.autenticado = False
         self.tokens_auth = {}
         self.cookies_auth = {}
-
-        # Payloads para testes
-        self.sql_payloads = [
-            "' OR '1'='1' --",
-            "' UNION SELECT NULL,NULL,NULL --",
-            "1' ORDER BY 3--+",
-            "' AND 1=CONVERT(int,(SELECT @@version)) --"
-        ]
-
-        self.xss_payloads = [
-            "<script>alert('XSS')</script>",
-            "javascript:alert('XSS')",
-            "<img src=x onerror=alert('XSS')>",
-            "'\"><script>alert('XSS')</script>"
-        ]
 
     def executar(self, alvo: str, credenciais: Optional[Dict] = None,
                 tipo_scan: str = "completo") -> Dict[str, any]:
@@ -133,13 +123,8 @@ class VarreduraScraperAuth:
             else:
                 self.logger.info(f"🔐 Autenticação pulada - Credenciais: {bool(credenciais)}, Tipo: {tipo_scan}")
 
-            # Fase 6: Testes de vulnerabilidades (se completo)
-            if tipo_scan == 'completo':
-                self.logger.info("🛡️ Fase 7: Testando vulnerabilidades...")
-                self._testar_vulnerabilidades()
-
-            # Fase 7: Análise final
-            self.logger.info("📊 Fase 8: Análise final...")
+            # Fase 6: Análise final
+            self.logger.info("📊 Fase 7: Análise final...")
             analise_final = self._analise_final()
 
             duracao = time.time() - inicio
@@ -161,11 +146,11 @@ class VarreduraScraperAuth:
                 'tecnologias': self.tecnologias,
                 'estrutura_site': self.estrutura_site,
                 'vulnerabilidades': self.vulnerabilidades,
-                'total_vulnerabilidades': len(self.vulnerabilidades),
+                'total_endpoints': len(self.endpoints_api),
                 'analise_final': analise_final
             }
 
-            self.logger.info(f"✅ Scraping concluído: {len(self.vulnerabilidades)} vulnerabilidades encontradas")
+            self.logger.info(f"✅ Scraping concluído: {len(self.urls_descobertas)} URLs encontradas")
             return resultado
 
         except Exception as e:
@@ -186,7 +171,6 @@ class VarreduraScraperAuth:
         self.formularios = []
         self.endpoints_api = []
         self.parametros_encontrados = set()
-        self.vulnerabilidades = []
         self.tecnologias = {}
         self.estrutura_site = {}
 
@@ -860,129 +844,6 @@ class VarreduraScraperAuth:
 
         except Exception as e:
             self.logger.debug(f"Erro ao extrair endpoints: {e}")
-
-    def _testar_vulnerabilidades(self):
-        """Testa vulnerabilidades básicas"""
-        # Testar formulários
-        for form in self.formularios[:10]:  # Limitar para performance
-            self._testar_sql_injection_form(form)
-            self._testar_xss_form(form)
-
-        # Testar parâmetros de URL
-        for url in list(self.urls_descobertas)[:20]:  # Limitar
-            self._testar_parametros_url(url)
-
-    def _testar_sql_injection_form(self, form: Dict):
-        """Testa SQL injection em formulário"""
-        try:
-            for payload in self.sql_payloads[:2]:  # Limitar
-                data = {}
-                for input_field in form['inputs']:
-                    if input_field['type'] not in ['submit', 'button', 'hidden']:
-                        data[input_field['name']] = payload
-
-                if data:
-                    action_url = urllib.parse.urljoin(form['url'], form['action'])
-                    resp = self.session.request(
-                        form['method'], action_url,
-                        data=data, timeout=self.timeout, verify=False
-                    )
-
-                    # Verificar sinais de SQL error
-                    error_patterns = [
-                        r'mysql.*error', r'sql.*error', r'oracle.*error',
-                        r'syntax.*error', r'ORA-[0-9]+'
-                    ]
-
-                    for pattern in error_patterns:
-                        if re.search(pattern, resp.text, re.IGNORECASE):
-                            self._adicionar_vulnerabilidade(
-                                'Possível SQL Injection',
-                                f'Formulário em {form["url"]} vulnerável a SQL injection',
-                                'ALTA',
-                                form['url']
-                            )
-                            return
-
-        except Exception as e:
-            self.logger.debug(f"Erro teste SQL: {e}")
-
-    def _testar_xss_form(self, form: Dict):
-        """Testa XSS em formulário"""
-        try:
-            test_payload = "<script>alert('XSS')</script>"
-
-            data = {}
-            for input_field in form['inputs']:
-                if input_field['type'] not in ['submit', 'button', 'hidden', 'password']:
-                    data[input_field['name']] = test_payload
-
-            if data:
-                action_url = urllib.parse.urljoin(form['url'], form['action'])
-                resp = self.session.request(
-                    form['method'], action_url,
-                    data=data, timeout=self.timeout, verify=False
-                )
-
-                if test_payload in resp.text:
-                    self._adicionar_vulnerabilidade(
-                        'Vulnerabilidade XSS',
-                        f'Formulário em {form["url"]} reflete input sem sanitização',
-                        'ALTA',
-                        form['url']
-                    )
-
-        except Exception as e:
-            self.logger.debug(f"Erro teste XSS: {e}")
-
-    def _testar_parametros_url(self, url: str):
-        """Testa parâmetros de URL por vulnerabilidades"""
-        try:
-            parsed = urllib.parse.urlparse(url)
-            if not parsed.query:
-                return
-
-            params = urllib.parse.parse_qs(parsed.query)
-
-            for param_name, param_values in params.items():
-                for payload in self.sql_payloads[:1]:
-                    # Testar SQL injection via URL
-                    test_params = params.copy()
-                    test_params[param_name] = [payload]
-
-                    test_query = urllib.parse.urlencode(test_params, doseq=True)
-                    test_url = urllib.parse.urlunparse(parsed._replace(query=test_query))
-
-                    resp = self.session.get(test_url, timeout=self.timeout, verify=False)
-
-                    if re.search(r'mysql.*error|sql.*error', resp.text, re.IGNORECASE):
-                        self._adicionar_vulnerabilidade(
-                            'SQL Injection via URL',
-                            f'Parâmetro {param_name} em {url} vulnerável a SQL injection',
-                            'ALTA',
-                            url
-                        )
-                        return
-
-        except Exception as e:
-            self.logger.debug(f"Erro teste URL: {e}")
-
-    def _adicionar_vulnerabilidade(self, titulo: str, descricao: str,
-                                criticidade: str, url: str):
-        """Adiciona vulnerabilidade encontrada"""
-        vuln = {
-            'titulo': titulo,
-            'descricao': descricao,
-            'criticidade': criticidade,
-            'url': url,
-            'timestamp': datetime.now().isoformat(),
-            'tipo': 'web_vulnerability'
-        }
-
-        self.vulnerabilidades.append(vuln)
-
-        emoji = "🚨" if criticidade == 'ALTA' else "⚠️" if criticidade == 'MÉDIA' else "ℹ️"
-        self.logger.info(f"{emoji} {titulo}: {descricao}")
 
     def _analise_final(self) -> Dict[str, any]:
         """Realiza análise final dos resultados"""

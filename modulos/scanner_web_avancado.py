@@ -100,6 +100,40 @@ class ScannerWebAvancado:
             'phpinfo.php', 'info.php', 'test.php',
             'backup.sql', 'dump.sql', 'readme.txt'
         ]
+        
+        # Arquivos interessantes (inspirado no Nikto)
+        self.arquivos_interessantes = [
+            'admin.php', 'admin.asp', 'admin.aspx', 'admin.html',
+            'administrator.php', 'administrator.asp', 'administrator.aspx',
+            'login.php', 'login.asp', 'login.aspx', 'signin.php',
+            'auth.php', 'authentication.php', 'session.php',
+            'config.php', 'configuration.php', 'settings.php',
+            'install.php', 'setup.php', 'upgrade.php',
+            'backup.php', 'backups.php', 'restore.php',
+            'test.php', 'testing.php', 'demo.php', 'example.php',
+            'info.php', 'phpinfo.php', 'server-status', 'server-info',
+            'status', 'phpmyadmin', 'pma', 'mysql', 'database',
+            '.git', '.svn', '.DS_Store', 'Thumbs.db',
+            'web.config', 'crossdomain.xml', 'clientaccesspolicy.xml',
+            'xmlrpc.php', 'readme.txt', 'changelog.txt', 'license.txt',
+            'wp-admin', 'wp-login.php', 'wp-config.php', 'wp-content',
+            'administrator', 'adminer.php', 'admin', 'cpanel',
+            'plesk-stat', 'awstats', 'webalizer', 'stats'
+        ]
+        
+        # CGI comuns
+        self.cgi_comuns = [
+            'cgi-bin/test-cgi', 'cgi-bin/printenv', 'cgi-bin/cgitest.exe',
+            'cgi-bin/nph-test-cgi', 'cgi-bin/nph-publish', 'cgi-bin/php.cgi',
+            'cgi-bin/handler', 'cgi-bin/webcgi.exe', 'cgi-bin/websendmail.exe',
+            'cgi-bin/webdist.cgi', 'cgi-bin/faxsurvey', 'cgi-bin/htmlscript',
+            'cgi-bin/pfdispaly.cgi', 'cgi-bin/perl.exe', 'cgi-bin/wwwboard.pl',
+            'cgi-bin/www-sql.pl', 'cgi-bin/view-source', 'cgi-bin/campas',
+            'cgi-bin/aglimpse', 'cgi-bin/man.sh', 'cgi-bin/AT-admin.cgi',
+            'cgi-bin/filemail.pl', 'cgi-bin/maillist.pl', 'cgi-bin/jj',
+            'cgi-bin/info2www', 'cgi-bin/files.pl', 'cgi-bin/finger',
+            'cgi-bin/bnbform.cgi', 'cgi-bin/survey.cgi', 'cgi-bin/AnyForm2'
+        ]
     
     def scan_completo(self, url_base):
         """Executa scan completo de vulnerabilidades web"""
@@ -128,6 +162,18 @@ class ScannerWebAvancado:
             self.logger.info("📄 Fase 4: Procurando arquivos sensíveis...")
             self._buscar_arquivos_sensiveis(url_base)
             
+            # 4.1. Verificação de arquivos interessantes (Nikto-style)
+            self.logger.info("🔍 Fase 4.1: Verificando arquivos interessantes...")
+            self._verificar_arquivos_interessantes(url_base)
+            
+            # 4.2. Verificação CGI
+            self.logger.info("🐚 Fase 4.2: Verificando CGI...")
+            self._verificar_cgi(url_base)
+            
+            # 4.3. Verificação de configurações incorretas
+            self.logger.info("⚙️ Fase 4.3: Verificando configurações incorretas...")
+            self._verificar_configuracao_incorreta(url_base)
+            
             # 5. Análise de formulários
             self.logger.info("📝 Fase 5: Analisando formulários...")
             self._analisar_formularios()
@@ -143,6 +189,18 @@ class ScannerWebAvancado:
             # 8. Headers de segurança
             self.logger.info("📋 Fase 8: Verificando headers de segurança...")
             self._verificar_headers_seguranca(url_base)
+            
+            # 9. Verificação de arquivos interessantes
+            self.logger.info("📂 Fase 9: Verificando arquivos interessantes...")
+            self._verificar_arquivos_interessantes(url_base)
+            
+            # 10. Verificação de CGI
+            self.logger.info("🐞 Fase 10: Verificando vulnerabilidades em CGI...")
+            self._verificar_cgi(url_base)
+            
+            # 11. Verificação de configurações incorretas
+            self.logger.info("⚙️ Fase 11: Verificando configurações incorretas...")
+            self._verificar_configuracao_incorreta(url_base)
             
             duracao = time.time() - inicio
             
@@ -384,214 +442,135 @@ class ScannerWebAvancado:
         with ThreadPoolExecutor(max_workers=8) as executor:
             executor.map(testar_arquivo, self.arquivos_sensiveis)
     
-    def _analisar_formularios(self):
-        """Analisa formulários encontrados"""
-        for form in self.formularios:
-            # Verificar se é login form
-            is_login = any(
-                input_field['name'].lower() in ['password', 'pass', 'pwd', 'senha'] 
-                for input_field in form['inputs']
-            )
-            
-            if is_login:
-                # Verificar CSRF protection
-                has_csrf = any(
-                    input_field['name'].lower() in ['csrf', 'token', '_token', 'authenticity_token']
-                    for input_field in form['inputs']
-                )
-                
-                if not has_csrf:
-                    self._adicionar_vulnerabilidade(
-                        'Formulário de Login sem Proteção CSRF',
-                        f'Formulário em {form["url"]} não possui token CSRF',
-                        'MÉDIA',
-                        form['url']
-                    )
-                
-                # Verificar HTTPS
-                if not form['action'].startswith('https://'):
-                    self._adicionar_vulnerabilidade(
-                        'Formulário de Login sem HTTPS',
-                        f'Formulário em {form["url"]} não usa HTTPS',
-                        'ALTA',
-                        form['url']
-                    )
-    
-    def _testar_vulnerabilidades(self):
-        """Testa vulnerabilidades nos formulários"""
-        for form in self.formularios[:5]:  # Limitar para performance
-            self._testar_sql_injection(form)
-            self._testar_xss(form)
-            self._testar_lfi(form)
-    
-    def _testar_sql_injection(self, form):
-        """Testa SQL Injection"""
-        try:
-            for payload in self.sql_payloads[:3]:  # Limitar testes
-                data = {}
-                for input_field in form['inputs']:
-                    if input_field['type'] not in ['submit', 'button', 'hidden']:
-                        data[input_field['name']] = payload
-                
-                if data:
-                    resp = self.session.request(
-                        form['method'], form['action'], 
-                        data=data, timeout=self.timeout, verify=False
-                    )
+    def _verificar_arquivos_interessantes(self, url_base):
+        """Verifica arquivos interessantes (inspirado no Nikto)"""
+        def testar_arquivo_interessante(arquivo):
+            test_url = f"{url_base.rstrip('/')}/{arquivo}"
+            try:
+                resp = self.session.get(test_url, timeout=5, verify=False)
+                if resp.status_code == 200:
+                    self.urls_encontradas.add(test_url)
                     
-                    # Verificar sinais de SQL error
-                    error_patterns = [
-                        r'mysql.*error', r'sql.*error', r'oracle.*error',
-                        r'postgresql.*error', r'sqlite.*error', r'syntax.*error',
-                        r'ORA-[0-9]+', r'ERROR.*[0-9]+.*mysql'
-                    ]
+                    # Categorizar criticidade baseada no tipo de arquivo
+                    if arquivo in ['admin.php', 'administrator.php', 'login.php', 'wp-admin', 'admin']:
+                        criticidade = 'ALTA'
+                        tipo = 'Painel Administrativo'
+                    elif arquivo in ['config.php', 'settings.php', 'wp-config.php', '.git']:
+                        criticidade = 'ALTA'
+                        tipo = 'Arquivo de Configuração'
+                    elif arquivo in ['phpinfo.php', 'server-status', 'server-info']:
+                        criticidade = 'MÉDIA'
+                        tipo = 'Informação do Servidor'
+                    elif arquivo in ['test.php', 'demo.php', 'readme.txt']:
+                        criticidade = 'BAIXA'
+                        tipo = 'Arquivo de Teste/Documentação'
+                    else:
+                        criticidade = 'BAIXA'
+                        tipo = 'Arquivo Interessante'
                     
-                    for pattern in error_patterns:
-                        if re.search(pattern, resp.text, re.IGNORECASE):
-                            self._adicionar_vulnerabilidade(
-                                'Possível SQL Injection',
-                                f'Formulário em {form["url"]} pode ser vulnerável a SQL Injection',
-                                'ALTA',
-                                form['url']
-                            )
-                            return
-        except Exception as e:
-            self.logger.debug(f"Erro teste SQL: {e}")
-    
-    def _testar_xss(self, form):
-        """Testa XSS"""
-        try:
-            test_payload = "<script>alert('XSS')</script>"
-            
-            data = {}
-            for input_field in form['inputs']:
-                if input_field['type'] not in ['submit', 'button', 'hidden', 'password']:
-                    data[input_field['name']] = test_payload
-            
-            if data:
-                resp = self.session.request(
-                    form['method'], form['action'],
-                    data=data, timeout=self.timeout, verify=False
-                )
-                
-                if test_payload in resp.text:
                     self._adicionar_vulnerabilidade(
-                        'Vulnerabilidade XSS Detectada',
-                        f'Formulário em {form["url"]} reflete input sem sanitização',
-                        'ALTA',
-                        form['url']
+                        f'{tipo} Encontrado',
+                        f'Arquivo potencialmente interessante acessível: {test_url}',
+                        criticidade,
+                        test_url
                     )
-        except Exception as e:
-            self.logger.debug(f"Erro teste XSS: {e}")
-    
-    def _testar_lfi(self, form):
-        """Testa Local File Inclusion"""
-        try:
-            for payload in self.lfi_payloads[:2]:  # Limitar testes
-                data = {}
-                for input_field in form['inputs']:
-                    if input_field['type'] not in ['submit', 'button', 'hidden', 'password']:
-                        data[input_field['name']] = payload
-                
-                if data:
-                    resp = self.session.request(
-                        form['method'], form['action'],
-                        data=data, timeout=self.timeout, verify=False
+                elif resp.status_code == 403:
+                    # Arquivo existe mas está protegido
+                    self._adicionar_vulnerabilidade(
+                        'Arquivo Interessante Protegido',
+                        f'Arquivo existe mas está protegido: {test_url}',
+                        'BAIXA',
+                        test_url
                     )
-                    
-                    # Verificar sinais de LFI
-                    if 'root:x:0:0:' in resp.text or '[boot loader]' in resp.text:
-                        self._adicionar_vulnerabilidade(
-                            'Local File Inclusion (LFI)',
-                            f'Formulário em {form["url"]} permite leitura de arquivos do sistema',
-                            'ALTA',
-                            form['url']
-                        )
-                        return
-        except Exception as e:
-            self.logger.debug(f"Erro teste LFI: {e}")
-    
-    def _analisar_ssl(self, url):
-        """Analisa configuração SSL/TLS"""
-        if not url.startswith('https://'):
-            return
+            except:
+                pass
         
-        try:
-            parsed_url = urllib.parse.urlparse(url)
-            hostname = parsed_url.hostname
-            port = parsed_url.port or 443
-            
-            # Conectar e verificar SSL
-            context = ssl.create_default_context()
-            
-            with socket.create_connection((hostname, port), timeout=10) as sock:
-                with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                    cert = ssock.getpeercert()
-                    cipher = ssock.cipher()
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            executor.map(testar_arquivo_interessante, self.arquivos_interessantes[:30])  # Limitar para performance
+    
+    def _verificar_cgi(self, url_base):
+        """Verifica vulnerabilidades em CGI (inspirado no Nikto)"""
+        def testar_cgi(cgi_path):
+            test_url = f"{url_base.rstrip('/')}/{cgi_path}"
+            try:
+                resp = self.session.get(test_url, timeout=5, verify=False)
+                if resp.status_code == 200:
+                    self.urls_encontradas.add(test_url)
                     
-                    # Verificar protocolo SSL
-                    if ssock.version() in ['SSLv2', 'SSLv3', 'TLSv1', 'TLSv1.1']:
+                    # Verificar se o CGI executa comandos ou revela informações
+                    content = resp.text.lower()
+                    
+                    if 'server' in content or 'environment' in content or 'path' in content:
                         self._adicionar_vulnerabilidade(
-                            'Protocolo SSL/TLS Inseguro',
-                            f'Site usa protocolo inseguro: {ssock.version()}',
+                            'CGI Revelando Informações',
+                            f'CGI revela informações do servidor: {test_url}',
                             'MÉDIA',
-                            url
+                            test_url
                         )
                     
-                    # Verificar cipher suites fracas
-                    if cipher and 'RC4' in cipher[0] or 'DES' in cipher[0]:
+                    # Verificar se aceita parâmetros perigosos
+                    if '?' in test_url or resp.text.strip():
                         self._adicionar_vulnerabilidade(
-                            'Cipher Suite Fraca',
-                            f'Site usa cipher fraca: {cipher[0]}',
-                            'MÉDIA',
-                            url
+                            'CGI Executável Encontrado',
+                            f'CGI potencialmente executável: {test_url}',
+                            'BAIXA',
+                            test_url
                         )
                         
-        except Exception as e:
-            self.logger.debug(f"Erro análise SSL: {e}")
+            except:
+                pass
+        
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            executor.map(testar_cgi, self.cgi_comuns[:20])  # Limitar para performance
     
-    def _verificar_headers_seguranca(self, url):
-        """Verifica headers de segurança"""
+    def _verificar_configuracao_incorreta(self, url_base):
+        """Verifica configurações incorretas (inspirado no Nikto)"""
         try:
-            resp = self.session.get(url, timeout=self.timeout, verify=False)
+            # Verificar robots.txt
+            robots_url = f"{url_base.rstrip('/')}/robots.txt"
+            resp = self.session.get(robots_url, timeout=5, verify=False)
+            if resp.status_code == 200:
+                content = resp.text
+                self.urls_encontradas.add(robots_url)
+                
+                # Verificar se revela diretórios sensíveis
+                sensitive_paths = ['admin', 'backup', 'config', 'private', '.git']
+                for path in sensitive_paths:
+                    if path in content.lower():
+                        self._adicionar_vulnerabilidade(
+                            'Robots.txt Revela Caminhos Sensíveis',
+                            f'robots.txt contém referência a caminho sensível: {path}',
+                            'BAIXA',
+                            robots_url
+                        )
+                        break
             
-            headers_importantes = {
-                'X-Frame-Options': 'Proteção contra clickjacking',
-                'X-XSS-Protection': 'Proteção XSS do browser',
-                'X-Content-Type-Options': 'Prevenção MIME sniffing',
-                'Strict-Transport-Security': 'HSTS para HTTPS',
-                'Content-Security-Policy': 'Política de segurança de conteúdo',
-                'X-Content-Security-Policy': 'CSP para browsers antigos',
-                'Referrer-Policy': 'Controle de referrer',
-                'Feature-Policy': 'Controle de features do browser'
-            }
-            
-            headers_ausentes = []
-            for header, descricao in headers_importantes.items():
-                if header not in resp.headers:
-                    headers_ausentes.append(f"{header} ({descricao})")
-            
-            if headers_ausentes:
+            # Verificar .htaccess
+            htaccess_url = f"{url_base.rstrip('/')}/.htaccess"
+            resp = self.session.get(htaccess_url, timeout=5, verify=False)
+            if resp.status_code == 200:
                 self._adicionar_vulnerabilidade(
-                    'Headers de Segurança Ausentes',
-                    f'Headers importantes ausentes: {", ".join(headers_ausentes[:3])}',
-                    'BAIXA',
-                    url
+                    '.htaccess Exposto',
+                    f'Arquivo .htaccess está acessível publicamente: {htaccess_url}',
+                    'MÉDIA',
+                    htaccess_url
                 )
             
-            # Verificar headers perigosos
-            if 'Server' in resp.headers:
-                server = resp.headers['Server']
-                if re.search(r'(Apache|nginx|IIS)/[\d.]+', server):
+            # Verificar crossdomain.xml
+            crossdomain_url = f"{url_base.rstrip('/')}/crossdomain.xml"
+            resp = self.session.get(crossdomain_url, timeout=5, verify=False)
+            if resp.status_code == 200:
+                content = resp.text
+                if '<allow-access-from domain="*"' in content:
                     self._adicionar_vulnerabilidade(
-                        'Versão do Servidor Exposta',
-                        f'Header Server revela versão: {server}',
-                        'BAIXA',
-                        url
+                        'Crossdomain.xml Permissivo',
+                        f'crossdomain.xml permite acesso de qualquer domínio: {crossdomain_url}',
+                        'MÉDIA',
+                        crossdomain_url
                     )
                     
         except Exception as e:
-            self.logger.debug(f"Erro verificação headers: {e}")
+            self.logger.debug(f"Erro verificação configuração: {e}")
     
     def _adicionar_vulnerabilidade(self, titulo, descricao, criticidade, url):
         """Adiciona vulnerabilidade encontrada"""

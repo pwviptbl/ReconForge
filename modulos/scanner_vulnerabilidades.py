@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-Scanner de Vulnerabilidades Python
-Substituto completo para OpenVAS - Detecção de vulnerabilidades em serviços
+Scanner de Vulnerabilidades em Serviços
+Foca em detecção de vulnerabilidades em serviços não-web:
+- SSH, FTP, SMB, bancos de dados (MySQL, PostgreSQL)
+- Detecção de versões vulneráveis e CVEs conhecidas
+- Testes de configurações fracas
+
+Nota: Testes web foram movidos para scanner_web_avancado.py
 """
 
 import socket
@@ -64,11 +69,11 @@ class ScannerVulnerabilidades:
             }
         }
         
-        # Portas e serviços comuns
+        # Portas e serviços comuns (apenas não-web)
         self.portas_servicos = {
             21: 'ftp', 22: 'ssh', 23: 'telnet', 25: 'smtp',
-            53: 'dns', 80: 'http', 110: 'pop3', 135: 'rpc',
-            139: 'netbios', 143: 'imap', 443: 'https', 445: 'smb',
+            53: 'dns', 110: 'pop3', 135: 'rpc',
+            139: 'netbios', 143: 'imap', 445: 'smb',
             993: 'imaps', 995: 'pop3s', 1433: 'mssql', 3306: 'mysql',
             3389: 'rdp', 5432: 'postgresql', 5900: 'vnc', 6379: 'redis'
         }
@@ -173,16 +178,7 @@ class ScannerVulnerabilidades:
             sock.connect((alvo, porta))
             
             # Enviar dados específicos por serviço
-            if porta == 80:
-                sock.send(b"HEAD / HTTP/1.0\r\n\r\n")
-            elif porta == 443:
-                # HTTPS - usar SSL
-                context = ssl.create_default_context()
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
-                sock = context.wrap_socket(sock, server_hostname=alvo)
-                sock.send(b"HEAD / HTTP/1.0\r\n\r\n")
-            elif porta == 21:
+            if porta == 21:
                 pass  # FTP envia banner automaticamente
             elif porta == 22:
                 pass  # SSH envia banner automaticamente
@@ -201,17 +197,8 @@ class ScannerVulnerabilidades:
         """Extrai informações do banner"""
         info = {'porta': porta, 'banner': banner}
         
-        # HTTP/HTTPS
-        if porta in [80, 443]:
-            if 'Server:' in banner:
-                server_line = [line for line in banner.split('\n') if 'Server:' in line]
-                if server_line:
-                    server = server_line[0].split('Server:')[1].strip()
-                    info['servico'] = 'apache' if 'Apache' in server else 'nginx' if 'nginx' in server else 'http'
-                    info['versao'] = self._extrair_versao_http(server)
-        
         # SSH
-        elif porta == 22:
+        if porta == 22:
             if 'SSH' in banner:
                 info['servico'] = 'ssh'
                 info['versao'] = self._extrair_versao_ssh(banner)
@@ -223,20 +210,8 @@ class ScannerVulnerabilidades:
                 info['versao'] = self._extrair_versao_ftp(banner)
         
         return info
-    
-    def _extrair_versao_http(self, server_header):
-        """Extrai versão do servidor HTTP"""
-        patterns = [
-            r'Apache/([0-9]+\.[0-9]+\.[0-9]+)',
-            r'nginx/([0-9]+\.[0-9]+\.[0-9]+)',
-            r'Microsoft-IIS/([0-9]+\.[0-9]+)'
-        ]
         
-        for pattern in patterns:
-            match = re.search(pattern, server_header)
-            if match:
-                return match.group(1)
-        return 'unknown'
+        return info
     
     def _extrair_versao_ssh(self, banner):
         """Extrai versão do SSH"""
@@ -263,8 +238,6 @@ class ScannerVulnerabilidades:
             self._testar_ftp(alvo, porta)
         elif porta == 22:
             self._testar_ssh(alvo, porta)
-        elif porta in [80, 443]:
-            self._testar_web(alvo, porta)
         elif porta == 445:
             self._testar_smb(alvo, porta)
         elif porta == 3306:
@@ -323,49 +296,11 @@ class ScannerVulnerabilidades:
             self.logger.debug(f"Erro teste SSH: {e}")
     
     def _testar_web(self, alvo, porta):
-        """Testa vulnerabilidades Web"""
-        try:
-            protocolo = 'https' if porta == 443 else 'http'
-            base_url = f"{protocolo}://{alvo}:{porta}"
-            
-            # Teste diretórios sensíveis
-            diretorios_sensiveis = [
-                '/admin', '/phpmyadmin', '/wp-admin', '/.git',
-                '/backup', '/config', '/.env', '/test'
-            ]
-            
-            for diretorio in diretorios_sensiveis:
-                try:
-                    resp = requests.get(f"{base_url}{diretorio}", timeout=5, verify=False)
-                    if resp.status_code in [200, 403]:
-                        self._adicionar_vulnerabilidade(
-                            alvo, porta, 'Diretório Sensível Exposto',
-                            f'Diretório sensível acessível: {diretorio}', 'MÉDIA',
-                            'Restringir acesso a diretórios administrativos'
-                        )
-                except:
-                    pass
-            
-            # Teste headers de segurança
-            try:
-                resp = requests.get(base_url, timeout=5, verify=False)
-                headers_seguranca = [
-                    'X-Frame-Options', 'X-XSS-Protection', 
-                    'X-Content-Type-Options', 'Strict-Transport-Security'
-                ]
-                
-                headers_faltando = [h for h in headers_seguranca if h not in resp.headers]
-                if headers_faltando:
-                    self._adicionar_vulnerabilidade(
-                        alvo, porta, 'Headers de Segurança Ausentes',
-                        f'Headers faltando: {", ".join(headers_faltando)}', 'BAIXA',
-                        'Configurar headers de segurança no servidor web'
-                    )
-            except:
-                pass
-                
-        except Exception as e:
-            self.logger.debug(f"Erro teste Web: {e}")
+        """Testes web foram movidos para scanner_web_avancado.py"""
+        # Os testes de vulnerabilidades web (SQLi, XSS, diretórios sensíveis, headers)
+        # agora são realizados pelo módulo scanner_web_avancado.py
+        # Este módulo foca apenas em serviços não-web (SSH, FTP, SMB, bancos, etc.)
+        pass
     
     def _testar_smb(self, alvo, porta):
         """Testa vulnerabilidades SMB"""

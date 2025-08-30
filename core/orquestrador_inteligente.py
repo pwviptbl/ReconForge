@@ -89,7 +89,6 @@ class OrquestradorInteligente:
         try:
             # Varreduras web
             from modulos.varredura_feroxbuster import VarreduraFeroxbuster
-            from modulos.varredura_nikto import VarreduraNikto
             from modulos.varredura_whatweb import VarreduraWhatWeb
             from modulos.varredura_nuclei import VarreduraNuclei
 
@@ -118,7 +117,6 @@ class OrquestradorInteligente:
             self.modulos_disponiveis = {
                 'feroxbuster_basico': VarreduraFeroxbuster(),
                 'feroxbuster_recursivo': VarreduraFeroxbuster(),
-                'nikto_scan': VarreduraNikto(),
                 'whatweb_scan': VarreduraWhatWeb(),
                 'nuclei_scan': VarreduraNuclei(),
                 'subfinder_enum': VarreduraSubfinder(),
@@ -546,7 +544,7 @@ PORTAS ABERTAS POR HOST:
     def _listar_modulos_disponiveis(self) -> str:
         categorias = {
             'Varredura Web': [
-                'feroxbuster_basico', 'feroxbuster_recursivo', 'nikto_scan',
+                'feroxbuster_basico', 'feroxbuster_recursivo',
                 'whatweb_scan', 'nuclei_scan', 'scraper_auth', 'navegador_web'
             ],
             'Navegação Web com IA': [
@@ -580,7 +578,6 @@ PORTAS ABERTAS POR HOST:
             'scanner web': 'scanner_web_avancado',
             'web scan': 'feroxbuster_basico',
             'feroxbuster': 'feroxbuster_basico',
-            'nikto': 'nikto_scan',
             'whatweb': 'whatweb_scan',
             'nuclei': 'nuclei_scan',
             'scraper': 'scraper_auth',
