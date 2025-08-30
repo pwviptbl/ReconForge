@@ -8,6 +8,7 @@ utilizável pelo Orquestrador e pela IA dentro do LOOP.
 Padrões:
 - Tenta Selenium (Chrome headless) primeiro
 - Fallback automático para Playwright (Chromium headless) se Selenium falhar
+- Segundo fallback para Playwright (Firefox headless) se Chromium falhar
 - Aceita credenciais opcionais (usuario/senha) para tentar login básico
 - Retorna dicionário padronizado para o orquestrador
 """
@@ -95,20 +96,42 @@ class NavegadorWebIA:
                     'dados': dados,
                     'timestamp': datetime.now().isoformat()
                 }
-            self.logger.error(f"[NavegadorWebIA] Playwright também falhou: {dados.get('erro', 'sem detalhe')}")
+            self.logger.warning(f"[NavegadorWebIA] Playwright Chromium falhou: {dados.get('erro', 'sem detalhe')}")
+        except Exception as e:
+            self.logger.warning(f"[NavegadorWebIA] Erro Playwright Chromium: {str(e)}")
+
+        # 3) Segundo fallback: Playwright Firefox (mais compatível)
+        try:
+            self.logger.info(f"[NavegadorWebIA] Segundo fallback via Playwright Firefox: {url}")
+            dados = self._rodar_engine(
+                url=url,
+                engine=EngineNavegador.PLAYWRIGHT_FIREFOX,
+                credenciais=credenciais,
+                headless=headless,
+                timeout=timeout,
+                user_agent=user_agent
+            )
+            if dados.get('sucesso'):
+                return {
+                    'sucesso': True,
+                    'nome_modulo': 'navegador_web',
+                    'dados': dados,
+                    'timestamp': datetime.now().isoformat()
+                }
+            self.logger.error(f"[NavegadorWebIA] Playwright Firefox também falhou: {dados.get('erro', 'sem detalhe')}")
             return {
                 'sucesso': False,
                 'nome_modulo': 'navegador_web',
-                'erro': dados.get('erro', 'Falha em Selenium e Playwright'),
+                'erro': dados.get('erro', 'Falha em todas as engines de navegador'),
                 'dados': dados,
                 'timestamp': datetime.now().isoformat()
             }
         except Exception as e:
-            self.logger.error(f"[NavegadorWebIA] Erro Playwright: {str(e)}")
+            self.logger.error(f"[NavegadorWebIA] Erro Playwright Firefox: {str(e)}")
             return {
                 'sucesso': False,
                 'nome_modulo': 'navegador_web',
-                'erro': f"Erro crítico em engines: {str(e)}",
+                'erro': f"Erro crítico em todas as engines: {str(e)}",
                 'dados': {},
                 'timestamp': datetime.now().isoformat()
             }

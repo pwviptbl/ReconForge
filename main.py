@@ -103,11 +103,9 @@ def executar_scan_web(args):
 
 
 def executar_testes_vulnerabilidades(args):
-    """Executa testes específicos de vulnerabilidades"""
+    """Executa testes específicos de vulnerabilidades usando módulos Python puro"""
     import time
-    from modulos.testador_vulnerabilidades_web import TestadorVulnerabilidadesWeb
-    from modulos.testador_seguranca_api import TestadorSegurancaAPI
-    from modulos.testador_seguranca_mobile_web import TestadorSegurancaMobileWeb
+    from modulos.analisador_vulnerabilidades_web import AnalisadorVulnerabilidadesWeb
     from relatorios.gerador_html import gerar_relatorio_automatico
     from infra.persistencia import salvar_json_resultados
     from utils.logger import obter_logger, log_manager
@@ -117,27 +115,13 @@ def executar_testes_vulnerabilidades(args):
     logger = obter_logger("VulnTestCLI")
 
     try:
-        logger.info(f"=== Testes de Vulnerabilidades ===")
+        logger.info(f"=== Testes de Vulnerabilidades (Python Puro) ===")
         logger.info(f"Alvo: {args.alvo}")
 
-        # Determinar quais testes executar
-        executar_web = args.teste_web or args.teste_vulnerabilidades
-        executar_api = args.teste_api or args.teste_vulnerabilidades
-        executar_mobile = args.teste_mobile or args.teste_vulnerabilidades
-
-        if not any([executar_web, executar_api, executar_mobile]):
-            executar_web = executar_api = executar_mobile = True
-
-        logger.info(f"Testes a executar: Web={executar_web}, API={executar_api}, Mobile={executar_mobile}")
-
-        # URLs base
+        # URL base
         url_base = args.alvo
         if not url_base.startswith('http'):
-            url_base = f"http://{url_base}"
-
-        url_login = f"{url_base}/login.php" if not url_base.endswith('.php') else url_base
-        url_api = f"{url_base}/api"
-        url_main = url_base.rstrip('/')
+            url_base = f"https://{url_base}"
 
         resultados_totais = {
             'alvo': args.alvo,
@@ -149,47 +133,29 @@ def executar_testes_vulnerabilidades(args):
 
         inicio_total = time.time()
 
-        # 1. Teste de Vulnerabilidades Web
-        if executar_web:
-            logger.info(f"\n🕷️ Executando testes de vulnerabilidades web...")
-            testador_web = TestadorVulnerabilidadesWeb()
-            resultado_web = testador_web.executar_teste_completo(url_login)
+        # Executar análise completa de vulnerabilidades web
+        logger.info(f"\n🕷️ Executando análise de vulnerabilidades web...")
+        analisador = AnalisadorVulnerabilidadesWeb()
+        resultado_analise = analisador.analisar_url(url_base, testes_completos=True, testar_payloads=True)
 
+        if 'erro' not in resultado_analise:
+            vulnerabilidades = resultado_analise.get('vulnerabilidades', [])
             resultados_totais['testes_executados'].append({
-                'teste': 'vulnerabilidades_web',
-                'resultado': resultado_web
+                'teste': 'analise_vulnerabilidades_web_python',
+                'resultado': resultado_analise
             })
-            resultados_totais['vulnerabilidades_totais'] += resultado_web['vulnerabilidades_totais']
+            resultados_totais['vulnerabilidades_totais'] = len(vulnerabilidades)
 
-            logger.info(f"✅ Web: {resultado_web['vulnerabilidades_totais']} vulnerabilidades encontradas")
+            logger.info(f"✅ Análise concluída: {len(vulnerabilidades)} vulnerabilidades encontradas")
 
-        # 2. Teste de Segurança de API
-        if executar_api:
-            logger.info(f"\n🔗 Executando testes de segurança de API...")
-            testador_api = TestadorSegurancaAPI()
-            resultado_api = testador_api.executar_teste_completo_api(url_api)
-
-            resultados_totais['testes_executados'].append({
-                'teste': 'seguranca_api',
-                'resultado': resultado_api
-            })
-            resultados_totais['vulnerabilidades_totais'] += resultado_api['vulnerabilidades_totais']
-
-            logger.info(f"✅ API: {resultado_api['vulnerabilidades_totais']} vulnerabilidades encontradas")
-
-        # 3. Teste de Segurança Mobile/Web
-        if executar_mobile:
-            logger.info(f"\n📱 Executando testes de segurança mobile/web...")
-            testador_mobile = TestadorSegurancaMobileWeb()
-            resultado_mobile = testador_mobile.executar_teste_completo_mobile_web(url_main)
-
-            resultados_totais['testes_executados'].append({
-                'teste': 'seguranca_mobile_web',
-                'resultado': resultado_mobile
-            })
-            resultados_totais['vulnerabilidades_totais'] += resultado_mobile['vulnerabilidades_totais']
-
-            logger.info(f"✅ Mobile/Web: {resultado_mobile['vulnerabilidades_totais']} vulnerabilidades encontradas")
+            # Mostrar headers de segurança
+            headers_seguranca = resultado_analise.get('headers_seguranca', {})
+            headers_ausentes = [h for h, info in headers_seguranca.items() if info['status'] == 'ausente']
+            if headers_ausentes:
+                logger.info(f"⚠️ Headers de segurança ausentes: {', '.join(headers_ausentes[:3])}")
+        else:
+            logger.error(f"❌ Erro na análise: {resultado_analise['erro']}")
+            return 1
 
         resultados_totais['tempo_total'] = time.time() - inicio_total
 
@@ -207,23 +173,19 @@ def executar_testes_vulnerabilidades(args):
         logger.info(f"\n=== Estatísticas Finais ===")
         logger.info(f"  Total de vulnerabilidades: {resultados_totais['vulnerabilidades_totais']}")
         logger.info(f"  Tempo total: {resultados_totais['tempo_total']:.2f}s")
-        logger.info(f"  Média: {resultados_totais['vulnerabilidades_totais']/resultados_totais['tempo_total']:.1f} vuln/segundo")
 
-        # Mostrar vulnerabilidades críticas
-        for teste_info in resultados_totais['testes_executados']:
-            teste_nome = teste_info['teste']
-            resultado = teste_info['resultado']
+        # Mostrar vulnerabilidades por severidade
+        if 'erro' not in resultado_analise:
+            severidades = {}
+            for vuln in vulnerabilidades:
+                sev = vuln.get('severidade', 'baixa')
+                severidades[sev] = severidades.get(sev, 0) + 1
 
-            if 'testes_executados' in resultado:
-                for subteste in resultado['testes_executados']:
-                    if 'resultado' in subteste and 'vulnerabilidades' in subteste['resultado']:
-                        vulns = subteste['resultado']['vulnerabilidades']
-                        vulns_criticas = [v for v in vulns if v.get('severidade') == 'critica']
-
-                        if vulns_criticas:
-                            logger.info(f"\n🚨 {teste_nome.upper()} - {subteste['teste'].upper()}:")
-                            for vuln in vulns_criticas[:3]:
-                                logger.info(f"   • {vuln['tipo']}: {vuln['evidencia'][:60]}...")
+            if severidades:
+                logger.info(f"\n=== Vulnerabilidades por Severidade ===")
+                for sev, count in severidades.items():
+                    emoji = "🔴" if sev == 'alta' else "🟡" if sev == 'media' else "🟢"
+                    logger.info(f"  {emoji} {sev.title()}: {count}")
 
         logger.info(f"\n✓ Arquivos salvos:")
         logger.info(f"  JSON: {arquivo_json}")

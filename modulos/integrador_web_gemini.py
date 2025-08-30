@@ -81,20 +81,45 @@ class IntegradorWebGemini:
         """Executa análise básica sem credenciais"""
         self.logger.info("ℹ️ Executando análise básica sem credenciais")
         
-        # Usar navegador base para análise sem login
-        from modulos.navegacao_web_ia import NavegadorWebIA
-        navegador_base = NavegadorWebIA()
-        
-        resultado_base = navegador_base.executar(url)
-        
-        return {
-            'sucesso': resultado_base.get('sucesso', False),
-            'nome_modulo': 'navegador_web_gemini',
-            'tipo_execucao': 'sem_credenciais',
-            'dados': resultado_base.get('dados', {}),
-            'timestamp': datetime.now().isoformat(),
-            'observacoes': ['Análise executada sem credenciais de login']
-        }
+        try:
+            # Usar navegador base para análise sem login
+            from modulos.navegacao_web_ia import NavegadorWebIA
+            navegador_base = NavegadorWebIA()
+            
+            resultado_base = navegador_base.executar(url)
+            
+            # Garantir que resultado_base seja um dicionário válido
+            if resultado_base is None:
+                resultado_base = {'sucesso': False, 'erro': 'Resultado None do navegador base'}
+            
+            # Log do resultado para debug
+            self.logger.info(f"Resultado base do navegador: sucesso={resultado_base.get('sucesso', False)}")
+            
+            return {
+                'sucesso': resultado_base.get('sucesso', False),
+                'nome_modulo': 'navegador_web_gemini',
+                'tipo_execucao': 'sem_credenciais',
+                'dados': resultado_base.get('dados', {}),
+                'timestamp': datetime.now().isoformat(),
+                'observacoes': ['Análise executada sem credenciais de login'],
+                'analises_detalhadas': [],
+                'recomendacoes': [],
+                'proximos_passos': []
+            }
+        except Exception as e:
+            self.logger.error(f"Erro na execução sem credenciais: {str(e)}")
+            return {
+                'sucesso': False,
+                'nome_modulo': 'navegador_web_gemini',
+                'tipo_execucao': 'sem_credenciais',
+                'dados': {},
+                'timestamp': datetime.now().isoformat(),
+                'erro': str(e),
+                'observacoes': ['Erro na análise sem credenciais de login'],
+                'analises_detalhadas': [],
+                'recomendacoes': [],
+                'proximos_passos': []
+            }
     
     def _converter_para_orquestrador(self, resultado_completo: Dict[str, Any], 
                                    alvo: str, inicio: datetime) -> Dict[str, Any]:

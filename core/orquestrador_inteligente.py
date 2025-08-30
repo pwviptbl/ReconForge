@@ -117,11 +117,6 @@ class OrquestradorInteligente:
             from modulos.buscador_exploits_python import BuscadorExploitsPython
             from modulos.analisador_vulnerabilidades_web import AnalisadorVulnerabilidadesWeb
 
-            # Testes
-            from modulos.testador_vulnerabilidades_web import TestadorVulnerabilidadesWeb
-            from modulos.testador_seguranca_api import TestadorSegurancaAPI
-            from modulos.testador_seguranca_mobile_web import TestadorSegurancaMobileWeb
-
             self.modulos_disponiveis = {
                 # Módulos antigos removidos - substituídos por versões Python puro
                 # 'feroxbuster_basico': VarreduraFeroxbuster(),  # REMOVIDO
@@ -149,10 +144,6 @@ class OrquestradorInteligente:
                 'buscador_exploits_python': BuscadorExploitsPython(),
                 'analisador_vulnerabilidades_web_python': AnalisadorVulnerabilidadesWeb(),
 
-                'testador_vulnerabilidades_web': TestadorVulnerabilidadesWeb(),
-                'testador_seguranca_api': TestadorSegurancaAPI(),
-                'testador_seguranca_mobile_web': TestadorSegurancaMobileWeb(),
-
                 # Nmap (instâncias)
                 'nmap_varredura_basica': self.scanner_nmap,
                 'nmap_varredura_completa': self.scanner_nmap,
@@ -169,6 +160,12 @@ class OrquestradorInteligente:
                 'nmap_varredura_completa': self.scanner_nmap,
                 'nmap_varredura_vulnerabilidades': self.scanner_nmap,
             }
+
+    def _atualizar_contexto_com_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict[str, Any]):
+        """Atualiza o contexto com o resultado de um módulo executado."""
+        contexto.resultados_por_modulo[nome_modulo] = resultado
+        contexto.modulos_executados.append(nome_modulo)
+        self.logger.debug(f"Resultado do módulo '{nome_modulo}' adicionado ao contexto")
 
     def executar_pentest_inteligente(self, alvo: str, modo: str = 'rede', credenciais_web: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Executa o fluxo escolhido (rede ou web) e entra no LOOP-IA."""
@@ -259,6 +256,18 @@ class OrquestradorInteligente:
                 modo='web_gemini'
             )
 
+            # Verificar se resultado_bruto é válido
+            if resultado_bruto is None:
+                self.logger.error("Resultado bruto é None - módulo retornou None")
+                return {'sucesso': False, 'erro': 'Módulo retornou resultado None'}
+
+            # Garantir que seja um dicionário
+            if not isinstance(resultado_bruto, dict):
+                self.logger.error(f"Resultado bruto não é dicionário: {type(resultado_bruto)}")
+                return {'sucesso': False, 'erro': f'Resultado inválido do módulo: {type(resultado_bruto)}'}
+
+            self.logger.info(f"Resultado bruto recebido: sucesso={resultado_bruto.get('sucesso', 'N/A')}")
+
             resultado_por_alvo = {
                 url: {
                     'sucesso': bool(resultado_bruto.get('sucesso', False)),
@@ -281,6 +290,12 @@ class OrquestradorInteligente:
                 'proximos_passos': resultado_bruto.get('proximos_passos', [])
             }
 
+            # Adicionar mensagem de erro se o resultado não foi bem-sucedido
+            if not resultado_normalizado['sucesso']:
+                erro_msg = resultado_bruto.get('erro', 'Análise web falhou - navegadores não conseguiram executar')
+                resultado_normalizado['erro'] = erro_msg
+                self.logger.warning(f"Análise web com Gemini falhou: {erro_msg}")
+
             self._atualizar_contexto_com_resultado(contexto, 'navegador_web_gemini', resultado_normalizado)
             
             # Log dos resultados principais
@@ -292,7 +307,7 @@ class OrquestradorInteligente:
             self.logger.info(f"   🧠 Análise IA: {dados.get('analise_ia_executada', False)}")
             self.logger.info(f"   🚨 Vulnerabilidades: {dados.get('total_vulnerabilidades', 0)}")
             
-            return {'sucesso': bool(resultado_bruto.get('sucesso', False)), 'dados': resultado_bruto}
+            return resultado_normalizado
             
         except Exception as e:
             self.logger.error(f"Erro no estudo web com Gemini: {str(e)}")
@@ -578,9 +593,9 @@ PORTAS ABERTAS POR HOST:
                 'buscador_exploits_python'
             ],
             'Scanner de Vulnerabilidades': ['scanner_vulnerabilidades', 'scanner_web_avancado'],
-            'Testes de Vulnerabilidades Web': ['testador_vulnerabilidades_web'],
-            'Testes de Segurança de API': ['testador_seguranca_api'],
-            'Testes de Segurança Mobile/Web': ['testador_seguranca_mobile_web'],
+            'Testes de Vulnerabilidades Web': ['analisador_vulnerabilidades_web_python'],
+            'Testes de Segurança de API': ['analisador_vulnerabilidades_web_python'],
+            'Testes de Segurança Mobile/Web': ['analisador_vulnerabilidades_web_python'],
             'Novos Módulos Python Puro': [
                 'scanner_portas_python', 'enumerador_subdominios_python',
                 'detector_tecnologias_python', 'scanner_diretorios_python',
@@ -632,27 +647,27 @@ PORTAS ABERTAS POR HOST:
             'subdomain enumerator': 'enumerador_subdominios_python',
             # 'searchsploit': 'searchsploit_check',  # REMOVIDO
             'exploit search': 'buscador_exploits_python',
-            'teste vulnerabilidades web': 'testador_vulnerabilidades_web',
-            'teste xss': 'testador_vulnerabilidades_web',
-            'teste sql injection': 'testador_vulnerabilidades_web',
-            'teste lfi': 'testador_vulnerabilidades_web',
-            'teste command injection': 'testador_vulnerabilidades_web',
-            'teste csrf': 'testador_vulnerabilidades_web',
-            'teste open redirect': 'testador_vulnerabilidades_web',
-            'teste api': 'testador_seguranca_api',
-            'teste seguranca api': 'testador_seguranca_api',
-            'teste autenticacao api': 'testador_seguranca_api',
-            'teste injection api': 'testador_seguranca_api',
-            'teste idor': 'testador_seguranca_api',
-            'teste rate limiting': 'testador_seguranca_api',
-            'teste cors': 'testador_seguranca_api',
-            'teste graphql': 'testador_seguranca_api',
-            'teste mobile': 'testador_seguranca_mobile_web',
-            'teste pwa': 'testador_seguranca_mobile_web',
-            'teste ssl': 'testador_seguranca_mobile_web',
-            'teste certificado': 'testador_seguranca_mobile_web',
-            'teste service worker': 'testador_seguranca_mobile_web',
-            'teste manifest': 'testador_seguranca_mobile_web',
+            'teste vulnerabilidades web': 'analisador_vulnerabilidades_web_python',
+            'teste xss': 'analisador_vulnerabilidades_web_python',
+            'teste sql injection': 'analisador_vulnerabilidades_web_python',
+            'teste lfi': 'analisador_vulnerabilidades_web_python',
+            'teste command injection': 'analisador_vulnerabilidades_web_python',
+            'teste csrf': 'analisador_vulnerabilidades_web_python',
+            'teste open redirect': 'analisador_vulnerabilidades_web_python',
+            'teste api': 'analisador_vulnerabilidades_web_python',
+            'teste seguranca api': 'analisador_vulnerabilidades_web_python',
+            'teste autenticacao api': 'analisador_vulnerabilidades_web_python',
+            'teste injection api': 'analisador_vulnerabilidades_web_python',
+            'teste idor': 'analisador_vulnerabilidades_web_python',
+            'teste rate limiting': 'analisador_vulnerabilidades_web_python',
+            'teste cors': 'analisador_vulnerabilidades_web_python',
+            'teste graphql': 'analisador_vulnerabilidades_web_python',
+            'teste mobile': 'analisador_vulnerabilidades_web_python',
+            'teste pwa': 'analisador_vulnerabilidades_web_python',
+            'teste ssl': 'analisador_vulnerabilidades_web_python',
+            'teste certificado': 'analisador_vulnerabilidades_web_python',
+            'teste service worker': 'analisador_vulnerabilidades_web_python',
+            'teste manifest': 'analisador_vulnerabilidades_web_python',
             'scanner portas python': 'scanner_portas_python',
             'scanner portas puro': 'scanner_portas_python',
             'port scanner python': 'scanner_portas_python',
@@ -717,12 +732,6 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_sqlmap(nome_modulo, alvo, modulo, parametros)
                     elif nome_modulo.startswith('scanner_'):
                         resultado = self._executar_modulo_scanner(nome_modulo, alvo, modulo, parametros)
-                    elif nome_modulo == 'testador_vulnerabilidades_web':
-                        resultado = self._executar_modulo_testador_vulnerabilidades_web(alvo, modulo, parametros)
-                    elif nome_modulo == 'testador_seguranca_api':
-                        resultado = self._executar_modulo_testador_seguranca_api(alvo, modulo, parametros)
-                    elif nome_modulo == 'testador_seguranca_mobile_web':
-                        resultado = self._executar_modulo_testador_seguranca_mobile_web(alvo, modulo, parametros)
                     elif nome_modulo == 'navegador_web_gemini':
                         resultado = self._executar_modulo_navegador_web_gemini(alvo, modulo, parametros)
                     elif nome_modulo == 'scanner_portas_python':
@@ -1036,7 +1045,87 @@ PORTAS ABERTAS POR HOST:
         except Exception as e:
             return {'sucesso': False, 'erro': f'Erro no analisador de vulnerabilidades web: {str(e)}'}
 
+    def _calcular_pontuacao_risco(self, contexto: ContextoExecucao) -> int:
+        """
+        Calcula a pontuação de risco baseada nos dados do contexto de execução.
+        Retorna um valor de 0-100 representando o nível de risco identificado.
+        """
+        try:
+            pontuacao = 0
+
+            # Fator 1: Vulnerabilidades encontradas (peso alto - 40 pontos max)
+            num_vulnerabilidades = len(contexto.vulnerabilidades_encontradas)
+            if num_vulnerabilidades > 0:
+                # Cada vulnerabilidade crítica adiciona 20 pontos, média 10, baixa 5
+                for vuln in contexto.vulnerabilidades_encontradas:
+                    severidade = vuln.get('severidade', 'media').lower()
+                    if severidade == 'critica' or severidade == 'alta':
+                        pontuacao += 20
+                    elif severidade == 'media':
+                        pontuacao += 10
+                    else:
+                        pontuacao += 5
+                # Limitar a 40 pontos para vulnerabilidades
+                pontuacao = min(pontuacao, 40)
+
+            # Fator 2: Portas abertas (peso médio - 25 pontos max)
+            total_portas_abertas = sum(len(portas) for portas in contexto.portas_abertas.values())
+            if total_portas_abertas > 0:
+                # Portas perigosas têm peso maior
+                portas_perigosas = 0
+                for ip, portas in contexto.portas_abertas.items():
+                    for porta in portas:
+                        if porta in [21, 22, 23, 25, 53, 110, 135, 139, 143, 445, 993, 995, 3389]:
+                            portas_perigosas += 1
+
+                # Cada porta perigosa = 5 pontos, outras = 2 pontos
+                pontuacao += (portas_perigosas * 5) + ((total_portas_abertas - portas_perigosas) * 2)
+                # Limitar a 25 pontos para portas
+                pontuacao = min(pontuacao, 65)  # 40 (vulns) + 25 (portas)
+
+            # Fator 3: Serviços detectados (peso médio - 20 pontos max)
+            total_servicos = sum(len(servicos) for servicos in contexto.servicos_detectados.values())
+            if total_servicos > 0:
+                # Serviços web têm peso maior
+                servicos_web = 0
+                for ip, servicos in contexto.servicos_detectados.items():
+                    for servico in servicos:
+                        nome_servico = servico.get('nome', '').lower()
+                        if any(web in nome_servico for web in ['http', 'apache', 'nginx', 'iis', 'tomcat']):
+                            servicos_web += 1
+
+                # Cada serviço web = 4 pontos, outros = 2 pontos
+                pontuacao += (servicos_web * 4) + ((total_servicos - servicos_web) * 2)
+                # Limitar a 20 pontos para serviços
+                pontuacao = min(pontuacao, 85)  # 40 + 25 + 20
+
+            # Fator 4: IPs descobertos (peso baixo - 10 pontos max)
+            num_ips = len(contexto.ips_descobertos)
+            if num_ips > 1:
+                # Múltiplos IPs podem indicar rede maior = mais risco
+                pontuacao += min(num_ips * 2, 10)
+                pontuacao = min(pontuacao, 95)  # 40 + 25 + 20 + 10
+
+            # Fator 5: Módulos executados (peso baixo - 5 pontos max)
+            # Mais módulos executados = análise mais completa = potencialmente mais descobertas
+            num_modulos = len(contexto.modulos_executados)
+            if num_modulos > 5:
+                pontuacao += min((num_modulos - 5), 5)
+                pontuacao = min(pontuacao, 100)  # Máximo absoluto
+
+            # Garantir que a pontuação esteja entre 0 e 100
+            return max(0, min(100, pontuacao))
+
+        except Exception as e:
+            self.logger.warning(f"Erro ao calcular pontuação de risco: {str(e)}")
+            # Em caso de erro, retorna pontuação baseada apenas no número de vulnerabilidades
+            return min(len(contexto.vulnerabilidades_encontradas) * 10, 100)
+
     def _calcular_tempo_decorrido(self, contexto: ContextoExecucao) -> str:
+        """
+        Calcula o tempo decorrido desde o início da execução.
+        Retorna uma string formatada com o tempo.
+        """
         try:
             inicio = datetime.fromisoformat(contexto.timestamp_inicio)
             delta = datetime.now() - inicio
