@@ -88,17 +88,17 @@ class OrquestradorInteligente:
         """Carrega dinamicamente módulos e registra no dicionário."""
         try:
             # Varreduras web
-            from modulos.varredura_feroxbuster import VarreduraFeroxbuster
-            from modulos.varredura_whatweb import VarreduraWhatWeb
+            # from modulos.varredura_feroxbuster import VarreduraFeroxbuster  # REMOVIDO - substituído por scanner_diretorios_python
+            # from modulos.varredura_whatweb import VarreduraWhatWeb  # REMOVIDO - substituído por detector_tecnologias_python
             from modulos.varredura_nuclei import VarreduraNuclei
 
             # Descoberta
-            from modulos.varredura_subfinder import VarreduraSubfinder
-            from modulos.varredura_sublist3r import VarreduraSublist3r
+            # from modulos.varredura_subfinder import VarreduraSubfinder  # REMOVIDO - substituído por enumerador_subdominios_python
+            # from modulos.varredura_sublist3r import VarreduraSublist3r  # REMOVIDO - substituído por enumerador_subdominios_python
 
             # Exploração
             from modulos.varredura_sqlmap import VarreduraSQLMap
-            from modulos.varredura_searchsploit import VarreduraSearchSploit
+            # from modulos.varredura_searchsploit import VarreduraSearchSploit  # REMOVIDO - substituído por buscador_exploits_python
 
             # Scanners
             from modulos.scanner_vulnerabilidades import ScannerVulnerabilidades
@@ -109,21 +109,30 @@ class OrquestradorInteligente:
             # Navegação Web com Gemini
             from modulos.integrador_web_gemini import IntegradorWebGemini
 
+            # Novos módulos Python puro
+            from modulos.scanner_portas_python import ScannerPortasPython
+            from modulos.enumerador_subdominios_python import EnumeradorSubdominiosPython
+            from modulos.detector_tecnologias_python import DetectorTecnologiasPython
+            from modulos.scanner_diretorios_python import ScannerDiretoriosPython
+            from modulos.buscador_exploits_python import BuscadorExploitsPython
+            from modulos.analisador_vulnerabilidades_web import AnalisadorVulnerabilidadesWeb
+
             # Testes
             from modulos.testador_vulnerabilidades_web import TestadorVulnerabilidadesWeb
             from modulos.testador_seguranca_api import TestadorSegurancaAPI
             from modulos.testador_seguranca_mobile_web import TestadorSegurancaMobileWeb
 
             self.modulos_disponiveis = {
-                'feroxbuster_basico': VarreduraFeroxbuster(),
-                'feroxbuster_recursivo': VarreduraFeroxbuster(),
-                'whatweb_scan': VarreduraWhatWeb(),
+                # Módulos antigos removidos - substituídos por versões Python puro
+                # 'feroxbuster_basico': VarreduraFeroxbuster(),  # REMOVIDO
+                # 'feroxbuster_recursivo': VarreduraFeroxbuster(),  # REMOVIDO
+                # 'whatweb_scan': VarreduraWhatWeb(),  # REMOVIDO
                 'nuclei_scan': VarreduraNuclei(),
-                'subfinder_enum': VarreduraSubfinder(),
-                'sublist3r_enum': VarreduraSublist3r(),
+                # 'subfinder_enum': VarreduraSubfinder(),  # REMOVIDO
+                # 'sublist3r_enum': VarreduraSublist3r(),  # REMOVIDO
                 'sqlmap_teste_url': VarreduraSQLMap(),
                 'sqlmap_teste_formulario': VarreduraSQLMap(),
-                'searchsploit_check': VarreduraSearchSploit(),
+                # 'searchsploit_check': VarreduraSearchSploit(),  # REMOVIDO
                 'scanner_vulnerabilidades': ScannerVulnerabilidades(),
                 'scanner_web_avancado': ScannerWebAvancado(),
                 'scraper_auth': VarreduraScraperAuth(),
@@ -131,6 +140,14 @@ class OrquestradorInteligente:
                 
                 # Navegação Web com Gemini
                 'navegador_web_gemini': IntegradorWebGemini(),
+
+                # Novos módulos Python puro
+                'scanner_portas_python': ScannerPortasPython(),
+                'enumerador_subdominios_python': EnumeradorSubdominiosPython(),
+                'detector_tecnologias_python': DetectorTecnologiasPython(),
+                'scanner_diretorios_python': ScannerDiretoriosPython(),
+                'buscador_exploits_python': BuscadorExploitsPython(),
+                'analisador_vulnerabilidades_web_python': AnalisadorVulnerabilidadesWeb(),
 
                 'testador_vulnerabilidades_web': TestadorVulnerabilidadesWeb(),
                 'testador_seguranca_api': TestadorSegurancaAPI(),
@@ -544,18 +561,31 @@ PORTAS ABERTAS POR HOST:
     def _listar_modulos_disponiveis(self) -> str:
         categorias = {
             'Varredura Web': [
-                'feroxbuster_basico', 'feroxbuster_recursivo',
-                'whatweb_scan', 'nuclei_scan', 'scraper_auth', 'navegador_web'
+                # 'feroxbuster_basico', 'feroxbuster_recursivo',  # REMOVIDOS
+                # 'whatweb_scan',  # REMOVIDO
+                'nuclei_scan', 'scraper_auth', 'navegador_web'
             ],
             'Navegação Web com IA': [
                 'navegador_web_gemini'
             ],
-            'Descoberta de Subdomínios': ['subfinder_enum', 'sublist3r_enum'],
-            'Exploração': ['sqlmap_teste_url', 'sqlmap_teste_formulario', 'searchsploit_check'],
+            'Descoberta de Subdomínios': [
+                # 'subfinder_enum', 'sublist3r_enum',  # REMOVIDOS
+                'enumerador_subdominios_python'
+            ],
+            'Exploração': [
+                'sqlmap_teste_url', 'sqlmap_teste_formulario',
+                # 'searchsploit_check',  # REMOVIDO
+                'buscador_exploits_python'
+            ],
             'Scanner de Vulnerabilidades': ['scanner_vulnerabilidades', 'scanner_web_avancado'],
             'Testes de Vulnerabilidades Web': ['testador_vulnerabilidades_web'],
             'Testes de Segurança de API': ['testador_seguranca_api'],
             'Testes de Segurança Mobile/Web': ['testador_seguranca_mobile_web'],
+            'Novos Módulos Python Puro': [
+                'scanner_portas_python', 'enumerador_subdominios_python',
+                'detector_tecnologias_python', 'scanner_diretorios_python',
+                'buscador_exploits_python', 'analisador_vulnerabilidades_web_python'
+            ],
             'Nmap Especializado': [
                 'nmap_varredura_completa', 'nmap_varredura_vulnerabilidades',
                 'nmap_varredura_servicos_web', 'nmap_varredura_smb'
@@ -572,13 +602,13 @@ PORTAS ABERTAS POR HOST:
     def _mapear_categoria_para_modulo(self, nome_categoria: str) -> Optional[str]:
         nome_lower = nome_categoria.lower().strip()
         mapeamento_categorias = {
-            'varredura web': 'feroxbuster_basico',
-            'varredura de web': 'feroxbuster_basico',
+            'varredura web': 'scanner_diretorios_python',
+            'varredura de web': 'scanner_diretorios_python',
             'web scanner': 'scanner_web_avancado',
             'scanner web': 'scanner_web_avancado',
-            'web scan': 'feroxbuster_basico',
-            'feroxbuster': 'feroxbuster_basico',
-            'whatweb': 'whatweb_scan',
+            'web scan': 'scanner_diretorios_python',
+            # 'feroxbuster': 'feroxbuster_basico',  # REMOVIDO
+            # 'whatweb': 'whatweb_scan',  # REMOVIDO
             'nuclei': 'nuclei_scan',
             'scraper': 'scraper_auth',
             'scraping': 'scraper_auth',
@@ -591,13 +621,17 @@ PORTAS ABERTAS POR HOST:
             'analise web ia': 'navegador_web_gemini',
             'login automatico': 'navegador_web_gemini',
             'analise pagina protegida': 'navegador_web_gemini',
-            'nmap': 'nmap_varredura_completa',
-            'nmap completo': 'nmap_varredura_completa',
+            'nmap': 'scanner_portas_python',
+            'nmap completo': 'scanner_portas_python',
             'scan de vulnerabilidades': 'scanner_vulnerabilidades',
             'scanner de vulnerabilidades': 'scanner_vulnerabilidades',
             'sqlmap': 'sqlmap_teste_url',
-            'subfinder': 'subfinder_enum',
-            'sublist3r': 'sublist3r_enum',
+            # 'subfinder': 'subfinder_enum',  # REMOVIDO
+            # 'sublist3r': 'sublist3r_enum',  # REMOVIDO
+            'enumerador subdominios': 'enumerador_subdominios_python',
+            'subdomain enumerator': 'enumerador_subdominios_python',
+            # 'searchsploit': 'searchsploit_check',  # REMOVIDO
+            'exploit search': 'buscador_exploits_python',
             'teste vulnerabilidades web': 'testador_vulnerabilidades_web',
             'teste xss': 'testador_vulnerabilidades_web',
             'teste sql injection': 'testador_vulnerabilidades_web',
@@ -619,6 +653,24 @@ PORTAS ABERTAS POR HOST:
             'teste certificado': 'testador_seguranca_mobile_web',
             'teste service worker': 'testador_seguranca_mobile_web',
             'teste manifest': 'testador_seguranca_mobile_web',
+            'scanner portas python': 'scanner_portas_python',
+            'scanner portas puro': 'scanner_portas_python',
+            'port scanner python': 'scanner_portas_python',
+            'enumerador subdominios python': 'enumerador_subdominios_python',
+            'enumerador subdominios puro': 'enumerador_subdominios_python',
+            'subdomain enumerator python': 'enumerador_subdominios_python',
+            'detector tecnologias python': 'detector_tecnologias_python',
+            'detector tecnologias puro': 'detector_tecnologias_python',
+            'technology detector python': 'detector_tecnologias_python',
+            'scanner diretorios python': 'scanner_diretorios_python',
+            'scanner diretorios puro': 'scanner_diretorios_python',
+            'directory scanner python': 'scanner_diretorios_python',
+            'buscador exploits python': 'buscador_exploits_python',
+            'buscador exploits puro': 'buscador_exploits_python',
+            'exploit search python': 'buscador_exploits_python',
+            'analisador vulnerabilidades web python': 'analisador_vulnerabilidades_web_python',
+            'analisador vulnerabilidades web puro': 'analisador_vulnerabilidades_web_python',
+            'web vulnerability analyzer python': 'analisador_vulnerabilidades_web_python',
         }
         if nome_lower in mapeamento_categorias:
             modulo = mapeamento_categorias[nome_lower]
@@ -673,6 +725,18 @@ PORTAS ABERTAS POR HOST:
                         resultado = self._executar_modulo_testador_seguranca_mobile_web(alvo, modulo, parametros)
                     elif nome_modulo == 'navegador_web_gemini':
                         resultado = self._executar_modulo_navegador_web_gemini(alvo, modulo, parametros)
+                    elif nome_modulo == 'scanner_portas_python':
+                        resultado = self._executar_modulo_scanner_portas_python(alvo, modulo, parametros)
+                    elif nome_modulo == 'enumerador_subdominios_python':
+                        resultado = self._executar_modulo_enumerador_subdominios_python(alvo, modulo, parametros)
+                    elif nome_modulo == 'detector_tecnologias_python':
+                        resultado = self._executar_modulo_detector_tecnologias_python(alvo, modulo, parametros)
+                    elif nome_modulo == 'scanner_diretorios_python':
+                        resultado = self._executar_modulo_scanner_diretorios_python(alvo, modulo, parametros)
+                    elif nome_modulo == 'buscador_exploits_python':
+                        resultado = self._executar_modulo_buscador_exploits_python(alvo, modulo, parametros)
+                    elif nome_modulo == 'analisador_vulnerabilidades_web_python':
+                        resultado = self._executar_modulo_analisador_vulnerabilidades_web_python(alvo, modulo, parametros)
                     else:
                         resultado = self._executar_modulo_generico(nome_modulo, alvo, modulo, parametros)
 
@@ -830,179 +894,147 @@ PORTAS ABERTAS POR HOST:
                 'timestamp': datetime.now().isoformat()
             }
 
-    def _atualizar_contexto_com_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict):
+    def _executar_modulo_scanner_portas_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa scanner de portas Python puro"""
         try:
-            contexto.modulos_executados.append(nome_modulo)
-            contexto.resultados_por_modulo[nome_modulo] = resultado
+            tipo_scan = parametros.get('tipo_scan', 'rapido')  # rapido, completo, ou personalizado
+            portas_personalizadas = parametros.get('portas', None)
 
-            if resultado.get('sucesso'):
-                # Serviços
-                servicos = self._extrair_servicos_do_resultado(resultado)
-                for ip, servicos_ip in servicos.items():
-                    if ip not in contexto.servicos_detectados:
-                        contexto.servicos_detectados[ip] = {}
-                    contexto.servicos_detectados[ip].update(servicos_ip)
+            if tipo_scan == 'rapido':
+                resultado = modulo.scan_rapido(alvo)
+            elif tipo_scan == 'completo':
+                resultado = modulo.scan_completo(alvo)
+            elif tipo_scan == 'personalizado' and portas_personalizadas:
+                resultado = modulo.scan_personalizado(alvo, portas_personalizadas)
+            else:
+                resultado = modulo.scan_rapido(alvo)
 
-                # Vulnerabilidades
-                vulnerabilidades = self._extrair_vulnerabilidades_do_resultado(resultado)
-                contexto.vulnerabilidades_encontradas.extend(vulnerabilidades)
-
-                # Portas novas
-                novas_portas = self._extrair_portas_do_resultado(resultado)
-                for ip, portas in novas_portas.items():
-                    if ip in contexto.portas_abertas:
-                        contexto.portas_abertas[ip] = list(set(contexto.portas_abertas[ip] + portas))
-                    else:
-                        contexto.portas_abertas[ip] = portas
-
-            self.logger.info(f"   Contexto atualizado com resultados de {nome_modulo}")
+            return {
+                'sucesso': 'erro' not in resultado,
+                'dados': resultado,
+                'tipo_scan': tipo_scan,
+                'timestamp': datetime.now().isoformat()
+            }
         except Exception as e:
-            self.logger.error(f"Erro ao atualizar contexto: {str(e)}")
+            return {'sucesso': False, 'erro': f'Erro no scanner de portas: {str(e)}'}
 
-    def _extrair_portas_abertas(self, resultado_scan: Dict) -> List[int]:
-        portas: List[int] = []
+    def _executar_modulo_enumerador_subdominios_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa enumerador de subdomínios Python puro"""
         try:
-            dados = resultado_scan.get('dados', {})
-            if 'portas_abertas' in dados:
-                portas = dados['portas_abertas']
-            elif 'hosts' in dados:
-                for host in dados['hosts']:
-                    for porta in host.get('portas', []):
-                        if porta.get('estado') == 'open':
-                            portas.append(porta.get('numero'))
+            wordlist_customizada = parametros.get('wordlist', None)
+            verificar_ssl = parametros.get('verificar_ssl', True)
+            timeout = parametros.get('timeout', 5)
+
+            resultado = modulo.enumerar_subdominios(
+                dominio=alvo,
+                wordlist_customizada=wordlist_customizada,
+                verificar_ssl=verificar_ssl,
+                timeout=timeout
+            )
+
+            return {
+                'sucesso': 'erro' not in resultado,
+                'dados': resultado,
+                'timestamp': datetime.now().isoformat()
+            }
         except Exception as e:
-            self.logger.warning(f"Erro ao extrair portas: {str(e)}")
-        return portas
+            return {'sucesso': False, 'erro': f'Erro no enumerador de subdomínios: {str(e)}'}
 
-    def _extrair_servicos_do_resultado(self, resultado: Dict) -> Dict[str, Dict]:
-        servicos: Dict[str, Dict] = {}
+    def _executar_modulo_detector_tecnologias_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa detector de tecnologias Python puro"""
         try:
-            for alvo, resultado_alvo in resultado.get('resultados_por_alvo', {}).items():
-                dados = resultado_alvo.get('dados', {})
-                if 'hosts' in dados:
-                    for host in dados['hosts']:
-                        ip = host.get('endereco', alvo)
-                        if ip not in servicos:
-                            servicos[ip] = {}
-                        for porta in host.get('portas', []):
-                            if porta.get('estado') == 'open':
-                                porta_num = porta.get('numero')
-                                servicos[ip][porta_num] = {
-                                    'servico': porta.get('servico', 'unknown'),
-                                    'produto': porta.get('produto', ''),
-                                    'versao': porta.get('versao', ''),
-                                    'protocolo': porta.get('protocolo', 'tcp')
-                                }
+            url = f"https://{alvo}" if not alvo.startswith('http') else alvo
+            modo_deteccao = parametros.get('modo', 'completo')  # completo, rapido, headers_only
+
+            if modo_deteccao == 'completo':
+                resultado = modulo.detectar_tecnologias_completo(url)
+            elif modo_deteccao == 'rapido':
+                resultado = modulo.detectar_tecnologias_rapido(url)
+            elif modo_deteccao == 'headers_only':
+                resultado = modulo.detectar_por_headers(url)
+            else:
+                resultado = modulo.detectar_tecnologias_completo(url)
+
+            return {
+                'sucesso': 'erro' not in resultado,
+                'dados': resultado,
+                'modo_deteccao': modo_deteccao,
+                'timestamp': datetime.now().isoformat()
+            }
         except Exception as e:
-            self.logger.warning(f"Erro ao extrair serviços: {str(e)}")
-        return servicos
+            return {'sucesso': False, 'erro': f'Erro no detector de tecnologias: {str(e)}'}
 
-    def _extrair_vulnerabilidades_do_resultado(self, resultado: Dict) -> List[Dict]:
-        vulnerabilidades: List[Dict] = []
+    def _executar_modulo_scanner_diretorios_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa scanner de diretórios Python puro"""
         try:
-            for alvo, resultado_alvo in resultado.get('resultados_por_alvo', {}).items():
-                dados = resultado_alvo.get('dados', {})
+            url = f"https://{alvo}" if not alvo.startswith('http') else alvo
+            wordlist_customizada = parametros.get('wordlist', None)
+            recursivo = parametros.get('recursivo', False)
+            max_profundidade = parametros.get('max_profundidade', 2)
+            testar_extensoes = parametros.get('testar_extensoes', True)
 
-                if 'hosts' in dados:
-                    for host in dados['hosts']:
-                        ip = host.get('endereco', alvo)
-                        for script in host.get('scripts', []):
-                            if 'vuln' in script.get('id', '').lower():
-                                vulnerabilidades.append({
-                                    'ip': ip,
-                                    'tipo': 'host',
-                                    'script': script.get('id'),
-                                    'descricao': script.get('saida', ''),
-                                    'fonte': resultado.get('nome_modulo', 'unknown')
-                                })
-                        for porta in host.get('portas', []):
-                            for script in porta.get('scripts', []):
-                                if 'vuln' in script.get('id', '').lower():
-                                    vulnerabilidades.append({
-                                        'ip': ip,
-                                        'porta': porta.get('numero'),
-                                        'tipo': 'porta',
-                                        'script': script.get('id'),
-                                        'descricao': script.get('saida', ''),
-                                        'fonte': resultado.get('nome_modulo', 'unknown')
-                                    })
+            resultado = modulo.scan_completo(
+                url_base=url,
+                wordlist_customizada=wordlist_customizada,
+                testar_extensoes=testar_extensoes,
+                recursivo=recursivo,
+                max_profundidade=max_profundidade
+            )
 
-                # Outras ferramentas em 'dados'
-                if 'vulnerabilidades' in dados:
-                    for v in dados['vulnerabilidades']:
-                        vulnerabilidades.append({
-                            'ip': alvo,
-                            'tipo': v.get('tipo', 'unknown'),
-                            'descricao': v.get('descricao', ''),
-                            'severidade': v.get('severidade', 'unknown'),
-                            'fonte': resultado.get('nome_modulo', 'unknown')
-                        })
-
-            # Suporte scanner_web_avancado (formato direto)
-            if resultado.get('nome_modulo') == 'scanner_web_avancado':
-                dados_dir = resultado.get('dados', {})
-                if 'vulnerabilidades' in dados_dir:
-                    for v in dados_dir['vulnerabilidades']:
-                        vulnerabilidades.append({
-                            'ip': dados_dir.get('url_base', 'unknown').replace('http://', '').replace('https://', '').split('/')[0],
-                            'tipo': 'web',
-                            'titulo': v.get('titulo', 'Vulnerabilidade Web'),
-                            'descricao': v.get('descricao', ''),
-                            'criticidade': v.get('criticidade', 'BAIXA'),
-                            'url': v.get('url', ''),
-                            'fonte': 'scanner_web_avancado'
-                        })
-
-            # Suporte navegador_web (estudo com navegador)
-            if resultado.get('nome_modulo') == 'navegador_web':
-                dados_nav = resultado.get('dados', {})
-                if 'vulnerabilidades' in dados_nav:
-                    for v in dados_nav['vulnerabilidades']:
-                        base = dados_nav.get('url_base', dados_nav.get('url', 'unknown'))
-                        ip = base.replace('http://', '').replace('https://', '').split('/')[0]
-                        vulnerabilidades.append({
-                            'ip': ip,
-                            'tipo': 'web',
-                            'titulo': v.get('titulo', 'Vulnerabilidade Web'),
-                            'descricao': v.get('descricao', ''),
-                            'criticidade': v.get('criticidade', 'BAIXA'),
-                            'url': v.get('url', dados_nav.get('url', '')),
-                            'fonte': 'navegador_web'
-                        })
+            return {
+                'sucesso': 'erro' not in resultado,
+                'dados': resultado,
+                'recursivo': recursivo,
+                'timestamp': datetime.now().isoformat()
+            }
         except Exception as e:
-            self.logger.warning(f"Erro ao extrair vulnerabilidades: {str(e)}")
-        return vulnerabilidades
+            return {'sucesso': False, 'erro': f'Erro no scanner de diretórios: {str(e)}'}
 
-    def _extrair_portas_do_resultado(self, resultado: Dict) -> Dict[str, List[int]]:
-        portas: Dict[str, List[int]] = {}
+    def _executar_modulo_buscador_exploits_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa buscador de exploits Python puro"""
         try:
-            for alvo, resultado_alvo in resultado.get('resultados_por_alvo', {}).items():
-                novas = self._extrair_portas_abertas(resultado_alvo)
-                if novas:
-                    portas[alvo] = novas
+            termo_busca = parametros.get('termo_busca', alvo)
+            fontes = parametros.get('fontes', ['exploit_db', 'packet_storm'])
+            tipo = parametros.get('tipo', None)  # remote, local, dos, etc.
+            plataforma = parametros.get('plataforma', None)  # windows, linux, etc.
+
+            resultado = modulo.buscar_exploits(
+                termo_busca=termo_busca,
+                fontes=fontes,
+                tipo=tipo,
+                plataforma=plataforma
+            )
+
+            return {
+                'sucesso': 'erro' not in resultado,
+                'dados': resultado,
+                'termo_busca': termo_busca,
+                'timestamp': datetime.now().isoformat()
+            }
         except Exception as e:
-            self.logger.warning(f"Erro ao extrair portas do resultado: {str(e)}")
-        return portas
+            return {'sucesso': False, 'erro': f'Erro no buscador de exploits: {str(e)}'}
 
-    def _calcular_pontuacao_risco(self, contexto: ContextoExecucao) -> int:
+    def _executar_modulo_analisador_vulnerabilidades_web_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
+        """Executa analisador de vulnerabilidades web Python puro"""
         try:
-            pontuacao = 0
-            total_portas = sum(len(portas) for portas in contexto.portas_abertas.values())
-            pontuacao += min(total_portas * 2, 30)
-            servicos_criticos = ['ssh', 'ftp', 'telnet', 'smb', 'rdp', 'mysql', 'postgresql']
-            for ip, servicos in contexto.servicos_detectados.items():
-                for porta, info in servicos.items():
-                    servico = info.get('servico', '').lower()
-                    if any(crit in servico for crit in servicos_criticos):
-                        pontuacao += 10
-            pontuacao += len(contexto.vulnerabilidades_encontradas) * 15
-            servicos_web = 0
-            for ip, portas in contexto.portas_abertas.items():
-                servicos_web += len([p for p in portas if p in [80, 443, 8080, 8000, 8443]])
-            pontuacao += servicos_web * 5
-            return min(pontuacao, 100)
-        except Exception:
-            return 0
+            url = f"https://{alvo}" if not alvo.startswith('http') else alvo
+            testes_completos = parametros.get('testes_completos', True)
+            testar_payloads = parametros.get('testar_payloads', True)
+
+            resultado = modulo.analisar_url(
+                url=url,
+                testes_completos=testes_completos,
+                testar_payloads=testar_payloads
+            )
+
+            return {
+                'sucesso': 'erro' not in resultado,
+                'dados': resultado,
+                'testes_completos': testes_completos,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {'sucesso': False, 'erro': f'Erro no analisador de vulnerabilidades web: {str(e)}'}
 
     def _calcular_tempo_decorrido(self, contexto: ContextoExecucao) -> str:
         try:
