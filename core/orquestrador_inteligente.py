@@ -22,6 +22,9 @@ from utils.logger import obter_logger, log_manager
 from utils.rede import extrair_ips_para_scan
 from utils.anonimizador_ip import criar_contexto_seguro_para_ia
 
+# Novo: Agente IA Central (Fase 1)
+from core.agente_ia_central import AgenteIACentral
+
 
 @dataclass
 class ContextoExecucao:
@@ -50,6 +53,10 @@ class OrquestradorInteligente:
         self.scanner_nmap = scanner_nmap
         self.decisao_ia = decisao_ia
 
+        # Novo: Agente IA Central (Fase 1)
+        self.agente_ia_central = None
+        self._inicializar_agente_central()
+
         # Verificar Gemini (obrigatório)
         if not self._verificar_gemini_obrigatorio():
             raise RuntimeError(" Sistema requer Gemini AI ativo. Configure a chave API no config/default.yaml")
@@ -66,6 +73,35 @@ class OrquestradorInteligente:
 
         self.logger.info("Orquestrador Inteligente inicializado")
         self.logger.info(f"Módulos disponíveis: {list(self.modulos_disponiveis.keys())}")
+
+    def _inicializar_agente_central(self):
+        """Inicializa o Agente IA Central (Fase 1)"""
+        try:
+            import yaml
+            import os
+            config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'default.yaml')
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            config_ia = config.get('ia_centralizada', {})
+            
+            # Usar chave API do Gemini se não estiver definida na seção ia_centralizada
+            if not config_ia.get('chave_api'):
+                config_ia['chave_api'] = config.get('api', {}).get('gemini', {}).get('chave_api')
+            
+            self.logger.info(f"Config IA carregada: habilitar={config_ia.get('habilitar_agente_autonomo', False)}")
+            self.logger.info(f"Chave API presente: {bool(config_ia.get('chave_api'))}")
+            
+            if config_ia.get('habilitar_agente_autonomo', False):
+                self.logger.info("Inicializando Agente IA Central...")
+                self.agente_ia_central = AgenteIACentral(config_ia, self.logger)
+                self.logger.info("✅ Agente IA Central habilitado com sucesso!")
+            else:
+                self.logger.info("Agente IA Central desabilitado (configuração)")
+        except Exception as e:
+            self.logger.error(f"Erro ao inicializar Agente IA Central: {e}. Usando modo legado.")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            self.agente_ia_central = None
 
     def _verificar_gemini_obrigatorio(self) -> bool:
         try:
@@ -166,6 +202,13 @@ class OrquestradorInteligente:
         contexto.resultados_por_modulo[nome_modulo] = resultado
         contexto.modulos_executados.append(nome_modulo)
         self.logger.debug(f"Resultado do módulo '{nome_modulo}' adicionado ao contexto")
+
+        # Novo: Notificar Agente IA Central (Fase 1)
+        if self.agente_ia_central:
+            try:
+                self.agente_ia_central.atualizar_estado(resultado)
+            except Exception as e:
+                self.logger.warning(f"Erro ao atualizar Agente IA Central: {e}")
 
     def executar_pentest_inteligente(self, alvo: str, modo: str = 'rede', credenciais_web: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Executa o fluxo escolhido (rede ou web) e entra no LOOP-IA."""
@@ -457,6 +500,19 @@ class OrquestradorInteligente:
 
     def _consultar_ia_proximos_passos(self, contexto: ContextoExecucao) -> Dict[str, Any]:
         """Consulta IA com contexto seguro e retorna decisão em JSON."""
+        # Novo: Usar Agente IA Central se disponível (Fase 1)
+        if self.agente_ia_central:
+            try:
+                self.logger.info("🤖 Usando Agente IA Central para decisão...")
+                contexto_completo = self._montar_contexto_completo(contexto)
+                modulos_disp = list(self.modulos_disponiveis.keys())
+                decisao = self.agente_ia_central.tomar_decisao(contexto_completo, modulos_disp)
+                self.logger.info("🤖 Decisão do Agente IA Central obtida")
+                return decisao
+            except Exception as e:
+                self.logger.warning(f"Erro no Agente IA Central: {e}. Usando Gemini fallback.")
+
+        # Fallback: Método original com Gemini
         # Montar contexto completo (origem) e seguro (para IA)
         contexto_completo = self._montar_contexto_completo(contexto)
         contexto_seguro = criar_contexto_seguro_para_ia(contexto_completo)
