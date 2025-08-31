@@ -24,6 +24,13 @@ jsonschema>=4.0.0
 pandas>=1.5.0
 numpy>=1.24.0
 
+# Aprendizado de Máquina (Fase 2)
+scikit-learn>=1.7.0
+joblib>=1.5.0
+ray>=2.49.0
+scipy>=1.16.0
+threadpoolctl>=3.6.0
+
 # Para relatórios HTML
 jinja2>=3.1.0
 markdown>=3.4.0
