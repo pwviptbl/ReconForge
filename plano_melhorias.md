@@ -23,8 +23,8 @@
 **Testes:**
 - Testes unitários: Validar seleção de módulos pelo agente.
 - Testes de integração: Simular varredura completa com IA ativa.
-- Validação manual: Verificar redução de prompts manuais em 30%.
-**Critérios de Avanço:** IA coordena 80% das ações sem intervenção.
+- Validação manual: Verificar redução de prompts manuais em 10%.
+**Critérios de Avanço:** IA coordena 90% das ações sem intervenção.
 
 ## Fase 2: Aprendizado Contínuo e Adaptabilidade
 **Objetivo:** Implementar aprendizado de máquina para adaptar estratégias com base em dados históricos.  
