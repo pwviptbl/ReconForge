@@ -122,13 +122,18 @@ class AgenteIACentral:
 
     def _criar_prompt_decisao(self, contexto: Dict[str, Any], modulos_disponiveis: List[str]) -> str:
         """Cria o prompt para consulta ao Gemini"""
+        # Usar o contexto passado em vez do estado interno para evitar dessincronização
+        modulos_executados = contexto.get('modulos_executados', [])
+        pontuacao_risco = contexto.get('pontuacao_risco', 0)
+        iteracao_atual = self.estado.iteracao_atual
+        
         return f"""Você é um agente de segurança cibernética autônomo especializado em pentesting.
 Sua missão é coordenar varreduras de vulnerabilidades de forma inteligente e segura.
 
 CONTEXTO ATUAL:
-- Iteração: {self.estado.iteracao_atual}
-- Pontuação de risco: {self.estado.pontuacao_risco}/100
-- Módulos já executados: {', '.join(self.estado.modulos_executados) or 'Nenhum'}
+- Iteração: {iteracao_atual}
+- Pontuação de risco: {pontuacao_risco}/100
+- Módulos já executados: {', '.join(modulos_executados) or 'Nenhum'}
 - IPs descobertos: {contexto.get('ips_descobertos', [])}
 - Portas abertas: {contexto.get('portas_abertas', {})}
 - Serviços detectados: {len(contexto.get('servicos_detectados', {}))}
@@ -143,6 +148,8 @@ INSTRUÇÕES IMPORTANTES:
 3. Use apenas módulos disponíveis na lista acima
 4. Pare quando análise estiver completa ou risco for muito alto
 5. Mantenha decisões consistentes e bem documentadas
+6. EVITE REPETIR MÓDULOS JÁ EXECUTADOS - escolha sempre módulos diferentes
+7. Se já executou vários módulos de Nmap, passe para outros tipos de análise
 
 Decida o próximo passo e responda APENAS em formato JSON:
 {{
@@ -155,6 +162,7 @@ Decida o próximo passo e responda APENAS em formato JSON:
 
 EXEMPLOS:
 - Para iniciar descoberta: {{"acao": "executar_modulo", "modulo": "scanner_portas_python", "justificativa": "Iniciar descoberta básica de portas", "prioridade": "alta", "expectativa": "Descobrir portas abertas"}}
+- Para análise web: {{"acao": "executar_modulo", "modulo": "scanner_web_avancado", "justificativa": "Analisar vulnerabilidades web nas portas descobertas", "prioridade": "alta", "expectativa": "Encontrar vulnerabilidades web"}}
 - Para parar: {{"acao": "parar", "justificativa": "Análise abrangente concluída", "prioridade": "baixa", "expectativa": "Nenhuma"}}
 """
 
@@ -179,25 +187,42 @@ EXEMPLOS:
         resposta_lower = resposta.lower()
 
         # Verificar se deve parar
-        if 'parar' in resposta_lower or 'conclu' in resposta_lower:
+        if 'parar' in resposta_lower or 'conclu' in resposta_lower or 'final' in resposta_lower:
             return {
                 'acao': 'parar',
                 'justificativa': 'Decisão baseada na resposta do Gemini',
                 'prioridade': 'baixa'
             }
 
-        # Tentar encontrar módulo mencionado
-        modulos_conhecidos = ['scanner_portas_python', 'scanner_vulnerabilidades', 'nuclei_scan', 'scanner_web_avancado']
-        for modulo in modulos_conhecidos:
-            if modulo in resposta_lower:
+        # Lista de módulos por prioridade (evitando repetições de Nmap)
+        modulos_prioridade = [
+            'scanner_vulnerabilidades',  # Prioridade alta para vulnerabilidades
+            'nuclei_scan',               # Scanner de vulnerabilidades
+            'scanner_web_avancado',      # Análise web
+            'detector_tecnologias_python', # Detecção de tecnologias
+            'scanner_diretorios_python',   # Scanner de diretórios
+            'buscador_exploits_python',    # Busca de exploits
+            'analisador_vulnerabilidades_web_python', # Análise web específica
+            'enumerador_subdominios_python', # Enumeração de subdomínios
+            'scraper_auth',               # Web scraping com auth
+            'navegador_web',              # Navegação web
+            'navegador_web_gemini',       # Navegação com Gemini
+            'sqlmap_teste_url',           # Teste SQL injection
+            'sqlmap_teste_formulario'     # Teste SQL em formulários
+        ]
+
+        # Verificar se algum módulo prioritário é mencionado
+        for modulo in modulos_prioridade:
+            if modulo.lower().replace('_', ' ') in resposta_lower or modulo in resposta_lower:
                 return {
                     'acao': 'executar_modulo',
                     'modulo': modulo,
                     'justificativa': 'Decisão baseada na resposta do Gemini',
-                    'prioridade': 'media'
+                    'prioridade': 'alta' if modulo in ['scanner_vulnerabilidades', 'nuclei_scan'] else 'media'
                 }
 
-        # Decisão padrão
+        # Se nada específico for encontrado, usar decisão padrão de parar
+        return self._decisao_padrao()
         return self._decisao_padrao()
 
     def _decisao_padrao(self) -> Dict[str, Any]:
@@ -211,14 +236,28 @@ EXEMPLOS:
     def atualizar_estado(self, resultado_modulo: Dict[str, Any]):
         """Atualiza estado interno com resultado de módulo"""
         modulo = resultado_modulo.get('modulo', '')
-        if modulo:
+        if modulo and modulo not in self.estado.modulos_executados:
             self.estado.modulos_executados.append(modulo)
+            if callable(self.logger):
+                self.logger(f"Agente IA Central: módulo {modulo} registrado como executado")
+            else:
+                print(f"Agente IA Central: módulo {modulo} registrado como executado")
 
-        # Atualizar pontuação de risco (lógica simples)
-        if resultado_modulo.get('vulnerabilidades'):
-            self.estado.pontuacao_risco += len(resultado_modulo['vulnerabilidades']) * 10
+        # Atualizar pontuação de risco baseada no resultado
+        vulnerabilidades = resultado_modulo.get('vulnerabilidades', [])
+        if vulnerabilidades:
+            self.estado.pontuacao_risco += len(vulnerabilidades) * 10
+
+        # Aumentar risco se o módulo foi bem-sucedido (mais informações = mais risco potencial)
+        if resultado_modulo.get('sucesso', False):
+            self.estado.pontuacao_risco += 5
 
         self.estado.pontuacao_risco = min(self.estado.pontuacao_risco, 100)
+
+        if callable(self.logger):
+            self.logger(f"Agente IA Central: pontuação de risco atualizada para {self.estado.pontuacao_risco}")
+        else:
+            print(f"Agente IA Central: pontuação de risco atualizada para {self.estado.pontuacao_risco}")
 
     def finalizar(self):
         """Finaliza o agente"""

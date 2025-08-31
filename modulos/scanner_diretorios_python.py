@@ -27,6 +27,45 @@ class ScannerDiretoriosPython:
         })
         self.timeout = 5
         self.max_workers = 20
+        
+    def executar_scan(self, alvo):
+        """
+        Método compatível com o Orquestrador para executar o scan de diretórios
+        Args:
+            alvo (str): URL ou IP do alvo
+        Returns:
+            dict: Resultado do scan de diretórios
+        """
+        self.logger.info(f"Iniciando scan de diretórios para: {alvo}")
+        
+        try:
+            # Garantir que o alvo tenha protocolo
+            if not alvo.startswith(('http://', 'https://')):
+                url = f"http://{alvo}"
+            else:
+                url = alvo
+                
+            inicio = time.time()
+            resultados = self.scan_completo(url, testar_extensoes=True)
+            tempo_execucao = time.time() - inicio
+            
+            # Formatar resultado para compatibilidade com orquestrador
+            return {
+                'sucesso': True,
+                'alvo': alvo,
+                'urls_encontradas': resultados.get('urls_encontradas', []),
+                'total_testado': resultados.get('total_testado', 0),
+                'tempo_execucao': tempo_execucao,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            self.logger.error(f"Erro no scan de diretórios: {str(e)}")
+            return {
+                'sucesso': False,
+                'alvo': alvo,
+                'erro': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
 
         # Wordlists de diretórios
         self.diretorios_comuns = [

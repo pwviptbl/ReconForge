@@ -176,7 +176,7 @@ class ScannerWebAvancado:
             
             # 5. Análise de formulários
             self.logger.info("📝 Fase 5: Analisando formulários...")
-            self._analisar_formularios()
+            self._analisar_formularios(self.formularios)
             
             # 6. Testes de segurança
             self.logger.info("🛡️ Fase 6: Testando vulnerabilidades...")
@@ -337,6 +337,59 @@ class ScannerWebAvancado:
             return parsed_url.netloc == parsed_base.netloc
         except:
             return False
+            
+    def _analisar_formularios(self, formularios):
+        """Analisa formulários em busca de vulnerabilidades"""
+        resultados = []
+        
+        for form in formularios:
+            form_result = {
+                'url': form['url'],
+                'action': form['action'],
+                'method': form['method'],
+                'vulnerabilidades': []
+            }
+            
+            # Verificar CSRF
+            csrf_tokens = [input_field for input_field in form['inputs'] 
+                           if any(keyword in input_field['name'].lower() 
+                                 for keyword in ['csrf', 'token', 'nonce', 'xsrf'])]
+            
+            if not csrf_tokens and form['method'].upper() == 'POST':
+                form_result['vulnerabilidades'].append({
+                    'tipo': 'CSRF',
+                    'descricao': 'Formulário POST sem proteção CSRF detectada',
+                    'criticidade': 'MÉDIA'
+                })
+                
+            # Analisar campos de senha
+            password_fields = [input_field for input_field in form['inputs'] if input_field['type'] == 'password']
+            if password_fields:
+                # Verificar autocomplete
+                if all('autocomplete="off"' not in str(input_field) for input_field in password_fields):
+                    form_result['vulnerabilidades'].append({
+                        'tipo': 'Autocomplete',
+                        'descricao': 'Campo de senha com autocomplete habilitado',
+                        'criticidade': 'BAIXA'
+                    })
+                    
+            # Analisar padrões de login
+            login_indicators = ['login', 'signin', 'log-in', 'sign-in', 'auth']
+            password_exists = any(input_field['type'] == 'password' for input_field in form['inputs'])
+            username_exists = any(input_field['name'].lower() in ['username', 'user', 'email', 'login', 'id'] 
+                                 for input_field in form['inputs'])
+            
+            if password_exists and username_exists and form['method'].upper() == 'GET':
+                form_result['vulnerabilidades'].append({
+                    'tipo': 'Login via GET',
+                    'descricao': 'Formulário de login usando método GET',
+                    'criticidade': 'ALTA'
+                })
+                
+            if form_result['vulnerabilidades']:
+                resultados.append(form_result)
+                
+        return resultados
     
     def _detectar_tecnologias(self, url):
         """Detecta tecnologias usadas no site"""

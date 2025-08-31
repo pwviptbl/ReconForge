@@ -39,6 +39,14 @@ class VarreduraNuclei:
             bool: True se Nuclei está disponível, False caso contrário
         """
         try:
+            from shutil import which
+            
+            # Verificar se o binário está no PATH
+            nuclei_path = which(self.binario_nuclei)
+            if not nuclei_path:
+                self.logger.warning(f"⚠️ Nuclei não encontrado no PATH. Verificando se está instalado...")
+                return False
+                
             resultado = subprocess.run(
                 [self.binario_nuclei, '-version'],
                 capture_output=True,
@@ -490,6 +498,42 @@ class VarreduraNuclei:
         relatorio.append("RESUMO:")
         relatorio.append(f"  Total de Vulnerabilidades: {resumo.get('total_vulnerabilidades', 0)}")
         relatorio.append(f"  Templates Executados: {resumo.get('templates_executados', 0)}")
+        
+    def executar(self, alvo: str) -> Dict[str, Any]:
+        """
+        Método para compatibilidade com o orquestrador
+        Args:
+            alvo (str): IP ou domínio para varrer
+        Returns:
+            Dict[str, Any]: Resultados da varredura
+        """
+        try:
+            # Verificar se o nuclei está instalado
+            from shutil import which
+            
+            # Verificar se o binário está no PATH
+            nuclei_path = which(self.binario_nuclei)
+            if not nuclei_path:
+                self.logger.warning(f"⚠️ Nuclei não encontrado no PATH")
+                return {
+                    'sucesso': False,
+                    'alvo': alvo,
+                    'timestamp': datetime.now().isoformat(),
+                    'erro': f"Erro na execução: [Errno 2] No such file or directory: 'nuclei'. Instale com 'apt-get install nuclei' ou 'go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest'"
+                }
+            
+            # Executar varredura básica
+            resultado = self.varredura_basica(alvo)
+            resultado['alvo'] = alvo
+            
+            return resultado
+        except Exception as e:
+            return {
+                'sucesso': False,
+                'alvo': alvo,
+                'timestamp': datetime.now().isoformat(),
+                'erro': f"Erro na execução: {str(e)}"
+            }
         relatorio.append(f"  Alvos Testados: {resumo.get('alvos_testados', 0)}")
         relatorio.append("")
         

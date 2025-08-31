@@ -206,7 +206,16 @@ class OrquestradorInteligente:
         # Novo: Notificar Agente IA Central (Fase 1)
         if self.agente_ia_central:
             try:
-                self.agente_ia_central.atualizar_estado(resultado)
+                # Passar informações completas para atualização do estado
+                resultado_completo = {
+                    'modulo': nome_modulo,
+                    'sucesso': resultado.get('sucesso_geral', resultado.get('sucesso', False)),
+                    'vulnerabilidades': resultado.get('vulnerabilidades_encontradas', []),
+                    'tempo_execucao': resultado.get('tempo_execucao', 0),
+                    'resultado': resultado
+                }
+                self.agente_ia_central.atualizar_estado(resultado_completo)
+                self.logger.debug(f"Estado do Agente IA Central atualizado com resultado de {nome_modulo}")
             except Exception as e:
                 self.logger.warning(f"Erro ao atualizar Agente IA Central: {e}")
 
@@ -437,6 +446,29 @@ class OrquestradorInteligente:
             self.logger.error(f"Erro no scan inicial: {str(e)}")
             return {'sucesso': False, 'erro': f'Erro no scan inicial: {str(e)}'}
 
+    def _extrair_portas_abertas(self, resultado_scan: Dict[str, Any]) -> List[int]:
+        """Extrai lista de portas abertas do resultado do scan"""
+        portas_abertas = []
+        
+        if not resultado_scan.get('sucesso'):
+            return portas_abertas
+            
+        dados = resultado_scan.get('dados', {})
+        hosts = dados.get('hosts', [])
+        
+        for host in hosts:
+            portas = host.get('portas', [])
+            for porta_info in portas:
+                if isinstance(porta_info, dict) and porta_info.get('estado') == 'open':
+                    numero_porta = porta_info.get('numero')
+                    if isinstance(numero_porta, int):
+                        portas_abertas.append(numero_porta)
+                elif isinstance(porta_info, int):
+                    # Fallback para formato simples (apenas número da porta)
+                    portas_abertas.append(porta_info)
+        
+        return portas_abertas
+
     def _executar_loop_inteligente(self, contexto: ContextoExecucao) -> Dict[str, Any]:
         """Loop principal com política de retry de IA (30s; 5 falhas)."""
         iteracao = 0
@@ -470,6 +502,11 @@ class OrquestradorInteligente:
                         else:
                             self.logger.warning(f" Módulo desconhecido: {modulo_escolhido}")
                             continue
+
+                    # Verificação adicional: evitar executar o mesmo módulo consecutivamente
+                    if contexto.modulos_executados and contexto.modulos_executados[-1] == nome_exec:
+                        self.logger.warning(f" IA tentou executar {nome_exec} consecutivamente. Pulando para evitar loop.")
+                        continue
 
                     resultado_modulo = self._executar_modulo(nome_exec, contexto, decisao_ia)
                     self._atualizar_contexto_com_resultado(contexto, nome_exec, resultado_modulo)
