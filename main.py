@@ -285,7 +285,7 @@ def main():
         # Sempre salvar resultados (via camada de persistência)
         salvar_json_resultados(resultados, arquivo_json)
         gerar_relatorio_automatico(resultados, arquivo_html)
-
+        print('passou aqui 1');
         if resultados.get('sucesso_geral'):
             cli_logger.info("✓ Pentest inteligente concluído com sucesso!")
 
@@ -328,7 +328,7 @@ def main():
                     ip = vuln.get('ip', 'N/A')
                     tipo = vuln.get('tipo', vuln.get('script', 'N/A'))
                     cli_logger.info(f"  {i}. {ip} - {tipo}")
-                
+                print('passou aqui 2');
                 if len(vulnerabilidades) > 5:
                     cli_logger.info(f"  ... e mais {len(vulnerabilidades) - 5} vulnerabilidades")
 

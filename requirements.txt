@@ -28,7 +28,7 @@ numpy>=1.24.0
 scikit-learn>=1.7.0
 joblib>=1.5.0
 ray>=2.49.0
-scipy>=1.16.0
+scipy>=1.15.0
 threadpoolctl>=3.6.0
 
 # Para relatórios HTML

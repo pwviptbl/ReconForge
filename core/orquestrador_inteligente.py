@@ -42,7 +42,10 @@ class EventManager:
     """Gerenciador de eventos para sistema orientado a eventos (Fase 3)"""
     
     def __init__(self, logger_func=None):
-        self.logger = logger_func if logger_func else print
+        if logger_func:
+            self.logger = logger_func('EventManager')
+        else:
+            self.logger = print
         self.eventos: List[Evento] = []
         self.listeners: Dict[str, List[Callable]] = {}
         self.eventos_ativos: Dict[str, bool] = {}
@@ -54,13 +57,19 @@ class EventManager:
             if tipo_evento not in self.listeners:
                 self.listeners[tipo_evento] = []
             self.listeners[tipo_evento].append(callback)
-            self.logger(f"✅ Listener registrado para evento: {tipo_evento}")
+            if hasattr(self.logger, 'info'):
+                self.logger.info(f"✅ Listener registrado para evento: {tipo_evento}")
+            else:
+                print(f"✅ Listener registrado para evento: {tipo_evento}")
     
     def disparar_evento(self, evento: Evento):
         """Dispara um evento e notifica todos os listeners"""
         with self.lock:
             self.eventos.append(evento)
-            self.logger(f"🔥 Evento disparado: {evento.tipo} (prioridade: {evento.prioridade})")
+            if hasattr(self.logger, 'info'):
+                self.logger.info(f"🔥 Evento disparado: {evento.tipo} (prioridade: {evento.prioridade})")
+            else:
+                print(f"🔥 Evento disparado: {evento.tipo} (prioridade: {evento.prioridade})")
             
             # Notificar listeners
             if evento.tipo in self.listeners:
@@ -68,7 +77,10 @@ class EventManager:
                     try:
                         threading.Thread(target=callback, args=(evento,), daemon=True).start()
                     except Exception as e:
-                        self.logger(f"❌ Erro ao executar listener para {evento.tipo}: {e}")
+                        if hasattr(self.logger, 'error'):
+                            self.logger.error(f"❌ Erro ao executar listener para {evento.tipo}: {e}")
+                        else:
+                            print(f"❌ Erro ao executar listener para {evento.tipo}: {e}")
     
     def obter_eventos_recentes(self, limite: int = 10) -> List[Evento]:
         """Retorna os eventos mais recentes"""
@@ -93,7 +105,7 @@ class ContextoExecucao:
     vulnerabilidades_encontradas: List[Dict] = field(default_factory=list)
     modulos_executados: List[str] = field(default_factory=list)
     resultados_por_modulo: Dict[str, Dict] = field(default_factory=dict)
-    decisoes_ia: List[Dict] = field(default_factory=dict)
+    decisoes_ia: List[Dict] = field(default_factory=list)
     pontuacao_risco: int = 0
     finalizado: bool = False
     motivo_finalizacao: str = ""
@@ -112,7 +124,7 @@ class OrquestradorInteligente:
         self.decisao_ia = decisao_ia
 
         # Novo: Sistema de eventos (Fase 3)
-        self.event_manager = EventManager(self.logger)
+        self.event_manager = EventManager(logger_func)
         self._registrar_listeners_eventos()
 
         # Novo: Executor para paralelização (Fase 3)
@@ -396,6 +408,37 @@ class OrquestradorInteligente:
 
     def _atualizar_contexto_com_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict[str, Any]):
         """Atualiza o contexto com o resultado de um módulo executado."""
+        # Verificar se resultado é um dicionário válido
+        if not isinstance(resultado, dict):
+            self.logger.warning(f"Resultado do módulo {nome_modulo} não é um dicionário válido: {type(resultado)}")
+            resultado = {
+                'sucesso': False,
+                'erro': f'Formato de resultado inválido: {type(resultado)}',
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        # Verificar e garantir estruturas internas corretas
+        if 'resultados_por_alvo' in resultado and not isinstance(resultado['resultados_por_alvo'], dict):
+            self.logger.warning(f"resultados_por_alvo para {nome_modulo} não é um dicionário: {type(resultado['resultados_por_alvo'])}")
+            resultado['resultados_por_alvo'] = {}
+            
+        # Garantir que o resultado contém os campos básicos necessários
+        if 'timestamp' not in resultado:
+            resultado['timestamp'] = datetime.now().isoformat()
+            
+        if 'sucesso' not in resultado and 'sucesso_geral' not in resultado:
+            resultado['sucesso'] = False
+            resultado['erro'] = 'Status de sucesso não informado pelo módulo'
+        
+        # Processar e normalizar eventuais dados críticos
+        # Detector de tecnologias
+        if nome_modulo == 'detector_tecnologias_python' and 'dados' in resultado:
+            # Garantir que o campo 'tecnologias' existe e é um dicionário
+            dados = resultado.get('dados', {})
+            if 'tecnologias' in dados and not isinstance(dados['tecnologias'], dict):
+                self.logger.warning(f"Campo tecnologias em detector_tecnologias_python não é um dicionário: {type(dados['tecnologias'])}")
+                dados['tecnologias'] = {}
+                
         contexto.resultados_por_modulo[nome_modulo] = resultado
         contexto.modulos_executados.append(nome_modulo)
         self.logger.debug(f"Resultado do módulo '{nome_modulo}' adicionado ao contexto")
@@ -422,45 +465,403 @@ class OrquestradorInteligente:
     def _disparar_eventos_baseados_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict[str, Any]):
         """Dispara eventos baseados no resultado do módulo (Fase 3)"""
         try:
+            # Proteção contra tipos inválidos de resultado
+            if not isinstance(resultado, dict):
+                self.logger.warning(f"Resultado de {nome_modulo} não é um dicionário: {type(resultado)}")
+                return
+
             # Evento: Novos hosts descobertos
             if 'ips_descobertos' in resultado:
-                novos_ips = resultado['ips_descobertos']
-                if novos_ips:
-                    for ip in novos_ips:
-                        if ip not in contexto.ips_descobertos:
-                            contexto.ips_descobertos.append(ip)
-                            evento = Evento(
-                                tipo="novo_host_descoberto",
-                                dados={'host': ip, 'fonte': nome_modulo},
-                                timestamp=datetime.now().isoformat(),
-                                prioridade="alta"
-                            )
-                            contexto.eventos.append(evento)
-                            self.event_manager.disparar_evento(evento)
+                try:
+                    novos_ips = resultado['ips_descobertos']
+                    # Verificar se é uma lista
+                    if not isinstance(novos_ips, list):
+                        self.logger.warning(f"ips_descobertos em {nome_modulo} não é uma lista: {type(novos_ips)}")
+                        if novos_ips is not None:
+                            # Tentar converter para lista se possível
+                            if isinstance(novos_ips, str):
+                                novos_ips = [novos_ips]
+                            else:
+                                novos_ips = []
+                        else:
+                            novos_ips = []
+                            
+                    # Verificar se contexto.ips_descobertos é uma lista
+                    if not isinstance(contexto.ips_descobertos, list):
+                        self.logger.warning(f"contexto.ips_descobertos não é uma lista: {type(contexto.ips_descobertos)}")
+                        contexto.ips_descobertos = []
+                            
+                    # Agora é seguro iterar
+                    if novos_ips:
+                        for ip in novos_ips:
+                            if ip and ip not in contexto.ips_descobertos:
+                                contexto.ips_descobertos.append(ip)
+                                evento = Evento(
+                                    tipo="novo_host_descoberto",
+                                    dados={'host': ip, 'fonte': nome_modulo},
+                                    timestamp=datetime.now().isoformat(),
+                                    prioridade="alta"
+                                )
+                                contexto.eventos.append(evento)
+                                self.event_manager.disparar_evento(evento)
+                except Exception as e:
+                    self.logger.warning(f"Erro ao processar ips_descobertos em {nome_modulo}: {e}")
 
             # Evento: Portas abertas descobertas
             if 'portas_abertas' in resultado:
-                portas_novas = resultado['portas_abertas']
-                for ip, portas in portas_novas.items():
-                    if ip not in contexto.portas_abertas:
-                        contexto.portas_abertas[ip] = portas
-                    else:
-                        # Adicionar portas novas
-                        portas_existentes = set(contexto.portas_abertas[ip])
-                        portas_novas_set = set(portas)
-                        portas_adicionadas = portas_novas_set - portas_existentes
-                        if portas_adicionadas:
-                            contexto.portas_abertas[ip].extend(list(portas_adicionadas))
+                try:
+                    portas_novas = resultado['portas_abertas']
+                    
+                    # Verificar se é um dicionário
+                    if not isinstance(portas_novas, dict):
+                        self.logger.warning(f"portas_abertas em {nome_modulo} não é um dicionário: {type(portas_novas)}")
+                        # Tentar converter formatos conhecidos
+                        if isinstance(portas_novas, list) and all(isinstance(p, int) for p in portas_novas):
+                            # Lista de portas associada ao primeiro IP conhecido
+                            if contexto.ips_descobertos and len(contexto.ips_descobertos) > 0:
+                                portas_novas = {contexto.ips_descobertos[0]: portas_novas}
+                            else:
+                                portas_novas = {}
+                        else:
+                            portas_novas = {}
+                    
+                    # Verificar se contexto.portas_abertas é um dicionário
+                    if not isinstance(contexto.portas_abertas, dict):
+                        self.logger.warning(f"contexto.portas_abertas não é um dicionário: {type(contexto.portas_abertas)}")
+                        contexto.portas_abertas = {}
                             
-                            # Verificar portas suspeitas (ex: 3389, 445, etc.)
-                            portas_suspeitas = [p for p in portas_adicionadas if p in [3389, 445, 135, 139, 1433, 3306]]
-                            if portas_suspeitas:
+                    # Agora é seguro iterar
+                    for ip, portas in portas_novas.items():
+                        if ip not in contexto.portas_abertas:
+                            # Garantir que portas é uma lista de inteiros
+                            if isinstance(portas, list):
+                                # Filtrar somente inteiros
+                                contexto.portas_abertas[ip] = [p for p in portas if isinstance(p, int)]
+                            elif isinstance(portas, int):
+                                # Único valor
+                                contexto.portas_abertas[ip] = [portas]
+                            else:
+                                # Valor inválido
+                                contexto.portas_abertas[ip] = []
+                                self.logger.warning(f"Valor de portas para {ip} não é lista nem inteiro: {type(portas)}")
+                        else:
+                            # Garantir que o que temos é uma lista
+                            if not isinstance(contexto.portas_abertas[ip], list):
+                                self.logger.warning(f"contexto.portas_abertas[{ip}] não é uma lista: {type(contexto.portas_abertas[ip])}")
+                                contexto.portas_abertas[ip] = []
+                            
+                            # Garantir que portas é uma lista
+                            if not isinstance(portas, list):
+                                if isinstance(portas, int):
+                                    portas = [portas]
+                                else:
+                                    self.logger.warning(f"portas para {ip} não é lista nem inteiro: {type(portas)}")
+                                    portas = []
+                            
+                            # Adicionar portas novas com verificação de tipos
+                            portas_existentes = set()
+                            for p in contexto.portas_abertas[ip]:
+                                if isinstance(p, int):
+                                    portas_existentes.add(p)
+                                    
+                            portas_novas_set = set()
+                            for p in portas:
+                                if isinstance(p, int):
+                                    portas_novas_set.add(p)
+                                    
+                            portas_adicionadas = portas_novas_set - portas_existentes
+                            if portas_adicionadas:
+                                contexto.portas_abertas[ip].extend(list(portas_adicionadas))
+                                
+                                # Verificar portas suspeitas (ex: 3389, 445, etc.)
+                                portas_suspeitas = [p for p in portas_adicionadas if p in [3389, 445, 135, 139, 1433, 3306]]
+                                if portas_suspeitas:
+                                    evento = Evento(
+                                        tipo="anomalia_detectada",
+                                        dados={
+                                            'tipo': 'porta_suspeita',
+                                            'host': ip,
+                                            'portas': list(portas_suspeitas),
+                                            'fonte': nome_modulo
+                                        },
+                                        timestamp=datetime.now().isoformat(),
+                                        prioridade="alta"
+                                    )
+                                    contexto.eventos.append(evento)
+                                    self.event_manager.disparar_evento(evento)
+                except Exception as e:
+                    self.logger.warning(f"Erro ao processar portas_abertas em {nome_modulo}: {e}")
+                    import traceback
+                    self.logger.warning(f"Traceback: {traceback.format_exc()}")
+
+            # Evento: Serviços web detectados - com verificação ultra-ultra-robusta
+            if 'servicos_detectados' in resultado:
+                try:
+                    servicos = resultado['servicos_detectados']
+                    
+                    # Verificar se contexto.servicos_detectados é um dicionário
+                    if not isinstance(contexto.servicos_detectados, dict):
+                        self.logger.warning(f"contexto.servicos_detectados não é um dicionário: {type(contexto.servicos_detectados)}")
+                        contexto.servicos_detectados = {}
+                    
+                    # VERIFICAÇÃO INICIAL: Verificação extrema do tipo dos dados recebidos
+                    # Adicionar log detalhado para debug
+                    self.logger.debug(f"servicos_detectados em {nome_modulo} é de tipo {type(servicos).__name__}")
+                    
+                    # Casos específicos para diferentes tipos de dados
+                    if servicos is None:
+                        # Caso 1: None
+                        self.logger.warning(f"servicos_detectados em {nome_modulo} é None - ignorando")
+                        # Nada a adicionar neste caso
+                    
+                    elif isinstance(servicos, int):
+                        # Caso 2: Inteiro (causa original do erro)
+                        self.logger.warning(f"servicos_detectados em {nome_modulo} é um inteiro: {servicos}")
+                        # Criar uma entrada de contagem associada ao nome do módulo
+                        chave_temp = f"contador_{nome_modulo}"
+                        contexto.servicos_detectados[chave_temp] = {"count": servicos}
+                        # Não há serviços web para processar aqui
+                    
+                    elif isinstance(servicos, str):
+                        # Caso 3: String
+                        self.logger.warning(f"servicos_detectados em {nome_modulo} é uma string")
+                        chave_temp = f"info_{nome_modulo}"
+                        contexto.servicos_detectados[chave_temp] = {"info": servicos}
+                        # Verificar se a string contém informações sobre web
+                        if any(web in servicos.lower() for web in ['http', 'https', 'web']):
+                            evento = Evento(
+                                tipo="servico_web_detectado",
+                                dados={
+                                    'host': chave_temp,
+                                    'servico': "possível serviço web (string)",
+                                    'fonte': nome_modulo
+                                },
+                                timestamp=datetime.now().isoformat(),
+                                prioridade="baixa"
+                            )
+                            contexto.eventos.append(evento)
+                            self.event_manager.disparar_evento(evento)
+                    
+                    elif isinstance(servicos, list):
+                        # Caso 4: Lista
+                        self.logger.warning(f"servicos_detectados em {nome_modulo} é uma lista - convertendo")
+                        # Processar cada item da lista de forma segura
+                        for i, item in enumerate(servicos):
+                            if item is not None:
+                                # Gerar chave temporária baseada no índice
+                                chave_temp = f"item_{i}"
+                                
+                                # Usar o host como chave se disponível
+                                if isinstance(item, dict) and 'host' in item:
+                                    chave_temp = item['host']
+                                
+                                # Adicionar ao contexto
+                                contexto.servicos_detectados[chave_temp] = item
+                                
+                                # Verificar se contém serviço web
+                                if isinstance(item, dict):
+                                    for k, v in item.items():
+                                        if isinstance(v, str) and any(web in v.lower() for web in ['http', 'https', 'web']):
+                                            evento = Evento(
+                                                tipo="servico_web_detectado",
+                                                dados={
+                                                    'host': chave_temp,
+                                                    'servico': v,
+                                                    'fonte': nome_modulo
+                                                },
+                                                timestamp=datetime.now().isoformat(),
+                                                prioridade="media"
+                                            )
+                                            contexto.eventos.append(evento)
+                                            self.event_manager.disparar_evento(evento)
+                                            break
+                    
+                    elif isinstance(servicos, dict):
+                        # Caso 5: Dicionário (caso ideal)
+                        self.logger.debug(f"servicos_detectados em {nome_modulo} é um dicionário com {len(servicos) if hasattr(servicos, '__len__') else 'valor não iterável'} chaves")
+                        # Iterar com segurança
+                        for ip, servicos_ip in servicos.items():
+                            if ip not in contexto.servicos_detectados:
+                                # CRIAÇÃO: Validações ultra-robustas para diferentes tipos de dados
+                                if isinstance(servicos_ip, dict):
+                                    # Cópia segura
+                                    try:
+                                        contexto.servicos_detectados[ip] = servicos_ip.copy()
+                                    except (AttributeError, TypeError):
+                                        # Se copy falhar, criar novo dict e copiar chave por chave
+                                        contexto.servicos_detectados[ip] = {}
+                                        for k, v in servicos_ip.items():
+                                            contexto.servicos_detectados[ip][k] = v
+                                elif isinstance(servicos_ip, list):
+                                    # Converter lista para dicionário com segurança
+                                    contexto.servicos_detectados[ip] = {}
+                                    for i, item in enumerate(servicos_ip):
+                                        if item is not None:
+                                            contexto.servicos_detectados[ip][f"item_{i}"] = item
+                                elif isinstance(servicos_ip, int):
+                                    # Número direto = contagem
+                                    contexto.servicos_detectados[ip] = {"count": servicos_ip}
+                                elif servicos_ip is None:
+                                    # Tratar None de forma explícita
+                                    contexto.servicos_detectados[ip] = {"valor": "nenhum"}
+                                else:
+                                    # Qualquer outro tipo, converter para string
+                                    try:
+                                        valor_str = str(servicos_ip)
+                                    except:
+                                        valor_str = "Erro ao converter para string"
+                                    contexto.servicos_detectados[ip] = {"valor": valor_str}
+                            else:
+                                # ATUALIZAÇÃO: Verificar se o dicionário atual é válido
+                                if not isinstance(contexto.servicos_detectados[ip], dict):
+                                    # Se não for dicionário, substituir com novo
+                                    try:
+                                        valor_antigo_str = str(contexto.servicos_detectados[ip])
+                                    except:
+                                        valor_antigo_str = "Erro ao converter valor antigo"
+                                    contexto.servicos_detectados[ip] = {"valor_antigo": valor_antigo_str}
+                                
+                                # Agora atualizar conforme o tipo dos novos serviços com muita segurança
+                                if isinstance(servicos_ip, dict):
+                                    # Mesclar dicionários um item por vez
+                                    for k, v in servicos_ip.items():
+                                        contexto.servicos_detectados[ip][k] = v
+                                elif isinstance(servicos_ip, list):
+                                    # Converter lista para dicionário e mesclar item por item
+                                    for i, item in enumerate(servicos_ip):
+                                        if item is not None:
+                                            contexto.servicos_detectados[ip][f"lista_item_{i}"] = item
+                                elif isinstance(servicos_ip, int):
+                                    # Adicionar como contador
+                                    contexto.servicos_detectados[ip]["count"] = servicos_ip
+                                elif servicos_ip is None:
+                                    # Tratar None de forma explícita
+                                    contexto.servicos_detectados[ip]["valor"] = "nenhum"
+                                else:
+                                    # Qualquer outro tipo, converter para string com proteção
+                                    try:
+                                        valor_str = str(servicos_ip)
+                                    except:
+                                        valor_str = "Erro ao converter para string"
+                                    contexto.servicos_detectados[ip]["valor"] = valor_str
+                            
+                            # Verificar serviços web com tratamento ultra-defensivo
+                            try:
+                                # Apenas processar se for um dicionário
+                                if isinstance(servicos_ip, dict):
+                                    for chave, servico in servicos_ip.items():
+                                        is_servico_web = False
+                                        servico_nome = ""
+                                        porta = None
+                                        
+                                        # Proteções extensivas para diferentes estruturas
+                                        if isinstance(servico, dict) and 'servico' in servico:
+                                            # Formato estruturado {servico: "http", ...}
+                                            try:
+                                                servico_nome = str(servico.get('servico', '')).lower()
+                                            except:
+                                                servico_nome = "erro-ao-converter"
+                                                
+                                            try:
+                                                porta = servico.get('porta')
+                                                # Validar que é um número inteiro
+                                                if porta is not None and not isinstance(porta, int):
+                                                    try:
+                                                        porta = int(porta)
+                                                    except:
+                                                        porta = None
+                                            except:
+                                                porta = None
+                                                
+                                            if any(web in servico_nome for web in ['http', 'https', 'web']):
+                                                is_servico_web = True
+                                        elif isinstance(servico, str):
+                                            # String direta, verificar se contém termos web
+                                            try:
+                                                servico_nome = servico.lower()
+                                                if any(web in servico_nome for web in ['http', 'https', 'web']):
+                                                    is_servico_web = True
+                                            except:
+                                                pass
+                                        
+                                        # Se detectamos um serviço web válido, disparar evento
+                                        if is_servico_web:
+                                            evento = Evento(
+                                                tipo="servico_web_detectado",
+                                                dados={
+                                                    'host': ip,
+                                                    'porta': porta,
+                                                    'servico': servico_nome,
+                                                    'fonte': nome_modulo
+                                                },
+                                                timestamp=datetime.now().isoformat(),
+                                                prioridade="media"
+                                            )
+                                            contexto.eventos.append(evento)
+                                            self.event_manager.disparar_evento(evento)
+                            except Exception as e:
+                                self.logger.warning(f"Erro ao processar serviços web para {ip}: {e}")
+                    else:
+                        # Caso 6: Qualquer outro tipo não esperado
+                        self.logger.warning(f"servicos_detectados em {nome_modulo} é tipo inesperado: {type(servicos).__name__}")
+                        # Tentar converter para string e armazenar como informação
+                        try:
+                            valor_str = str(servicos)
+                        except:
+                            valor_str = f"Objeto de tipo {type(servicos).__name__} não conversível para string"
+                        
+                        # Armazenar como informação genérica
+                        chave_temp = f"valor_desconhecido_{nome_modulo}"
+                        contexto.servicos_detectados[chave_temp] = {"valor": valor_str}
+                except Exception as e:
+                    self.logger.warning(f"Erro ao processar servicos_detectados em {nome_modulo}: {e}")
+                    import traceback
+                    self.logger.warning(f"Traceback: {traceback.format_exc()}")
+
+            # Evento: Vulnerabilidades encontradas
+            if 'vulnerabilidades_encontradas' in resultado:
+                try:
+                    vulns = resultado['vulnerabilidades_encontradas']
+                    
+                    # Verificar se é uma lista
+                    if not isinstance(vulns, list):
+                        self.logger.warning(f"vulnerabilidades_encontradas em {nome_modulo} não é uma lista: {type(vulns)}")
+                        if isinstance(vulns, dict):
+                            # Um único item, convertemos para lista
+                            vulns = [vulns]
+                        else:
+                            vulns = []
+                            
+                    # Verificar se contexto.vulnerabilidades_encontradas é uma lista
+                    if not isinstance(contexto.vulnerabilidades_encontradas, list):
+                        self.logger.warning(f"contexto.vulnerabilidades_encontradas não é uma lista: {type(contexto.vulnerabilidades_encontradas)}")
+                        contexto.vulnerabilidades_encontradas = []
+                            
+                    # Agora é seguro processar
+                    if vulns:
+                        contexto.vulnerabilidades_encontradas.extend(vulns)
+                        
+                        # Verificar vulnerabilidades críticas
+                        for vuln in vulns:
+                            if not isinstance(vuln, dict):
+                                continue
+                                
+                            try:
+                                severidade = str(vuln.get('severidade', '')).lower()
+                            except:
+                                severidade = ''
+                                
+                            try:
+                                tipo = str(vuln.get('tipo', '')).lower()
+                            except:
+                                tipo = ''
+                            
+                            if severidade in ['critica', 'critical', 'alta', 'high'] or any(t in tipo for t in ['sql', 'rce', 'xss', 'injection']):
                                 evento = Evento(
-                                    tipo="anomalia_detectada",
+                                    tipo="vulnerabilidade_critica",
                                     dados={
-                                        'tipo': 'porta_suspeita',
-                                        'host': ip,
-                                        'portas': list(portas_suspeitas),
+                                        'vulnerabilidade': vuln,
+                                        'host': vuln.get('host', 'desconhecido'),
                                         'fonte': nome_modulo
                                     },
                                     timestamp=datetime.now().isoformat(),
@@ -468,91 +869,77 @@ class OrquestradorInteligente:
                                 )
                                 contexto.eventos.append(evento)
                                 self.event_manager.disparar_evento(evento)
+                except Exception as e:
+                    self.logger.warning(f"Erro ao processar vulnerabilidades_encontradas em {nome_modulo}: {e}")
 
-            # Evento: Serviços web detectados
-            if 'servicos_detectados' in resultado:
-                servicos = resultado['servicos_detectados']
-                for ip, servicos_ip in servicos.items():
-                    if ip not in contexto.servicos_detectados:
-                        contexto.servicos_detectados[ip] = servicos_ip
-                    else:
-                        # Mesclar serviços
-                        contexto.servicos_detectados[ip].update(servicos_ip)
+            # Evento: Feedback para ML com validações ultra-defensivas
+            try:
+                sucesso = False
+                
+                # Verificar sucesso com várias opções
+                if 'sucesso_geral' in resultado:
+                    # Converter para boolean explicitamente
+                    sucesso = bool(resultado.get('sucesso_geral'))
+                elif 'sucesso' in resultado:
+                    # Converter para boolean explicitamente
+                    sucesso = bool(resultado.get('sucesso'))
                     
-                    # Verificar serviços web
-                    for servico in servicos_ip.values():
-                        if isinstance(servico, dict) and servico.get('servico', '').lower() in ['http', 'https']:
-                            evento = Evento(
-                                tipo="servico_web_detectado",
-                                dados={
-                                    'host': ip,
-                                    'porta': servico.get('porta'),
-                                    'servico': servico,
-                                    'fonte': nome_modulo
-                                },
-                                timestamp=datetime.now().isoformat(),
-                                prioridade="media"
-                            )
-                            contexto.eventos.append(evento)
-                            self.event_manager.disparar_evento(evento)
-
-            # Evento: Vulnerabilidades encontradas
-            if 'vulnerabilidades_encontradas' in resultado:
-                vulns = resultado['vulnerabilidades_encontradas']
-                if vulns:
-                    contexto.vulnerabilidades_encontradas.extend(vulns)
+                # Tempo de execução com valor padrão 0
+                tempo_execucao = 0
+                if 'tempo_execucao' in resultado:
+                    try:
+                        tempo_execucao = float(resultado.get('tempo_execucao', 0))
+                    except:
+                        tempo_execucao = 0
+                
+                # Mensagem de erro com valor padrão
+                erro = "Erro desconhecido"
+                if 'erro' in resultado:
+                    try:
+                        erro = str(resultado.get('erro', erro))
+                    except:
+                        erro = "Erro ao converter mensagem de erro"
+                
+                # Criar evento apropriado
+                if sucesso:
+                    evento = Evento(
+                        tipo="feedback_ml",
+                        dados={
+                            'tipo': 'sucesso_modulo',
+                            'modulo': nome_modulo,
+                            'tempo_execucao': tempo_execucao,
+                            'resultado': resultado
+                        },
+                        timestamp=datetime.now().isoformat(),
+                        prioridade="baixa"
+                    )
+                else:
+                    evento = Evento(
+                        tipo="feedback_ml",
+                        dados={
+                            'tipo': 'falha_modulo',
+                            'modulo': nome_modulo,
+                            'erro': erro,
+                            'resultado': resultado
+                        },
+                        timestamp=datetime.now().isoformat(),
+                        prioridade="baixa"
+                    )
+                
+                # Verificar que contexto.eventos é uma lista
+                if not isinstance(contexto.eventos, list):
+                    self.logger.warning(f"contexto.eventos não é uma lista: {type(contexto.eventos)}")
+                    contexto.eventos = []
                     
-                    # Verificar vulnerabilidades críticas
-                    for vuln in vulns:
-                        severidade = vuln.get('severidade', '').lower()
-                        tipo = vuln.get('tipo', '').lower()
-                        
-                        if severidade in ['critical', 'high'] or 'sql' in tipo or 'rce' in tipo:
-                            evento = Evento(
-                                tipo="vulnerabilidade_critica",
-                                dados={
-                                    'vulnerabilidade': vuln,
-                                    'host': vuln.get('host', 'desconhecido'),
-                                    'fonte': nome_modulo
-                                },
-                                timestamp=datetime.now().isoformat(),
-                                prioridade="alta"
-                            )
-                            contexto.eventos.append(evento)
-                            self.event_manager.disparar_evento(evento)
-
-            # Evento: Feedback para ML
-            if resultado.get('sucesso') or resultado.get('sucesso_geral'):
-                evento = Evento(
-                    tipo="feedback_ml",
-                    dados={
-                        'tipo': 'sucesso_modulo',
-                        'modulo': nome_modulo,
-                        'tempo_execucao': resultado.get('tempo_execucao', 0),
-                        'resultado': resultado
-                    },
-                    timestamp=datetime.now().isoformat(),
-                    prioridade="baixa"
-                )
                 contexto.eventos.append(evento)
                 self.event_manager.disparar_evento(evento)
-            else:
-                evento = Evento(
-                    tipo="feedback_ml",
-                    dados={
-                        'tipo': 'falha_modulo',
-                        'modulo': nome_modulo,
-                        'erro': resultado.get('erro', 'Erro desconhecido'),
-                        'resultado': resultado
-                    },
-                    timestamp=datetime.now().isoformat(),
-                    prioridade="baixa"
-                )
-                contexto.eventos.append(evento)
-                self.event_manager.disparar_evento(evento)
+            except Exception as e:
+                self.logger.warning(f"Erro ao processar feedback ML em {nome_modulo}: {e}")
 
         except Exception as e:
             self.logger.warning(f"Erro ao disparar eventos para {nome_modulo}: {e}")
+            import traceback
+            self.logger.warning(f"Traceback: {traceback.format_exc()}")
 
     def executar_pentest_inteligente(self, alvo: str, modo: str = 'rede', credenciais_web: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Executa o fluxo escolhido (rede ou web) e entra no LOOP-IA."""
@@ -745,10 +1132,14 @@ class OrquestradorInteligente:
             resultado_dns = self.resolver_dns.resolver_dns(alvo)
             if resultado_dns.get('sucesso'):
                 ips_para_scan = extrair_ips_para_scan(resultado_dns)
-                contexto.ips_descobertos = ips_para_scan
+                if not isinstance(ips_para_scan, list):
+                    self.logger.warning(f"⚠️ extrair_ips_para_scan retornou {type(ips_para_scan)}, convertendo para lista")
+                    contexto.ips_descobertos = []
+                else:
+                    contexto.ips_descobertos = ips_para_scan
                 contexto.resultados_por_modulo['resolucao_dns'] = resultado_dns
                 contexto.modulos_executados.append('resolucao_dns')
-                self.logger.info(f"✓ DNS resolvido: {len(ips_para_scan)} IPs descobertos")
+                self.logger.info(f"✓ DNS resolvido: {len(contexto.ips_descobertos)} IPs descobertos")
             return resultado_dns
         except Exception as e:
             self.logger.error(f"Erro na resolução DNS: {str(e)}")
@@ -806,6 +1197,67 @@ class OrquestradorInteligente:
 
     def _executar_loop_inteligente(self, contexto: ContextoExecucao) -> Dict[str, Any]:
         """Loop principal com política de retry de IA (30s; 5 falhas) e sistema de eventos (Fase 3)."""
+        # Debug detalhado para encontrar o problema
+        self.logger.warning("INICIO DEBUG DETALHADO - Estruturas contexto")
+        
+        # Verificar tipo do contexto.ips_descobertos
+        self.logger.warning(f"contexto.ips_descobertos tipo: {type(contexto.ips_descobertos)} valor: {contexto.ips_descobertos}")
+        
+        # Verificar tipo do contexto.decisoes_ia
+        self.logger.warning(f"contexto.decisoes_ia tipo: {type(contexto.decisoes_ia)} valor: {contexto.decisoes_ia}")
+        
+        # Verificar tipo do contexto.portas_abertas
+        self.logger.warning(f"contexto.portas_abertas tipo: {type(contexto.portas_abertas)} valor: {contexto.portas_abertas}")
+        
+        # Verificar tipo do contexto.servicos_detectados
+        self.logger.warning(f"contexto.servicos_detectados tipo: {type(contexto.servicos_detectados)} valor: {contexto.servicos_detectados}")
+        
+        # Verificar tipo do contexto.vulnerabilidades_encontradas
+        self.logger.warning(f"contexto.vulnerabilidades_encontradas tipo: {type(contexto.vulnerabilidades_encontradas)} valor: {contexto.vulnerabilidades_encontradas}")
+        
+        # Verificar tipo do contexto.modulos_executados
+        self.logger.warning(f"contexto.modulos_executados tipo: {type(contexto.modulos_executados)} valor: {contexto.modulos_executados}")
+        
+        # Verificar tipo do contexto.resultados_por_modulo
+        self.logger.warning(f"contexto.resultados_por_modulo tipo: {type(contexto.resultados_por_modulo)} valor: chaves: {list(contexto.resultados_por_modulo.keys()) if isinstance(contexto.resultados_por_modulo, dict) else 'INVÁLIDO'}")
+        
+        self.logger.warning("FIM DEBUG DETALHADO")
+        
+        # Verificar e corrigir estruturas de dados no contexto
+        if not isinstance(contexto.ips_descobertos, list):
+            self.logger.warning("⚠️ contexto.ips_descobertos não é uma lista, inicializando como lista vazia")
+            contexto.ips_descobertos = []
+        
+        # Garantir que decisoes_ia é uma lista
+        if not isinstance(contexto.decisoes_ia, list):
+            self.logger.warning("⚠️ contexto.decisoes_ia não é uma lista, inicializando como lista vazia")
+            contexto.decisoes_ia = []
+            
+        # Garantir que portas_abertas é um dicionário
+        if not isinstance(contexto.portas_abertas, dict):
+            self.logger.warning("⚠️ contexto.portas_abertas não é um dicionário, inicializando como dicionário vazio")
+            contexto.portas_abertas = {}
+            
+        # Garantir que servicos_detectados é um dicionário
+        if not isinstance(contexto.servicos_detectados, dict):
+            self.logger.warning("⚠️ contexto.servicos_detectados não é um dicionário, inicializando como dicionário vazio")
+            contexto.servicos_detectados = {}
+            
+        # Garantir que vulnerabilidades_encontradas é uma lista
+        if not isinstance(contexto.vulnerabilidades_encontradas, list):
+            self.logger.warning("⚠️ contexto.vulnerabilidades_encontradas não é uma lista, inicializando como lista vazia")
+            contexto.vulnerabilidades_encontradas = []
+            
+        # Garantir que modulos_executados é uma lista
+        if not isinstance(contexto.modulos_executados, list):
+            self.logger.warning("⚠️ contexto.modulos_executados não é uma lista, inicializando como lista vazia")
+            contexto.modulos_executados = []
+            
+        # Garantir que resultados_por_modulo é um dicionário
+        if not isinstance(contexto.resultados_por_modulo, dict):
+            self.logger.warning("⚠️ contexto.resultados_por_modulo não é um dicionário, inicializando como dicionário vazio")
+            contexto.resultados_por_modulo = {}
+            
         iteracao = 0
         falhas_consecutivas = 0
         tarefas_paralelas = []  # Lista de tarefas em execução paralela
@@ -925,6 +1377,11 @@ class OrquestradorInteligente:
         concluidas = 0
         tarefas_restantes = []
         
+        # Verificar se tarefas_paralelas é uma lista válida
+        if not isinstance(tarefas_paralelas, list):
+            self.logger.warning("⚠️ tarefas_paralelas não é uma lista válida, inicializando como lista vazia")
+            return 0
+            
         for tarefa_info in tarefas_paralelas:
             if tarefa_info['tarefa'].done():
                 try:
@@ -975,6 +1432,16 @@ class OrquestradorInteligente:
 
     def _consultar_ia_proximos_passos(self, contexto: ContextoExecucao) -> Dict[str, Any]:
         """Consulta IA com contexto seguro e retorna decisão em JSON."""
+        # Debug para verificar estrutura do contexto
+        self.logger.warning("DEBUG _consultar_ia_proximos_passos - Estrutura contexto:")
+        
+        # Verificar tipo do contexto.ips_descobertos
+        self.logger.warning(f"contexto.ips_descobertos tipo: {type(contexto.ips_descobertos)}")
+        if isinstance(contexto.ips_descobertos, list):
+            self.logger.warning(f"  - tamanho lista: {len(contexto.ips_descobertos)}")
+        else:
+            self.logger.warning(f"  - valor direto: {contexto.ips_descobertos}")
+        
         # Novo: Usar Agente IA Central se disponível (Fase 1)
         if self.agente_ia_central:
             try:
@@ -1045,51 +1512,237 @@ IMPORTANTE:
         return decisao
 
     def _montar_contexto_completo(self, contexto: ContextoExecucao) -> Dict[str, Any]:
+        # Debug para verificar estrutura do contexto
+        self.logger.warning("DEBUG _montar_contexto_completo - Estrutura contexto:")
+        
+        # Verificar tipo e conteúdo das principais propriedades
+        try:
+            self.logger.warning(f"contexto.ips_descobertos tipo: {type(contexto.ips_descobertos)} valor: {contexto.ips_descobertos}")
+            if isinstance(contexto.ips_descobertos, list):
+                self.logger.warning(f"  - ips_descobertos tamanho: {len(contexto.ips_descobertos)}")
+            
+            self.logger.warning(f"contexto.portas_abertas tipo: {type(contexto.portas_abertas)}")
+            if isinstance(contexto.portas_abertas, dict):
+                self.logger.warning(f"  - portas_abertas chaves: {list(contexto.portas_abertas.keys())}")
+            
+            self.logger.warning(f"contexto.servicos_detectados tipo: {type(contexto.servicos_detectados)}")
+            if isinstance(contexto.servicos_detectados, dict):
+                self.logger.warning(f"  - servicos_detectados chaves: {list(contexto.servicos_detectados.keys())}")
+                
+            self.logger.warning(f"contexto.resultados_por_modulo tipo: {type(contexto.resultados_por_modulo)}")
+            if isinstance(contexto.resultados_por_modulo, dict):
+                self.logger.warning(f"  - resultados_por_modulo chaves: {list(contexto.resultados_por_modulo.keys())}")
+        except Exception as e:
+            self.logger.error(f"Erro ao fazer debug do contexto: {e}")
+        
+        # Criação do contexto com proteção contra tipos inválidos
+        ips_descobertos_safe = contexto.ips_descobertos if isinstance(contexto.ips_descobertos, list) else []
+        portas_abertas_safe = contexto.portas_abertas if isinstance(contexto.portas_abertas, dict) else {}
+        servicos_detectados_safe = contexto.servicos_detectados if isinstance(contexto.servicos_detectados, dict) else {}
+        vulnerabilidades_safe = contexto.vulnerabilidades_encontradas if isinstance(contexto.vulnerabilidades_encontradas, list) else []
+        modulos_executados_safe = contexto.modulos_executados if isinstance(contexto.modulos_executados, list) else []
+        resultados_por_modulo_safe = contexto.resultados_por_modulo if isinstance(contexto.resultados_por_modulo, dict) else {}
+        
+        try:
+            ultimos_resultados = {
+                modulo: resultado
+                for modulo, resultado in list(resultados_por_modulo_safe.items())[-3:]
+            }
+        except Exception as e:
+            self.logger.error(f"Erro ao obter últimos resultados: {e}")
+            ultimos_resultados = {}
+            
         return {
             'alvo_original': contexto.alvo_original,
             'timestamp_inicio': contexto.timestamp_inicio,
             'tempo_decorrido': self._calcular_tempo_decorrido(contexto),
             'pontuacao_risco': contexto.pontuacao_risco,
-            'ips_descobertos': contexto.ips_descobertos,
-            'portas_abertas': contexto.portas_abertas,
-            'servicos_detectados': contexto.servicos_detectados,
-            'vulnerabilidades_encontradas': contexto.vulnerabilidades_encontradas,
-            'modulos_executados': contexto.modulos_executados,
-            'ultimos_resultados': {
-                modulo: resultado
-                for modulo, resultado in list(contexto.resultados_por_modulo.items())[-3:]
-            }
+            'ips_descobertos': ips_descobertos_safe,
+            'portas_abertas': portas_abertas_safe,
+            'servicos_detectados': servicos_detectados_safe,
+            'vulnerabilidades_encontradas': vulnerabilidades_safe,
+            'modulos_executados': modulos_executados_safe,
+            'ultimos_resultados': ultimos_resultados
         }
 
     def _gerar_prompt_contexto_completo_seguro(self, contexto_seguro: Dict[str, Any], contexto_original: ContextoExecucao) -> str:
+        # Logs para debug
+        self.logger.warning("DEBUG _gerar_prompt_contexto_completo_seguro - Contexto seguro:")
+        self.logger.warning(f"contexto_seguro['ips_descobertos'] tipo: {type(contexto_seguro.get('ips_descobertos'))}")
+        
+        # Garantir que ips_descobertos é uma lista antes de usar join
+        ips_descobertos = contexto_seguro.get('ips_descobertos', [])
+        if not isinstance(ips_descobertos, list):
+            self.logger.warning(f"⚠️ ips_descobertos no contexto_seguro não é uma lista: {type(ips_descobertos)}")
+            ips_descobertos = []
+        
         prompt = f"""
 ALVO ORIGINAL: {contexto_seguro.get('alvo_original', '[ANONIMIZADO]')}
 TEMPO DECORRIDO: {contexto_seguro.get('tempo_decorrido', 'N/A')}
 PONTUAÇÃO DE RISCO ATUAL: {contexto_seguro.get('pontuacao_risco', 0)}/100
 
-IPS DESCOBERTOS: {', '.join(contexto_seguro.get('ips_descobertos', []))}
+IPS DESCOBERTOS: {', '.join(ips_descobertos)}
 
 PORTAS ABERTAS POR HOST:
 """
         for ip, portas in contexto_seguro.get('portas_abertas', {}).items():
-            prompt += f"  {ip}: {', '.join(map(str, portas))}\n"
+            if isinstance(portas, list):
+                prompt += f"  {ip}: {', '.join(map(str, portas))}\n"
+            else:
+                self.logger.warning(f"⚠️ portas para IP {ip} não é uma lista: {type(portas)}")
+                prompt += f"  {ip}: Formato desconhecido\n"
 
         servicos_detectados = contexto_seguro.get('servicos_detectados', {})
-        prompt += f"\nSERVIÇOS DETECTADOS: {sum(len(s) for s in servicos_detectados.values())}\n"
-        for ip, servicos in servicos_detectados.items():
-            prompt += f"  {ip}: {len(servicos)} serviços\n"
+        
+        # Contar total de serviços detectados com verificações ultra-robustas de tipo
+        self.logger.debug("Iniciando contagem segura de serviços detectados")
+        total_servicos = 0
+        
+        # Primeiro, verificar se servicos_detectados é um dicionário
+        if not isinstance(servicos_detectados, dict):
+            self.logger.warning(f"⚠️ servicos_detectados não é um dicionário: {type(servicos_detectados)}")
+            prompt += f"\nSERVIÇOS DETECTADOS: Formato inválido\n"
+            prompt += f"  Tipo encontrado: {type(servicos_detectados).__name__}\n"
+        else:
+            # Se for um dicionário vazio
+            if not servicos_detectados:
+                prompt += f"\nSERVIÇOS DETECTADOS: 0\n"
+                prompt += f"  Nenhum serviço encontrado\n"
+            else:
+                # Iterar com tratamento seguro para cada entrada
+                for ip, s in servicos_detectados.items():
+                    try:
+                        if s is None:
+                            # Não adiciona nada
+                            self.logger.debug(f"Serviços para {ip} é None - ignorando na contagem")
+                            continue
+                        
+                        if isinstance(s, dict):
+                            if not s:  # Dicionário vazio
+                                self.logger.debug(f"Dicionário vazio para {ip}")
+                                # Não incrementa o contador
+                            else:
+                                total_servicos += len(s)
+                                self.logger.debug(f"Contados {len(s)} serviços para {ip} (dict)")
+                        elif isinstance(s, list):
+                            # Contar apenas itens válidos na lista
+                            valid_items = [item for item in s if item is not None]
+                            total_servicos += len(valid_items)
+                            self.logger.debug(f"Contados {len(valid_items)} serviços para {ip} (list)")
+                        elif isinstance(s, int):
+                            if s > 0:  # Não contar números negativos ou zero
+                                total_servicos += s
+                                self.logger.debug(f"Adicionado contador {s} para {ip} (int)")
+                        elif isinstance(s, str):
+                            # Para strings, contar como 1 serviço se não estiver vazia
+                            if s.strip():
+                                total_servicos += 1
+                                self.logger.debug(f"Contado 1 serviço para {ip} (string)")
+                        else:
+                            # Para qualquer outro tipo, contar como 1 por segurança
+                            self.logger.warning(f"Tipo não esperado em servicos_detectados[{ip}]: {type(s).__name__}")
+                            total_servicos += 1
+                    except Exception as e:
+                        self.logger.warning(f"Erro ao contar serviço para {ip}: {str(e)}")
+                        # Continuar para o próximo item sem falhar
+                
+                # Adicionar ao prompt
+                prompt += f"\nSERVIÇOS DETECTADOS: {total_servicos}\n"
+                
+                # Processar cada entrada com verificações ultra-robustas
+                for ip, servicos in servicos_detectados.items():
+                    try:
+                        # Validação extremamente defensiva
+                        if servicos is None:
+                            prompt += f"  {ip}: 0 serviços (None)\n"
+                            continue
+                            
+                        if isinstance(servicos, dict):
+                            # Validar se é um dicionário vazio
+                            if not servicos:
+                                prompt += f"  {ip}: 0 serviços (dict vazio)\n"
+                            else:
+                                # Tentar extrair informações úteis se possível
+                                if 'tecnologias' in servicos:
+                                    # Caso especial para detector_tecnologias_python
+                                    techs = servicos['tecnologias']
+                                    if isinstance(techs, dict):
+                                        tech_count = len(techs)
+                                        tech_list = list(techs.keys())
+                                        prompt += f"  {ip}: {tech_count} tecnologias"
+                                        if tech_list:
+                                            prompt += f" ({', '.join(tech_list[:3])}"
+                                            if len(tech_list) > 3:
+                                                prompt += f" e mais {len(tech_list)-3})"
+                                            else:
+                                                prompt += ")"
+                                        prompt += "\n"
+                                    else:
+                                        prompt += f"  {ip}: tecnologias (formato não-dict)\n"
+                                else:
+                                    prompt += f"  {ip}: {len(servicos) if hasattr(servicos, '__len__') else '1'} serviços\n"
+                        elif isinstance(servicos, list):
+                            # Contar apenas itens válidos na lista
+                            valid_items = [item for item in servicos if item is not None]
+                            prompt += f"  {ip}: {len(valid_items)} serviços (lista)\n"
+                        elif isinstance(servicos, int):
+                            prompt += f"  {ip}: {servicos} serviços (contador)\n"
+                        elif isinstance(servicos, str):
+                            prompt += f"  {ip}: 1 serviço ({servicos[:20]}...)\n"
+                        else:
+                            # Qualquer outro tipo
+                            prompt += f"  {ip}: Formato desconhecido ({type(servicos).__name__})\n"
+                    except Exception as e:
+                        self.logger.warning(f"Erro ao formatar serviços para {ip}: {e}")
+                        prompt += f"  {ip}: Erro ao processar ({str(e)[:30]}...)\n"
 
         vulnerabilidades = contexto_seguro.get('vulnerabilidades_encontradas', [])
+        
+        # Garantir que vulnerabilidades é uma lista
+        if not isinstance(vulnerabilidades, list):
+            self.logger.warning(f"⚠️ vulnerabilidades no contexto_seguro não é uma lista: {type(vulnerabilidades)}")
+            vulnerabilidades = []
+            
         prompt += f"\nVULNERABILIDADES ENCONTRADAS: {len(vulnerabilidades)}\n"
         if vulnerabilidades:
-            for vuln in vulnerabilidades[-3:]:
-                tipo = vuln.get('tipo', 'N/A')
-                descricao = vuln.get('descricao', 'N/A')[:100]
-                prompt += f"  - {tipo}: {descricao}...\n"
+            # Pegar as 3 últimas vulnerabilidades de forma segura
+            for i in range(max(0, len(vulnerabilidades) - 3), len(vulnerabilidades)):
+                vuln = vulnerabilidades[i]
+                if isinstance(vuln, dict):
+                    tipo = vuln.get('tipo', 'N/A')
+                    descricao = vuln.get('descricao', 'N/A')
+                    # Truncar descrição de forma segura
+                    if isinstance(descricao, str):
+                        descricao = descricao[:100]
+                    prompt += f"  - {tipo}: {descricao}...\n"
+                else:
+                    prompt += f"  - Vulnerabilidade em formato inválido: {type(vuln).__name__}\n"
 
         prompt += f"\nRESUMO DOS ÚLTIMOS RESULTADOS:\n"
-        for modulo in contexto_original.modulos_executados[-3:]:
-            resultado = contexto_original.resultados_por_modulo.get(modulo, {})
+        
+        # Garantir que modulos_executados é uma lista
+        modulos_executados = []
+        if isinstance(contexto_original.modulos_executados, list):
+            # Pegar os 3 últimos módulos de forma segura
+            modulos_executados = contexto_original.modulos_executados[-3:]
+        else:
+            self.logger.warning(f"⚠️ modulos_executados não é uma lista: {type(contexto_original.modulos_executados)}")
+            
+        # Garantir que resultados_por_modulo é um dicionário
+        resultados_por_modulo = {}
+        if isinstance(contexto_original.resultados_por_modulo, dict):
+            resultados_por_modulo = contexto_original.resultados_por_modulo
+        else:
+            self.logger.warning(f"⚠️ resultados_por_modulo não é um dicionário: {type(contexto_original.resultados_por_modulo)}")
+            
+        for modulo in modulos_executados:
+            resultado = resultados_por_modulo.get(modulo, {})
+            # Verificar se resultado é um dicionário
+            if not isinstance(resultado, dict):
+                self.logger.warning(f"⚠️ resultado para {modulo} não é um dicionário: {type(resultado)}")
+                prompt += f"  ⚠️ {modulo}: formato de resultado desconhecido\n"
+                continue
+                
             if resultado.get('sucesso_geral', resultado.get('sucesso', False)):
                 prompt += f"  ✓ {modulo}: executado com sucesso\n"
             else:
@@ -1303,25 +1956,75 @@ PORTAS ABERTAS POR HOST:
             return {'nome_modulo': nome_modulo, 'sucesso_geral': False, 'erro': f'Erro crítico: {str(e)}', 'timestamp': datetime.now().isoformat()}
 
     def _resolver_alvos_para_execucao(self, alvos_ia: List[str], contexto: ContextoExecucao) -> List[str]:
+        """
+        Resolve os alvos para execução baseado na decisão da IA e no contexto atual.
+        Inclui várias verificações e fallbacks para garantir que sempre retorna uma lista válida.
+        """
+        # Verificação inicial para garantir que alvos_ia é uma lista
+        if not isinstance(alvos_ia, list):
+            self.logger.warning(f"⚠️ alvos_ia não é uma lista, inicializando como lista vazia (tipo: {type(alvos_ia)})")
+            alvos_ia = []
+            
+        # Verificação inicial para garantir que ips_descobertos é uma lista
+        if not isinstance(contexto.ips_descobertos, list):
+            self.logger.warning(f"⚠️ contexto.ips_descobertos não é uma lista, inicializando como lista vazia (tipo: {type(contexto.ips_descobertos)})")
+            contexto.ips_descobertos = []
+        
+        # Usar o alvo original em caso de WEB scan se não houver IPs
+        if (not contexto.ips_descobertos or len(contexto.ips_descobertos) == 0) and contexto.alvo_original:
+            if isinstance(contexto.alvo_original, str) and contexto.alvo_original.startswith('http'):
+                self.logger.info(f"🌐 Usando alvo WEB original como fallback: {contexto.alvo_original}")
+                return [contexto.alvo_original]
+            else:
+                self.logger.info(f"🌐 Usando alvo original como fallback: {contexto.alvo_original}")
+                return [str(contexto.alvo_original)]
+            
         if not alvos_ia:
-            return contexto.ips_descobertos
+            if contexto.ips_descobertos:
+                return contexto.ips_descobertos
+            elif contexto.alvo_original:
+                self.logger.warning(f"⚠️ Nenhum alvo especificado pela IA, usando alvo original: {contexto.alvo_original}")
+                return [str(contexto.alvo_original)]
+            else:
+                self.logger.warning("⚠️ Nenhum alvo disponível para execução")
+                return []
+            
         alvos_reais: List[str] = []
         for alvo_ia in alvos_ia:
+            if not isinstance(alvo_ia, str):
+                self.logger.warning(f"⚠️ Alvo IA não é uma string: {type(alvo_ia)}, ignorando")
+                continue
+                
             if alvo_ia == "use_alvos_descobertos":
-                alvos_reais.extend(contexto.ips_descobertos)
+                if contexto.ips_descobertos:
+                    alvos_reais.extend(contexto.ips_descobertos)
+                elif contexto.alvo_original:
+                    alvos_reais.append(str(contexto.alvo_original))
             elif alvo_ia.startswith("[") and alvo_ia.endswith("]"):
                 self.logger.warning(f"Alvo anonimizado detectado: {alvo_ia}, usando todos os IPs descobertos")
-                alvos_reais.extend(contexto.ips_descobertos)
+                if contexto.ips_descobertos:
+                    alvos_reais.extend(contexto.ips_descobertos)
+                elif contexto.alvo_original:
+                    alvos_reais.append(str(contexto.alvo_original))
             else:
-                self.logger.info(f"Resolvendo alvo da IA: {alvo_ia} → usando IPs descobertos")
-                alvos_reais.extend(contexto.ips_descobertos)
+                self.logger.info(f"Usando alvo específico da IA: {alvo_ia}")
+                alvos_reais.append(alvo_ia)
+                
         alvos_unicos: List[str] = []
         for a in alvos_reais:
             if a not in alvos_unicos:
                 alvos_unicos.append(a)
+                
         if not alvos_unicos:
-            alvos_unicos = contexto.ips_descobertos
-        self.logger.info(f"🎯 Alvos resolvidos: {len(alvos_unicos)} IPs")
+            # Sem alvos disponíveis - usar o alvo original se disponível
+            if contexto.alvo_original:
+                self.logger.warning(f"⚠️ Nenhum alvo válido resolvido, usando alvo original: {contexto.alvo_original}")
+                return [str(contexto.alvo_original)]
+            else:
+                self.logger.warning("⚠️ Nenhum alvo válido disponível para execução")
+                return []
+            
+        self.logger.info(f"🎯 Alvos resolvidos: {len(alvos_unicos)} IPs/URLs")
         return alvos_unicos
 
     def _executar_modulo_nmap(self, nome_modulo: str, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
@@ -1435,26 +2138,89 @@ PORTAS ABERTAS POR HOST:
             }
 
     def _executar_modulo_scanner_portas_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
-        """Executa scanner de portas Python puro"""
+        """Executa scanner de portas Python puro com tratamento robusto de tipos"""
         try:
             tipo_scan = parametros.get('tipo_scan', 'rapido')  # rapido, completo, ou personalizado
             portas_personalizadas = parametros.get('portas', None)
 
-            if tipo_scan == 'rapido':
-                resultado = modulo.scan_rapido(alvo)
-            elif tipo_scan == 'completo':
-                resultado = modulo.scan_completo(alvo)
-            elif tipo_scan == 'personalizado' and portas_personalizadas:
-                resultado = modulo.scan_personalizado(alvo, portas_personalizadas)
-            else:
-                resultado = modulo.scan_rapido(alvo)
-
-            return {
-                'sucesso': 'erro' not in resultado,
-                'dados': resultado,
-                'tipo_scan': tipo_scan,
-                'timestamp': datetime.now().isoformat()
-            }
+            try:
+                # Executar o scan apropriado
+                if tipo_scan == 'rapido':
+                    resultado = modulo.scan_rapido(alvo)
+                elif tipo_scan == 'completo':
+                    resultado = modulo.scan_completo(alvo)
+                elif tipo_scan == 'personalizado' and portas_personalizadas:
+                    resultado = modulo.scan_personalizado(alvo, portas_personalizadas)
+                else:
+                    resultado = modulo.scan_rapido(alvo)
+                    
+                # Verificar se resultado é um dicionário
+                if not isinstance(resultado, dict):
+                    self.logger.warning(f"⚠️ Resultado do scanner de portas não é um dicionário: {type(resultado)}")
+                    resultado = {'erro': f'Formato de resultado inválido: {type(resultado)}'}
+                
+                # Extrair portas_abertas de forma segura
+                portas_abertas = {}
+                if 'portas_abertas' in resultado:
+                    portas_dados = resultado['portas_abertas']
+                    if isinstance(portas_dados, dict):
+                        portas_abertas = portas_dados
+                    elif isinstance(portas_dados, list):
+                        # Se for uma lista simples, associar ao alvo atual
+                        portas_abertas = {alvo: portas_dados}
+                    else:
+                        self.logger.warning(f"⚠️ portas_abertas em formato inválido: {type(portas_dados)}")
+                
+                # Criar estrutura servicos_detectados robusta
+                servicos_detectados = {}
+                if 'servicos' in resultado:
+                    servicos = resultado['servicos']
+                    if isinstance(servicos, dict):
+                        servicos_detectados = servicos
+                    else:
+                        self.logger.warning(f"⚠️ servicos em formato inválido: {type(servicos)}")
+                        # Tentar normalizar
+                        if isinstance(servicos, list):
+                            # Converter lista para dicionário
+                            servicos_detectados = {alvo: {f"servico_{i}": s for i, s in enumerate(servicos) if s}}
+                        elif servicos is None:
+                            servicos_detectados = {alvo: {}}
+                        else:
+                            servicos_detectados = {alvo: {'info': str(servicos)}}
+                
+                # Se não tiver serviços mas tiver portas abertas, criar serviços baseado nas portas
+                if not servicos_detectados and portas_abertas:
+                    for host, portas in portas_abertas.items():
+                        if isinstance(portas, list):
+                            servicos_detectados[host] = {
+                                f"porta_{porta}": {"porta": porta, "servico": "desconhecido"} 
+                                for porta in portas if porta
+                            }
+                
+                # Resposta completa e padronizada
+                resposta = {
+                    'sucesso': 'erro' not in resultado,
+                    'dados': resultado,
+                    'tipo_scan': tipo_scan,
+                    'timestamp': datetime.now().isoformat(),
+                    'portas_abertas': portas_abertas,
+                    'servicos_detectados': servicos_detectados  # Formato explícito e padronizado
+                }
+                
+                return resposta
+            except Exception as e:
+                self.logger.error(f"Erro específico no scan: {str(e)}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                
+                # Resposta de erro com estrutura padronizada
+                return {
+                    'sucesso': False,
+                    'erro': f'Erro específico no scanner de portas: {str(e)}',
+                    'timestamp': datetime.now().isoformat(),
+                    'servicos_detectados': {alvo: {}},  # Garante estrutura válida mesmo em caso de erro
+                    'portas_abertas': {}
+                }
         except Exception as e:
             return {'sucesso': False, 'erro': f'Erro no scanner de portas: {str(e)}'}
 
@@ -1483,26 +2249,124 @@ PORTAS ABERTAS POR HOST:
     def _executar_modulo_detector_tecnologias_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
         """Executa detector de tecnologias Python puro"""
         try:
-            url = f"https://{alvo}" if not alvo.startswith('http') else alvo
-            modo_deteccao = parametros.get('modo', 'completo')  # completo, rapido, headers_only
-
-            if modo_deteccao == 'completo':
-                resultado = modulo.detectar_tecnologias_completo(url)
-            elif modo_deteccao == 'rapido':
-                resultado = modulo.detectar_tecnologias_rapido(url)
-            elif modo_deteccao == 'headers_only':
-                resultado = modulo.detectar_por_headers(url)
-            else:
-                resultado = modulo.detectar_tecnologias_completo(url)
-
-            return {
-                'sucesso': 'erro' not in resultado,
-                'dados': resultado,
-                'modo_deteccao': modo_deteccao,
-                'timestamp': datetime.now().isoformat()
-            }
+            # Verificação especial para quando não há alvos disponíveis
+            if alvo == "use_alvos_descobertos" or (alvo.startswith("[") and alvo.endswith("]")):
+                self.logger.warning("⚠️ Não há alvos disponíveis para detector_tecnologias_python")
+                return {
+                    'sucesso': False,
+                    'erro': "Não há alvos disponíveis para detector_tecnologias_python",
+                    'dados': {},
+                    'modo_deteccao': 'completo',
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+            url = f"http://{alvo}" if not alvo.startswith(('http://', 'https://')) else alvo
+            
+            self.logger.info(f"   Executando detector_tecnologias_python em {url}")
+            
+            try:
+                resultado_bruto = modulo.executar_deteccao(url)
+                
+                # Verificar e sanitizar o resultado
+                if not isinstance(resultado_bruto, dict):
+                    self.logger.warning(f"Resultado de detector_tecnologias_python não é um dicionário: {type(resultado_bruto)}")
+                    resultado_bruto = {
+                        'sucesso': False,
+                        'erro': f"Formato de resultado inválido: {type(resultado_bruto)}",
+                        'alvo': url
+                    }
+                
+                # Verificar e sanitizar campo 'tecnologias'
+                if 'tecnologias' in resultado_bruto and not isinstance(resultado_bruto['tecnologias'], dict):
+                    self.logger.warning(f"Campo 'tecnologias' não é um dicionário: {type(resultado_bruto['tecnologias'])}")
+                    resultado_bruto['tecnologias'] = {'erro': 'formato inválido'}
+                
+                # Construir resposta padronizada com validação extrema de tipos
+                self.logger.debug(f"Construindo resposta para detector_tecnologias_python com validação robusta de tipos")
+                
+                # Garantir que temos uma estrutura válida em resultados brutos
+                if not isinstance(resultado_bruto, dict):
+                    self.logger.warning(f"⚠️ resultado_bruto não é um dicionário: {type(resultado_bruto)} - normalizando")
+                    resultado_bruto = {
+                        'sucesso': False,
+                        'erro': f"Formato de resultado inválido: {type(resultado_bruto)}",
+                        'alvo': url,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                
+                # Verificar tecnologias de forma robusta
+                tecnologias = {}
+                if 'tecnologias' in resultado_bruto:
+                    tech_data = resultado_bruto['tecnologias']
+                    if isinstance(tech_data, dict):
+                        tecnologias = tech_data
+                    else:
+                        self.logger.warning(f"⚠️ tecnologias não é um dicionário: {type(tech_data)}")
+                        # Tentar normalizar dados não-dicionário
+                        if isinstance(tech_data, list):
+                            tecnologias = {f"item_{i}": item for i, item in enumerate(tech_data) if item is not None}
+                        elif isinstance(tech_data, str):
+                            tecnologias = {"valor": tech_data}
+                        elif isinstance(tech_data, int):
+                            tecnologias = {"contador": tech_data}
+                        elif tech_data is None:
+                            tecnologias = {}
+                        else:
+                            tecnologias = {"valor_tipo_desconhecido": str(tech_data)}
+                
+                # Construir estrutura normalizada e defensiva
+                resposta = {
+                    'sucesso': resultado_bruto.get('sucesso', True),
+                    'dados': resultado_bruto,
+                    'timestamp': datetime.now().isoformat(),
+                }
+                
+                # Garantir estrutura válida de servicos_detectados
+                servicos_detectados = {}
+                
+                # Se temos tecnologias detectadas
+                if tecnologias:
+                    # Usar o URL como chave para os serviços
+                    servicos_detectados = {
+                        url: {'tecnologias': tecnologias}
+                    }
+                else:
+                    # Se não temos tecnologias, mas temos algum erro
+                    if 'erro' in resultado_bruto:
+                        servicos_detectados = {
+                            url: {'info': f"Nenhuma tecnologia detectada: {resultado_bruto['erro'][:50]}"}
+                        }
+                    else:
+                        # Se não temos tecnologias nem erro, indicar que nada foi encontrado
+                        servicos_detectados = {
+                            url: {'info': "Nenhuma tecnologia detectada"}
+                        }
+                
+                # Adicionar estrutura à resposta
+                resposta['servicos_detectados'] = servicos_detectados
+                
+                self.logger.debug(f"Resposta do detector_tecnologias_python estruturada com sucesso")
+                return resposta
+            except Exception as e:
+                self.logger.error(f"Erro ao executar detector_tecnologias_python: {str(e)}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                return {
+                    'sucesso': False,
+                    'erro': f"Erro no detector de tecnologias: {str(e)}",
+                    'dados': {'alvo': url, 'erro': str(e)},
+                    'timestamp': datetime.now().isoformat()
+                }
         except Exception as e:
-            return {'sucesso': False, 'erro': f'Erro no detector de tecnologias: {str(e)}'}
+            self.logger.error(f"Erro geral no detector de tecnologias: {str(e)}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                'sucesso': False, 
+                'erro': f'Erro no detector de tecnologias: {str(e)}',
+                'timestamp': datetime.now().isoformat(),
+                'dados': {'erro': str(e)}
+            }
 
     def _executar_modulo_scanner_diretorios_python(self, alvo: str, modulo, parametros: Dict) -> Dict[str, Any]:
         """Executa scanner de diretórios Python puro"""
@@ -1584,11 +2448,18 @@ PORTAS ABERTAS POR HOST:
         try:
             pontuacao = 0
 
+            # Validar que vulnerabilidades_encontradas é uma lista
+            if not isinstance(contexto.vulnerabilidades_encontradas, list):
+                self.logger.warning("⚠️ contexto.vulnerabilidades_encontradas não é uma lista, inicializando como lista vazia")
+                contexto.vulnerabilidades_encontradas = []
+
             # Fator 1: Vulnerabilidades encontradas (peso alto - 40 pontos max)
             num_vulnerabilidades = len(contexto.vulnerabilidades_encontradas)
             if num_vulnerabilidades > 0:
                 # Cada vulnerabilidade crítica adiciona 20 pontos, média 10, baixa 5
                 for vuln in contexto.vulnerabilidades_encontradas:
+                    if not isinstance(vuln, dict):
+                        continue
                     severidade = vuln.get('severidade', 'media').lower()
                     if severidade == 'critica' or severidade == 'alta':
                         pontuacao += 20
@@ -1599,12 +2470,25 @@ PORTAS ABERTAS POR HOST:
                 # Limitar a 40 pontos para vulnerabilidades
                 pontuacao = min(pontuacao, 40)
 
+            # Validar que portas_abertas é um dicionário
+            if not isinstance(contexto.portas_abertas, dict):
+                self.logger.warning("⚠️ contexto.portas_abertas não é um dicionário, inicializando como dicionário vazio")
+                contexto.portas_abertas = {}
+
             # Fator 2: Portas abertas (peso médio - 25 pontos max)
-            total_portas_abertas = sum(len(portas) for portas in contexto.portas_abertas.values())
+            total_portas_abertas = 0
+            try:
+                total_portas_abertas = sum(len(portas) if isinstance(portas, list) else 0 
+                                         for portas in contexto.portas_abertas.values())
+            except Exception as e:
+                self.logger.warning(f"Erro ao calcular total de portas abertas: {str(e)}")
+                
             if total_portas_abertas > 0:
                 # Portas perigosas têm peso maior
                 portas_perigosas = 0
                 for ip, portas in contexto.portas_abertas.items():
+                    if not isinstance(portas, list):
+                        continue
                     for porta in portas:
                         if porta in [21, 22, 23, 25, 53, 110, 135, 139, 143, 445, 993, 995, 3389]:
                             portas_perigosas += 1
@@ -1614,15 +2498,95 @@ PORTAS ABERTAS POR HOST:
                 # Limitar a 25 pontos para portas
                 pontuacao = min(pontuacao, 65)  # 40 (vulns) + 25 (portas)
 
+            # Validar que servicos_detectados é um dicionário
+            if not isinstance(contexto.servicos_detectados, dict):
+                self.logger.warning("⚠️ contexto.servicos_detectados não é um dicionário, inicializando como dicionário vazio")
+                contexto.servicos_detectados = {}
+
             # Fator 3: Serviços detectados (peso médio - 20 pontos max)
-            total_servicos = sum(len(servicos) for servicos in contexto.servicos_detectados.values())
+            total_servicos = 0
+            try:
+                # Contagem ultra-robusta para evitar chamar len() em tipos não iteráveis
+                for ip, servicos in contexto.servicos_detectados.items():
+                    if servicos is None:
+                        # Se é None, não contar
+                        continue
+                    
+                    if isinstance(servicos, dict):
+                        # Para dicionários, contar cada chave como um serviço
+                        # Mas também verificar valores internos que podem ser dicionários
+                        for chave, valor in servicos.items():
+                            if isinstance(valor, dict):
+                                # Caso especial para detector_tecnologias_python
+                                if chave == 'tecnologias' and isinstance(valor, dict):
+                                    # Cada tecnologia detectada é um serviço
+                                    total_servicos += len(valor)
+                                else:
+                                    # Para outros dicionários aninhados, contar como um serviço
+                                    total_servicos += 1
+                            elif valor is not None:
+                                # Para outros valores não-None, contar como um serviço
+                                total_servicos += 1
+                    elif isinstance(servicos, list):
+                        # Para listas, contar cada elemento não-None
+                        for item in servicos:
+                            if item is not None:
+                                total_servicos += 1
+                    elif isinstance(servicos, int):
+                        # Se é um contador direto - NÃO tente chamar len() nele
+                        if servicos > 0:
+                            total_servicos += servicos
+                    elif isinstance(servicos, str):
+                        # Se é uma string, contar como 1
+                        total_servicos += 1
+                    else:
+                        # Para qualquer outro tipo, usar como 1
+                        total_servicos += 1
+                        
+                # Log de diagnóstico
+                self.logger.debug(f"Total de serviços detectados contados: {total_servicos}")
+            except Exception as e:
+                self.logger.warning(f"Erro ao calcular total de serviços: {str(e)}")
+                import traceback
+                self.logger.debug(f"Traceback: {traceback.format_exc()}")
+                
             if total_servicos > 0:
                 # Serviços web têm peso maior
                 servicos_web = 0
                 for ip, servicos in contexto.servicos_detectados.items():
-                    for servico in servicos:
-                        nome_servico = servico.get('nome', '').lower()
-                        if any(web in nome_servico for web in ['http', 'apache', 'nginx', 'iis', 'tomcat']):
+                    if not isinstance(servicos, dict):
+                        # Tentar uma contagem aproximada para tipos não dicionário
+                        if isinstance(servicos, str) and any(web in servicos.lower() for web in ['http', 'apache', 'nginx', 'iis', 'tomcat']):
+                            servicos_web += 1
+                        # Se for um inteiro, não tente tratar como um container
+                        elif isinstance(servicos, int):
+                            # Apenas considerar como um único serviço não-web
+                            continue
+                        else:
+                            continue
+                        
+                    for key, servico in servicos.items():
+                        # Verificações extensivas para diferentes formatos de dados
+                        if isinstance(servico, dict):
+                            # Formato padrão: dicionário com chave 'nome'
+                            nome_servico = str(servico.get('nome', '')).lower()
+                            # Procurar também em outras chaves comuns se 'nome' não existir
+                            if not nome_servico:
+                                for chave in ['servico', 'service', 'tipo', 'type', 'servidor', 'server']:
+                                    if chave in servico:
+                                        nome_servico += ' ' + str(servico.get(chave, '')).lower()
+                        elif isinstance(servico, str):
+                            # Se o serviço é uma string direta
+                            nome_servico = servico.lower()
+                        else:
+                            # Para outros tipos, tentar converter para string
+                            try:
+                                nome_servico = str(servico).lower()
+                            except:
+                                nome_servico = ''
+                                
+                        # Verificar por indicadores de serviço web
+                        if any(web in nome_servico for web in ['http', 'apache', 'nginx', 'iis', 'tomcat', 'web', 'html', 'ssl']):
                             servicos_web += 1
 
                 # Cada serviço web = 4 pontos, outros = 2 pontos
@@ -1630,12 +2594,22 @@ PORTAS ABERTAS POR HOST:
                 # Limitar a 20 pontos para serviços
                 pontuacao = min(pontuacao, 85)  # 40 + 25 + 20
 
+            # Validar que ips_descobertos é uma lista
+            if not isinstance(contexto.ips_descobertos, list):
+                self.logger.warning("⚠️ contexto.ips_descobertos não é uma lista, inicializando como lista vazia")
+                contexto.ips_descobertos = []
+
             # Fator 4: IPs descobertos (peso baixo - 10 pontos max)
             num_ips = len(contexto.ips_descobertos)
             if num_ips > 1:
                 # Múltiplos IPs podem indicar rede maior = mais risco
                 pontuacao += min(num_ips * 2, 10)
                 pontuacao = min(pontuacao, 95)  # 40 + 25 + 20 + 10
+
+            # Validar que modulos_executados é uma lista
+            if not isinstance(contexto.modulos_executados, list):
+                self.logger.warning("⚠️ contexto.modulos_executados não é uma lista, inicializando como lista vazia")
+                contexto.modulos_executados = []
 
             # Fator 5: Módulos executados (peso baixo - 5 pontos max)
             # Mais módulos executados = análise mais completa = potencialmente mais descobertas
@@ -1649,8 +2623,10 @@ PORTAS ABERTAS POR HOST:
 
         except Exception as e:
             self.logger.warning(f"Erro ao calcular pontuação de risco: {str(e)}")
-            # Em caso de erro, retorna pontuação baseada apenas no número de vulnerabilidades
-            return min(len(contexto.vulnerabilidades_encontradas) * 10, 100)
+            import traceback
+            self.logger.warning(f"Traceback: {traceback.format_exc()}")
+            # Em caso de erro, retorna pontuação padrão
+            return 50
 
     def _calcular_tempo_decorrido(self, contexto: ContextoExecucao) -> str:
         """
@@ -1670,23 +2646,89 @@ PORTAS ABERTAS POR HOST:
             return "N/A"
 
     def _finalizar_pentest(self, contexto: ContextoExecucao) -> Dict[str, Any]:
+        # Logs para debug
+        self.logger.warning("DEBUG _finalizar_pentest - Verificando estruturas do contexto:")
+        
+        # Verificar estruturas críticas e garantir tipos corretos
+        if not isinstance(contexto.ips_descobertos, list):
+            self.logger.error(f"⚠️ contexto.ips_descobertos não é uma lista: {type(contexto.ips_descobertos)}")
+            contexto.ips_descobertos = []
+            
+        if not isinstance(contexto.portas_abertas, dict):
+            self.logger.error(f"⚠️ contexto.portas_abertas não é um dicionário: {type(contexto.portas_abertas)}")
+            contexto.portas_abertas = {}
+            
+        if not isinstance(contexto.servicos_detectados, dict):
+            self.logger.error(f"⚠️ contexto.servicos_detectados não é um dicionário: {type(contexto.servicos_detectados)}")
+            contexto.servicos_detectados = {}
+            
+        if not isinstance(contexto.vulnerabilidades_encontradas, list):
+            self.logger.error(f"⚠️ contexto.vulnerabilidades_encontradas não é uma lista: {type(contexto.vulnerabilidades_encontradas)}")
+            contexto.vulnerabilidades_encontradas = []
+            
+        if not isinstance(contexto.modulos_executados, list):
+            self.logger.error(f"⚠️ contexto.modulos_executados não é uma lista: {type(contexto.modulos_executados)}")
+            contexto.modulos_executados = []
+            
+        if not isinstance(contexto.resultados_por_modulo, dict):
+            self.logger.error(f"⚠️ contexto.resultados_por_modulo não é um dicionário: {type(contexto.resultados_por_modulo)}")
+            contexto.resultados_por_modulo = {}
+        
         timestamp_fim = datetime.now().isoformat()
+        
+        # Cálculos seguros para estatísticas
+        try:
+            ips_descobertos_count = len(contexto.ips_descobertos)
+        except Exception as e:
+            self.logger.error(f"Erro ao contar ips_descobertos: {e}")
+            ips_descobertos_count = 0
+            
+        try:
+            total_portas_abertas = sum(len(p) if isinstance(p, list) else 0 for p in contexto.portas_abertas.values())
+        except Exception as e:
+            self.logger.error(f"Erro ao calcular total_portas_abertas: {e}")
+            total_portas_abertas = 0
+            
+        try:
+            servicos_detectados_count = sum(len(s) if hasattr(s, '__len__') else 0 for s in contexto.servicos_detectados.values())
+        except Exception as e:
+            self.logger.error(f"Erro ao contar servicos_detectados: {e}")
+            servicos_detectados_count = 0
+            
+        try:
+            vulnerabilidades_count = len(contexto.vulnerabilidades_encontradas)
+        except Exception as e:
+            self.logger.error(f"Erro ao contar vulnerabilidades_encontradas: {e}")
+            vulnerabilidades_count = 0
+            
+        try:
+            modulos_count = len(contexto.modulos_executados)
+        except Exception as e:
+            self.logger.error(f"Erro ao contar modulos_executados: {e}")
+            modulos_count = 0
+        
+        try:
+            sucesso_geral = any(
+                r.get('sucesso', False)
+                for r in contexto.resultados_por_modulo.values()
+                if isinstance(r, dict)
+            )
+        except Exception as e:
+            self.logger.error(f"Erro ao calcular sucesso_geral: {e}")
+            sucesso_geral = False
+            
         resumo_final = {
             'alvo_original': contexto.alvo_original,
             'timestamp_inicio': contexto.timestamp_inicio,
             'timestamp_fim': timestamp_fim,
             'tempo_total': self._calcular_tempo_decorrido(contexto),
-            'sucesso_geral': any(
-                r.get('sucesso', False)
-                for r in contexto.resultados_por_modulo.values()
-                if isinstance(r, dict)
-            ),
+            'sucesso_geral': sucesso_geral,
             'estatisticas': {
-                'ips_descobertos': len(contexto.ips_descobertos),
-                'total_portas_abertas': sum(len(p) for p in contexto.portas_abertas.values()),
-                'servicos_detectados': sum(len(s) for s in contexto.servicos_detectados.values()),
-                'vulnerabilidades_encontradas': len(contexto.vulnerabilidades_encontradas),
-                'modulos_executados': len(contexto.modulos_executados),
+                'ips_descobertos': ips_descobertos_count,
+                'total_portas_abertas': total_portas_abertas,
+                'servicos_detectados': servicos_detectados_count,
+                'vulnerabilidades_encontradas': vulnerabilidades_count,
+                'modulos_executados': modulos_count,
                 'pontuacao_risco_final': contexto.pontuacao_risco
             },
             'contexto_execucao': {

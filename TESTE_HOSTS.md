@@ -45,7 +45,7 @@ python3 main.py --alvo http://testphp.vulnweb.com/ --web-scan --usuario test  --
 
 ### Teste Completo com IA:
 ```bash
-python3 main.py --alvo http://testphp.vulnweb.com/ --web-gemini
+python3 main.py --alvo http://localhost:8080/e-cidade/login.php --web-gemini --web-scan --usuario dbseller  --senha '' 
 ```
 
 ## 📋 Verificação Prévia

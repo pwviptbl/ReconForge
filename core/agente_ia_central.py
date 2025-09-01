@@ -65,8 +65,8 @@ class AgenteIACentral:
     
     def log(self, mensagem: str):
         """Método auxiliar para log uniforme"""
-        if callable(self.logger):
-            self.logger(mensagem)
+        if hasattr(self.logger, 'info'):
+            self.logger.info(mensagem)
         else:
             print(mensagem)
 
@@ -143,8 +143,8 @@ class AgenteIACentral:
             else:
                 raise ValueError("Resposta inválida do Gemini")
         except Exception as e:
-            if callable(self.logger):
-                self.logger(f"❌ Erro na consulta Gemini: {e}")
+            if hasattr(self.logger, 'error'):
+                self.logger.error(f"❌ Erro na consulta Gemini: {e}")
             else:
                 print(f"❌ Erro na consulta Gemini: {e}")
             raise
@@ -389,8 +389,8 @@ EXEMPLOS:
         modulo = resultado_modulo.get('modulo', '')
         if modulo and modulo not in self.estado.modulos_executados:
             self.estado.modulos_executados.append(modulo)
-            if callable(self.logger):
-                self.logger(f"Agente IA Central: módulo {modulo} registrado como executado")
+            if hasattr(self.logger, 'info'):
+                self.logger.info(f"Agente IA Central: módulo {modulo} registrado como executado")
             else:
                 print(f"Agente IA Central: módulo {modulo} registrado como executado")
 
@@ -405,8 +405,8 @@ EXEMPLOS:
 
         self.estado.pontuacao_risco = min(self.estado.pontuacao_risco, 100)
 
-        if callable(self.logger):
-            self.logger(f"Agente IA Central: pontuação de risco atualizada para {self.estado.pontuacao_risco}")
+        if hasattr(self.logger, 'info'):
+            self.logger.info(f"Agente IA Central: pontuação de risco atualizada para {self.estado.pontuacao_risco}")
         else:
             print(f"Agente IA Central: pontuação de risco atualizada para {self.estado.pontuacao_risco}")
 

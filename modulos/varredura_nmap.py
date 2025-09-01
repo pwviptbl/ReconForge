@@ -865,7 +865,7 @@ class VarreduraNmap:
                     if 'vuln' in script.get('id', '').lower():
                         vulnerabilidades += 1
             
-            dados['resumo']['servicos_detectados'] = len(servicos)
+            dados['resumo']['servicos_detectados'] = len(servicos) if hasattr(servicos, '__len__') else (servicos if isinstance(servicos, int) else 1)
             dados['resumo']['vulnerabilidades'] = vulnerabilidades
             
         except ET.ParseError as e:

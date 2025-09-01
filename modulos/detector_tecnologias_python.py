@@ -48,15 +48,21 @@ class DetectorTecnologiasPython:
             resultados = self._analisar_site(url)
             tempo_execucao = time.time() - inicio
             
+            # Verificar headers de segurança
+            headers_seguranca = self.verificar_headers_seguranca(url)
+            
             return {
                 'sucesso': True,
                 'alvo': alvo,
                 'tecnologias': resultados,
+                'headers_seguranca': headers_seguranca,
                 'tempo_execucao': tempo_execucao,
                 'timestamp': datetime.now().isoformat()
             }
         except Exception as e:
             self.logger.error(f"Erro na detecção de tecnologias: {str(e)}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return {
                 'sucesso': False,
                 'alvo': alvo,
