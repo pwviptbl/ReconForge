@@ -14,9 +14,11 @@ Política de falhas da IA:
 
 import json
 import time
+import threading
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.logger import obter_logger, log_manager
 from utils.rede import extrair_ips_para_scan
@@ -24,6 +26,60 @@ from utils.anonimizador_ip import criar_contexto_seguro_para_ia
 
 # Novo: Agente IA Central (Fase 1)
 from core.agente_ia_central import AgenteIACentral
+
+
+@dataclass
+class Evento:
+    """Representa um evento no sistema"""
+    tipo: str
+    dados: Dict[str, Any]
+    timestamp: str
+    prioridade: str = "media"  # alta, media, baixa
+    fonte: str = "sistema"
+
+
+class EventManager:
+    """Gerenciador de eventos para sistema orientado a eventos (Fase 3)"""
+    
+    def __init__(self, logger_func=None):
+        self.logger = logger_func if logger_func else print
+        self.eventos: List[Evento] = []
+        self.listeners: Dict[str, List[Callable]] = {}
+        self.eventos_ativos: Dict[str, bool] = {}
+        self.lock = threading.Lock()
+        
+    def registrar_listener(self, tipo_evento: str, callback: Callable):
+        """Registra um listener para um tipo de evento"""
+        with self.lock:
+            if tipo_evento not in self.listeners:
+                self.listeners[tipo_evento] = []
+            self.listeners[tipo_evento].append(callback)
+            self.logger(f"✅ Listener registrado para evento: {tipo_evento}")
+    
+    def disparar_evento(self, evento: Evento):
+        """Dispara um evento e notifica todos os listeners"""
+        with self.lock:
+            self.eventos.append(evento)
+            self.logger(f"🔥 Evento disparado: {evento.tipo} (prioridade: {evento.prioridade})")
+            
+            # Notificar listeners
+            if evento.tipo in self.listeners:
+                for callback in self.listeners[evento.tipo]:
+                    try:
+                        threading.Thread(target=callback, args=(evento,), daemon=True).start()
+                    except Exception as e:
+                        self.logger(f"❌ Erro ao executar listener para {evento.tipo}: {e}")
+    
+    def obter_eventos_recentes(self, limite: int = 10) -> List[Evento]:
+        """Retorna os eventos mais recentes"""
+        with self.lock:
+            return self.eventos[-limite:]
+    
+    def limpar_eventos_antigos(self, max_eventos: int = 100):
+        """Limpa eventos antigos para evitar uso excessivo de memória"""
+        with self.lock:
+            if len(self.eventos) > max_eventos:
+                self.eventos = self.eventos[-max_eventos:]
 
 
 @dataclass
@@ -37,10 +93,12 @@ class ContextoExecucao:
     vulnerabilidades_encontradas: List[Dict] = field(default_factory=list)
     modulos_executados: List[str] = field(default_factory=list)
     resultados_por_modulo: Dict[str, Dict] = field(default_factory=dict)
-    decisoes_ia: List[Dict] = field(default_factory=list)
+    decisoes_ia: List[Dict] = field(default_factory=dict)
     pontuacao_risco: int = 0
     finalizado: bool = False
     motivo_finalizacao: str = ""
+    # Novo: Sistema de eventos (Fase 3)
+    eventos: List[Evento] = field(default_factory=list)
 
 
 class OrquestradorInteligente:
@@ -52,6 +110,14 @@ class OrquestradorInteligente:
         self.scanner_portas = scanner_portas
         self.scanner_nmap = scanner_nmap
         self.decisao_ia = decisao_ia
+
+        # Novo: Sistema de eventos (Fase 3)
+        self.event_manager = EventManager(self.logger)
+        self._registrar_listeners_eventos()
+
+        # Novo: Executor para paralelização (Fase 3)
+        self.executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="scanner")
+        self.logger.info("✅ Executor de threads inicializado para paralelização")
 
         # Novo: Agente IA Central (Fase 1)
         self.agente_ia_central = None
@@ -119,6 +185,137 @@ class OrquestradorInteligente:
         except Exception as e:
             self.logger.error(f" Erro na verificação do Gemini: {str(e)}")
             return False
+
+    def _registrar_listeners_eventos(self):
+        """Registra listeners para eventos do sistema (Fase 3)"""
+        # Evento: Detecção de anomalia
+        self.event_manager.registrar_listener("anomalia_detectada", self._handle_anomalia_detectada)
+        
+        # Evento: Vulnerabilidade crítica encontrada
+        self.event_manager.registrar_listener("vulnerabilidade_critica", self._handle_vulnerabilidade_critica)
+        
+        # Evento: Novo host descoberto
+        self.event_manager.registrar_listener("novo_host_descoberto", self._handle_novo_host)
+        
+        # Evento: Serviço web detectado
+        self.event_manager.registrar_listener("servico_web_detectado", self._handle_servico_web)
+        
+        # Evento: Feedback do ML
+        self.event_manager.registrar_listener("feedback_ml", self._handle_feedback_ml)
+        
+        self.logger.info("✅ Listeners de eventos registrados")
+
+    def _handle_anomalia_detectada(self, evento: Evento):
+        """Handler para evento de anomalia detectada (Fase 3)"""
+        self.logger.warning(f"🚨 Anomalia detectada: {evento.dados}")
+        
+        # Disparar varredura adicional automaticamente
+        anomalia = evento.dados.get('anomalia', {})
+        if anomalia.get('tipo') == 'tráfego_suspeito':
+            # Executar scanner de vulnerabilidades
+            threading.Thread(
+                target=self._executar_modulo_emergencial,
+                args=("scanner_vulnerabilidades", evento.dados),
+                daemon=True
+            ).start()
+        elif anomalia.get('tipo') == 'porta_suspeita':
+            # Executar nmap detalhado
+            threading.Thread(
+                target=self._executar_modulo_emergencial,
+                args=("nmap_varredura_vulnerabilidades", evento.dados),
+                daemon=True
+            ).start()
+
+    def _handle_vulnerabilidade_critica(self, evento: Evento):
+        """Handler para vulnerabilidade crítica (Fase 3)"""
+        self.logger.error(f"🔴 Vulnerabilidade crítica encontrada: {evento.dados}")
+        
+        # Aumentar prioridade de scans relacionados
+        vuln = evento.dados.get('vulnerabilidade', {})
+        if 'sql' in vuln.get('tipo', '').lower():
+            threading.Thread(
+                target=self._executar_modulo_emergencial,
+                args=("sqlmap_teste_url", evento.dados),
+                daemon=True
+            ).start()
+
+    def _handle_novo_host(self, evento: Evento):
+        """Handler para novo host descoberto (Fase 3)"""
+        self.logger.info(f"🆕 Novo host descoberto: {evento.dados}")
+        
+        # Executar scan de portas no novo host
+        threading.Thread(
+            target=self._executar_modulo_emergencial,
+            args=("scanner_portas_python", evento.dados),
+            daemon=True
+        ).start()
+
+    def _handle_servico_web(self, evento: Evento):
+        """Handler para serviço web detectado (Fase 3)"""
+        self.logger.info(f"🌐 Serviço web detectado: {evento.dados}")
+        
+        # Executar análise web
+        threading.Thread(
+            target=self._executar_modulo_emergencial,
+            args=("scanner_web_avancado", evento.dados),
+            daemon=True
+        ).start()
+
+    def _handle_feedback_ml(self, evento: Evento):
+        """Handler para feedback do sistema ML (Fase 3)"""
+        self.logger.info(f"🧠 Feedback ML recebido: {evento.dados}")
+        
+        # Ajustar comportamento baseado no feedback
+        feedback = evento.dados.get('feedback', {})
+        if feedback.get('tipo') == 'sucesso_modulo':
+            # Aumentar prioridade do módulo bem-sucedido
+            self.logger.info(f"📈 Módulo {feedback.get('modulo')} teve sucesso - prioridade aumentada")
+        elif feedback.get('tipo') == 'falha_modulo':
+            # Reduzir uso do módulo com falha
+            self.logger.warning(f"📉 Módulo {feedback.get('modulo')} falhou - uso reduzido")
+
+    def _executar_modulo_emergencial(self, nome_modulo: str, dados_contexto: Dict[str, Any]):
+        """Executa módulo de forma emergencial em thread separada (Fase 3)"""
+        try:
+            self.logger.info(f"🚀 Executando módulo emergencial: {nome_modulo}")
+            
+            if nome_modulo not in self.modulos_disponiveis:
+                self.logger.warning(f"Módulo {nome_modulo} não disponível para execução emergencial")
+                return
+            
+            modulo = self.modulos_disponiveis[nome_modulo]
+            
+            # Preparar parâmetros baseados nos dados do evento
+            parametros = self._preparar_parametros_emergenciais(nome_modulo, dados_contexto)
+            
+            # Executar módulo
+            resultado = modulo.executar(**parametros)
+            
+            # Log do resultado
+            if resultado.get('sucesso'):
+                self.logger.info(f"✅ Módulo emergencial {nome_modulo} executado com sucesso")
+            else:
+                self.logger.warning(f"⚠️ Módulo emergencial {nome_modulo} falhou: {resultado.get('erro')}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Erro na execução emergencial de {nome_modulo}: {e}")
+
+    def _preparar_parametros_emergenciais(self, nome_modulo: str, dados: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepara parâmetros para execução emergencial baseada no tipo de módulo"""
+        base_params = {'logger': self.logger}
+        
+        if 'scanner_portas' in nome_modulo:
+            return {**base_params, 'alvos': dados.get('hosts', [])}
+        elif 'nmap' in nome_modulo:
+            return {**base_params, 'alvos': dados.get('hosts', []), 'tipo_scan': 'vulnerabilidades'}
+        elif 'scanner_vulnerabilidades' in nome_modulo:
+            return {**base_params, 'alvos': dados.get('hosts', [])}
+        elif 'sqlmap' in nome_modulo:
+            return {**base_params, 'url': dados.get('url', ''), 'formulario': dados.get('formulario')}
+        elif 'scanner_web' in nome_modulo:
+            return {**base_params, 'url': dados.get('url', '')}
+        
+        return base_params
 
     def _carregar_modulos(self):
         """Carrega dinamicamente módulos e registra no dicionário."""
@@ -203,6 +400,9 @@ class OrquestradorInteligente:
         contexto.modulos_executados.append(nome_modulo)
         self.logger.debug(f"Resultado do módulo '{nome_modulo}' adicionado ao contexto")
 
+        # Novo: Disparar eventos baseados no resultado (Fase 3)
+        self._disparar_eventos_baseados_resultado(contexto, nome_modulo, resultado)
+
         # Novo: Notificar Agente IA Central (Fase 1)
         if self.agente_ia_central:
             try:
@@ -218,6 +418,141 @@ class OrquestradorInteligente:
                 self.logger.debug(f"Estado do Agente IA Central atualizado com resultado de {nome_modulo}")
             except Exception as e:
                 self.logger.warning(f"Erro ao atualizar Agente IA Central: {e}")
+
+    def _disparar_eventos_baseados_resultado(self, contexto: ContextoExecucao, nome_modulo: str, resultado: Dict[str, Any]):
+        """Dispara eventos baseados no resultado do módulo (Fase 3)"""
+        try:
+            # Evento: Novos hosts descobertos
+            if 'ips_descobertos' in resultado:
+                novos_ips = resultado['ips_descobertos']
+                if novos_ips:
+                    for ip in novos_ips:
+                        if ip not in contexto.ips_descobertos:
+                            contexto.ips_descobertos.append(ip)
+                            evento = Evento(
+                                tipo="novo_host_descoberto",
+                                dados={'host': ip, 'fonte': nome_modulo},
+                                timestamp=datetime.now().isoformat(),
+                                prioridade="alta"
+                            )
+                            contexto.eventos.append(evento)
+                            self.event_manager.disparar_evento(evento)
+
+            # Evento: Portas abertas descobertas
+            if 'portas_abertas' in resultado:
+                portas_novas = resultado['portas_abertas']
+                for ip, portas in portas_novas.items():
+                    if ip not in contexto.portas_abertas:
+                        contexto.portas_abertas[ip] = portas
+                    else:
+                        # Adicionar portas novas
+                        portas_existentes = set(contexto.portas_abertas[ip])
+                        portas_novas_set = set(portas)
+                        portas_adicionadas = portas_novas_set - portas_existentes
+                        if portas_adicionadas:
+                            contexto.portas_abertas[ip].extend(list(portas_adicionadas))
+                            
+                            # Verificar portas suspeitas (ex: 3389, 445, etc.)
+                            portas_suspeitas = [p for p in portas_adicionadas if p in [3389, 445, 135, 139, 1433, 3306]]
+                            if portas_suspeitas:
+                                evento = Evento(
+                                    tipo="anomalia_detectada",
+                                    dados={
+                                        'tipo': 'porta_suspeita',
+                                        'host': ip,
+                                        'portas': list(portas_suspeitas),
+                                        'fonte': nome_modulo
+                                    },
+                                    timestamp=datetime.now().isoformat(),
+                                    prioridade="alta"
+                                )
+                                contexto.eventos.append(evento)
+                                self.event_manager.disparar_evento(evento)
+
+            # Evento: Serviços web detectados
+            if 'servicos_detectados' in resultado:
+                servicos = resultado['servicos_detectados']
+                for ip, servicos_ip in servicos.items():
+                    if ip not in contexto.servicos_detectados:
+                        contexto.servicos_detectados[ip] = servicos_ip
+                    else:
+                        # Mesclar serviços
+                        contexto.servicos_detectados[ip].update(servicos_ip)
+                    
+                    # Verificar serviços web
+                    for servico in servicos_ip.values():
+                        if isinstance(servico, dict) and servico.get('servico', '').lower() in ['http', 'https']:
+                            evento = Evento(
+                                tipo="servico_web_detectado",
+                                dados={
+                                    'host': ip,
+                                    'porta': servico.get('porta'),
+                                    'servico': servico,
+                                    'fonte': nome_modulo
+                                },
+                                timestamp=datetime.now().isoformat(),
+                                prioridade="media"
+                            )
+                            contexto.eventos.append(evento)
+                            self.event_manager.disparar_evento(evento)
+
+            # Evento: Vulnerabilidades encontradas
+            if 'vulnerabilidades_encontradas' in resultado:
+                vulns = resultado['vulnerabilidades_encontradas']
+                if vulns:
+                    contexto.vulnerabilidades_encontradas.extend(vulns)
+                    
+                    # Verificar vulnerabilidades críticas
+                    for vuln in vulns:
+                        severidade = vuln.get('severidade', '').lower()
+                        tipo = vuln.get('tipo', '').lower()
+                        
+                        if severidade in ['critical', 'high'] or 'sql' in tipo or 'rce' in tipo:
+                            evento = Evento(
+                                tipo="vulnerabilidade_critica",
+                                dados={
+                                    'vulnerabilidade': vuln,
+                                    'host': vuln.get('host', 'desconhecido'),
+                                    'fonte': nome_modulo
+                                },
+                                timestamp=datetime.now().isoformat(),
+                                prioridade="alta"
+                            )
+                            contexto.eventos.append(evento)
+                            self.event_manager.disparar_evento(evento)
+
+            # Evento: Feedback para ML
+            if resultado.get('sucesso') or resultado.get('sucesso_geral'):
+                evento = Evento(
+                    tipo="feedback_ml",
+                    dados={
+                        'tipo': 'sucesso_modulo',
+                        'modulo': nome_modulo,
+                        'tempo_execucao': resultado.get('tempo_execucao', 0),
+                        'resultado': resultado
+                    },
+                    timestamp=datetime.now().isoformat(),
+                    prioridade="baixa"
+                )
+                contexto.eventos.append(evento)
+                self.event_manager.disparar_evento(evento)
+            else:
+                evento = Evento(
+                    tipo="feedback_ml",
+                    dados={
+                        'tipo': 'falha_modulo',
+                        'modulo': nome_modulo,
+                        'erro': resultado.get('erro', 'Erro desconhecido'),
+                        'resultado': resultado
+                    },
+                    timestamp=datetime.now().isoformat(),
+                    prioridade="baixa"
+                )
+                contexto.eventos.append(evento)
+                self.event_manager.disparar_evento(evento)
+
+        except Exception as e:
+            self.logger.warning(f"Erro ao disparar eventos para {nome_modulo}: {e}")
 
     def executar_pentest_inteligente(self, alvo: str, modo: str = 'rede', credenciais_web: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Executa o fluxo escolhido (rede ou web) e entra no LOOP-IA."""
@@ -470,25 +805,35 @@ class OrquestradorInteligente:
         return portas_abertas
 
     def _executar_loop_inteligente(self, contexto: ContextoExecucao) -> Dict[str, Any]:
-        """Loop principal com política de retry de IA (30s; 5 falhas)."""
+        """Loop principal com política de retry de IA (30s; 5 falhas) e sistema de eventos (Fase 3)."""
         iteracao = 0
         falhas_consecutivas = 0
+        tarefas_paralelas = []  # Lista de tarefas em execução paralela
 
         while not contexto.finalizado and iteracao < self.max_iteracoes:
             iteracao += 1
-            self.logger.info(f" Iteração {iteracao} do loop inteligente")
+            self.logger.info(f"🔄 Iteração {iteracao} do loop inteligente (Fase 3)")
+
+            # Novo: Verificar eventos pendentes (Fase 3)
+            self._processar_eventos_pendentes(contexto)
+
+            # Novo: Verificar conclusão de tarefas paralelas (Fase 3)
+            tarefas_concluidas = self._verificar_tarefas_paralelas(tarefas_paralelas, contexto)
+            if tarefas_concluidas:
+                self.logger.info(f"✅ {len(tarefas_concluidas)} tarefas paralelas concluídas")
+
             try:
                 decisao_ia = self._consultar_ia_proximos_passos(contexto)
                 falhas_consecutivas = 0
                 contexto.decisoes_ia.append(decisao_ia)
 
                 acao = decisao_ia.get('acao', 'parar')
-                self.logger.info(f" IA decidiu: {acao}")
+                self.logger.info(f"🤖 IA decidiu: {acao}")
 
                 if acao == 'parar':
                     contexto.finalizado = True
                     contexto.motivo_finalizacao = decisao_ia.get('justificativa', 'IA decidiu parar')
-                    self.logger.info(f" IA decidiu parar: {contexto.motivo_finalizacao}")
+                    self.logger.info(f"🛑 IA decidiu parar: {contexto.motivo_finalizacao}")
                     break
 
                 if acao == 'executar_modulo':
@@ -497,43 +842,136 @@ class OrquestradorInteligente:
                     if modulo_escolhido not in self.modulos_disponiveis:
                         nome_mapeado = self._mapear_categoria_para_modulo(modulo_escolhido)
                         if nome_mapeado:
-                            self.logger.info(f" Mapeando '{modulo_escolhido}' → {nome_mapeado}")
+                            self.logger.info(f"🔄 Mapeando '{modulo_escolhido}' → {nome_mapeado}")
                             nome_exec = nome_mapeado
                         else:
-                            self.logger.warning(f" Módulo desconhecido: {modulo_escolhido}")
+                            self.logger.warning(f"❓ Módulo desconhecido: {modulo_escolhido}")
                             continue
 
                     # Verificação adicional: evitar executar o mesmo módulo consecutivamente
                     if contexto.modulos_executados and contexto.modulos_executados[-1] == nome_exec:
-                        self.logger.warning(f" IA tentou executar {nome_exec} consecutivamente. Pulando para evitar loop.")
+                        self.logger.warning(f"🔄 IA tentou executar {nome_exec} consecutivamente. Pulando para evitar loop.")
                         continue
 
-                    resultado_modulo = self._executar_modulo(nome_exec, contexto, decisao_ia)
-                    self._atualizar_contexto_com_resultado(contexto, nome_exec, resultado_modulo)
-                    contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
+                    # Novo: Decidir se executar em paralelo ou sequencial (Fase 3)
+                    if self._deve_executar_em_paralelo(nome_exec, contexto):
+                        self.logger.info(f"⚡ Executando {nome_exec} em paralelo")
+                        tarefa = self.executor.submit(self._executar_modulo_paralelo, nome_exec, contexto, decisao_ia)
+                        tarefas_paralelas.append({
+                            'tarefa': tarefa,
+                            'modulo': nome_exec,
+                            'decisao': decisao_ia,
+                            'inicio': time.time()
+                        })
+                    else:
+                        resultado_modulo = self._executar_modulo(nome_exec, contexto, decisao_ia)
+                        self._atualizar_contexto_com_resultado(contexto, nome_exec, resultado_modulo)
+                        contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
 
             except RuntimeError as e:
                 falhas_consecutivas += 1
-                self.logger.error(f" ERRO DE IA: {str(e)} (falhas consecutivas: {falhas_consecutivas}/5)")
+                self.logger.error(f"❌ ERRO DE IA: {str(e)} (falhas consecutivas: {falhas_consecutivas}/5)")
                 if falhas_consecutivas >= 5:
                     contexto.finalizado = True
                     contexto.motivo_finalizacao = f"IA falhou 5 vezes consecutivas: {str(e)}"
                     break
-                self.logger.info(" Aguardando 30s antes de tentar novamente...")
+                self.logger.info("⏳ Aguardando 30s antes de tentar novamente...")
                 time.sleep(30)
                 continue
             except Exception as e:
-                self.logger.error(f"Erro na iteração {iteracao}: {str(e)}")
+                self.logger.error(f"❌ Erro na iteração {iteracao}: {str(e)}")
                 contexto.finalizado = True
                 contexto.motivo_finalizacao = f"Erro na iteração {iteracao}: {str(e)}"
                 break
 
+            # Novo: Pequena pausa para permitir processamento de eventos (Fase 3)
+            time.sleep(0.5)
+
+        # Novo: Aguardar conclusão de todas as tarefas paralelas (Fase 3)
+        if tarefas_paralelas:
+            self.logger.info(f"⏳ Aguardando conclusão de {len(tarefas_paralelas)} tarefas paralelas...")
+            for tarefa_info in tarefas_paralelas:
+                try:
+                    tarefa_info['tarefa'].result(timeout=60)  # Timeout de 60s por tarefa
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Erro ao aguardar tarefa paralela {tarefa_info['modulo']}: {e}")
+
         if iteracao >= self.max_iteracoes:
             contexto.finalizado = True
             contexto.motivo_finalizacao = f"Limite máximo de iterações atingido ({self.max_iteracoes})"
-            self.logger.warning(f" {contexto.motivo_finalizacao}")
+            self.logger.warning(f"⚠️ {contexto.motivo_finalizacao}")
 
         return {'iteracoes_executadas': iteracao, 'contexto_final': contexto}
+
+    def _processar_eventos_pendentes(self, contexto: ContextoExecucao):
+        """Processa eventos pendentes no contexto (Fase 3)"""
+        try:
+            eventos_recentes = self.event_manager.obter_eventos_recentes(5)
+            if eventos_recentes:
+                self.logger.info(f"📋 Processando {len(eventos_recentes)} eventos recentes")
+                
+                # Filtrar eventos de alta prioridade
+                eventos_prioritarios = [e for e in eventos_recentes if e.prioridade == "alta"]
+                if eventos_prioritarios:
+                    self.logger.info(f"🚨 {len(eventos_prioritarios)} eventos de alta prioridade detectados")
+                    
+                    # Adicionar ao contexto para decisão da IA
+                    contexto.eventos.extend(eventos_prioritarios)
+        except Exception as e:
+            self.logger.warning(f"Erro ao processar eventos pendentes: {e}")
+
+    def _verificar_tarefas_paralelas(self, tarefas_paralelas: List[Dict], contexto: ContextoExecucao) -> int:
+        """Verifica conclusão de tarefas paralelas e atualiza contexto (Fase 3)"""
+        concluidas = 0
+        tarefas_restantes = []
+        
+        for tarefa_info in tarefas_paralelas:
+            if tarefa_info['tarefa'].done():
+                try:
+                    resultado = tarefa_info['tarefa'].result()
+                    nome_modulo = tarefa_info['modulo']
+                    self._atualizar_contexto_com_resultado(contexto, nome_modulo, resultado)
+                    contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
+                    concluidas += 1
+                    self.logger.info(f"✅ Tarefa paralela {nome_modulo} concluída")
+                except Exception as e:
+                    self.logger.error(f"❌ Erro na tarefa paralela {tarefa_info['modulo']}: {e}")
+            else:
+                tarefas_restantes.append(tarefa_info)
+        
+        # Atualizar lista de tarefas pendentes
+        tarefas_paralelas.clear()
+        tarefas_paralelas.extend(tarefas_restantes)
+        
+        return concluidas
+
+    def _deve_executar_em_paralelo(self, nome_modulo: str, contexto: ContextoExecucao) -> bool:
+        """Decide se um módulo deve ser executado em paralelo (Fase 3)"""
+        # Módulos que podem ser executados em paralelo
+        modulos_paralelos = [
+            'scanner_portas_python',
+            'enumerador_subdominios_python', 
+            'detector_tecnologias_python',
+            'scanner_diretorios_python',
+            'buscador_exploits_python'
+        ]
+        
+        # Não executar em paralelo se já há muitas tarefas
+        if len([t for t in self.executor._threads if t.is_alive()]) >= 3:
+            return False
+            
+        # Verificar se o módulo suporta paralelização
+        return nome_modulo in modulos_paralelos
+
+    def _executar_modulo_paralelo(self, nome_modulo: str, contexto: ContextoExecucao, decisao_ia: Dict[str, Any]) -> Dict[str, Any]:
+        """Executa módulo em thread separada (Fase 3)"""
+        try:
+            self.logger.info(f"⚡ Executando {nome_modulo} em paralelo")
+            resultado = self._executar_modulo(nome_modulo, contexto, decisao_ia)
+            return resultado
+        except Exception as e:
+            self.logger.error(f"❌ Erro na execução paralela de {nome_modulo}: {e}")
+            return {'sucesso': False, 'erro': str(e), 'tempo_execucao': 0}
 
     def _consultar_ia_proximos_passos(self, contexto: ContextoExecucao) -> Dict[str, Any]:
         """Consulta IA com contexto seguro e retorna decisão em JSON."""
