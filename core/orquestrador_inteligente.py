@@ -1372,15 +1372,15 @@ class OrquestradorInteligente:
         except Exception as e:
             self.logger.warning(f"Erro ao processar eventos pendentes: {e}")
 
-    def _verificar_tarefas_paralelas(self, tarefas_paralelas: List[Dict], contexto: ContextoExecucao) -> int:
+    def _verificar_tarefas_paralelas(self, tarefas_paralelas: List[Dict], contexto: ContextoExecucao) -> List[str]:
         """Verifica conclusão de tarefas paralelas e atualiza contexto (Fase 3)"""
-        concluidas = 0
+        concluidas = []
         tarefas_restantes = []
         
         # Verificar se tarefas_paralelas é uma lista válida
         if not isinstance(tarefas_paralelas, list):
             self.logger.warning("⚠️ tarefas_paralelas não é uma lista válida, inicializando como lista vazia")
-            return 0
+            return []
             
         for tarefa_info in tarefas_paralelas:
             if tarefa_info['tarefa'].done():
@@ -1389,7 +1389,7 @@ class OrquestradorInteligente:
                     nome_modulo = tarefa_info['modulo']
                     self._atualizar_contexto_com_resultado(contexto, nome_modulo, resultado)
                     contexto.pontuacao_risco = self._calcular_pontuacao_risco(contexto)
-                    concluidas += 1
+                    concluidas.append(nome_modulo)
                     self.logger.info(f"✅ Tarefa paralela {nome_modulo} concluída")
                 except Exception as e:
                     self.logger.error(f"❌ Erro na tarefa paralela {tarefa_info['modulo']}: {e}")
