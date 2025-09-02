@@ -1,0 +1,217 @@
+# Configuração de Serviços - VarreduraIA
+# Fase 1 da Refatoração: Container DI
+
+profiles:
+  development:
+    services:
+      logger_factory:
+        implementation: 'utils.logger.DefaultLoggerFactory'
+        lifetime: 'singleton'
+        config:
+          level: 'DEBUG'
+          console_output: true
+          file_output: true
+          file_path: 'logs/varredura.log'
+      
+      persistence_layer:
+        implementation: 'infra.file_persistence.FilePersistenceLayer'
+        lifetime: 'singleton'
+        config:
+          base_path: 'dados'
+          format: 'json'
+          auto_backup: false
+      
+      report_generator:
+        implementation: 'relatorios.html_generator.HtmlReportGenerator'
+        lifetime: 'singleton'
+        config:
+          template_path: 'templates'
+          output_path: 'relatorios'
+      
+      cache_layer:
+        implementation: 'infra.memory_cache.MemoryCacheLayer'
+        lifetime: 'singleton'
+        config:
+          max_size: 1000
+          default_ttl: 3600
+
+  production:
+    services:
+      logger_factory:
+        implementation: 'utils.logger.DefaultLoggerFactory'
+        lifetime: 'singleton'
+        config:
+          level: 'INFO'
+          console_output: false
+          file_output: true
+          file_path: 'logs/varredura.log'
+          rotation: true
+          max_size: '10MB'
+      
+      persistence_layer:
+        implementation: 'infra.file_persistence.FilePersistenceLayer'
+        lifetime: 'singleton'
+        config:
+          base_path: 'dados'
+          format: 'json'
+          auto_backup: true
+          backup_interval: 3600
+      
+      report_generator:
+        implementation: 'relatorios.html_generator.HtmlReportGenerator'
+        lifetime: 'singleton'
+        config:
+          template_path: 'templates'
+          output_path: 'relatorios'
+          compression: true
+      
+      cache_layer:
+        implementation: 'infra.redis_cache.RedisCacheLayer'
+        lifetime: 'singleton'
+        config:
+          host: 'localhost'
+          port: 6379
+          db: 0
+          default_ttl: 7200
+
+  testing:
+    services:
+      logger_factory:
+        implementation: 'tests.mocks.MockLoggerFactory'
+        lifetime: 'singleton'
+        config:
+          capture_logs: true
+      
+      persistence_layer:
+        implementation: 'tests.mocks.MockPersistenceLayer'
+        lifetime: 'singleton'
+        config:
+          in_memory: true
+      
+      report_generator:
+        implementation: 'tests.mocks.MockReportGenerator'
+        lifetime: 'singleton'
+      
+      cache_layer:
+        implementation: 'tests.mocks.MockCacheLayer'
+        lifetime: 'singleton'
+
+# Mapeamento de módulos legados para adaptadores
+module_mappings:
+  dns_resolver:
+    implementation: 'adapters.legacy_adapters.DNSResolverAdapter'
+    legacy_module: 'modulos.resolucao_dns.ResolucaoDNS'
+    capabilities: ['DNS_RESOLUTION']
+    priority: 'CRITICAL'
+    lifetime: 'transient'
+  
+  port_scanner_rustscan:
+    implementation: 'adapters.legacy_adapters.PortScannerAdapter'
+    legacy_module: 'modulos.varredura_rustscan.VarreduraRustScan'
+    init_params:
+      scanner_type: 'rustscan'
+    capabilities: ['PORT_SCANNING']
+    priority: 'HIGH'
+    lifetime: 'transient'
+  
+  port_scanner_nmap:
+    implementation: 'adapters.legacy_adapters.PortScannerAdapter'
+    legacy_module: 'modulos.varredura_nmap.VarreduraNmap'
+    init_params:
+      scanner_type: 'nmap'
+    capabilities: ['PORT_SCANNING', 'SERVICE_DETECTION', 'VULNERABILITY_SCANNING']
+    priority: 'MEDIUM'
+    lifetime: 'transient'
+  
+  vulnerability_scanner:
+    implementation: 'adapters.legacy_adapters.LegacyModuleAdapter'
+    legacy_module: 'modulos.scanner_vulnerabilidades.ScannerVulnerabilidades'
+    init_params:
+      module_name: 'vulnerability_scanner'
+      capabilities: ['VULNERABILITY_SCANNING']
+      priority: 'HIGH'
+    lifetime: 'transient'
+  
+  web_scanner_advanced:
+    implementation: 'adapters.legacy_adapters.WebScannerAdapter'
+    legacy_module: 'modulos.scanner_web_avancado.ScannerWebAvancado'
+    init_params:
+      scanner_name: 'advanced_web'
+    capabilities: ['WEB_SCANNING']
+    priority: 'MEDIUM'
+    lifetime: 'transient'
+  
+  nuclei_scanner:
+    implementation: 'adapters.legacy_adapters.LegacyModuleAdapter'
+    legacy_module: 'modulos.varredura_nuclei.VarreduraNuclei'
+    init_params:
+      module_name: 'nuclei'
+      capabilities: ['VULNERABILITY_SCANNING', 'WEB_SCANNING']
+      priority: 'HIGH'
+    lifetime: 'transient'
+  
+  sqlmap_scanner:
+    implementation: 'adapters.legacy_adapters.LegacyModuleAdapter'
+    legacy_module: 'modulos.varredura_sqlmap.VarreduraSQLMap'
+    init_params:
+      module_name: 'sqlmap'
+      capabilities: ['VULNERABILITY_SCANNING']
+      priority: 'HIGH'
+    lifetime: 'transient'
+  
+  # Novos módulos Python puro
+  python_port_scanner:
+    implementation: 'modulos.scanner_portas_python.ScannerPortasPython'
+    capabilities: ['PORT_SCANNING']
+    priority: 'MEDIUM'
+    lifetime: 'transient'
+  
+  python_subdomain_enumerator:
+    implementation: 'modulos.enumerador_subdominios_python.EnumeradorSubdominiosPython'
+    capabilities: ['SUBDOMAIN_ENUMERATION']
+    priority: 'MEDIUM'
+    lifetime: 'transient'
+  
+  python_technology_detector:
+    implementation: 'modulos.detector_tecnologias_python.DetectorTecnologiasPython'
+    capabilities: ['TECHNOLOGY_DETECTION']
+    priority: 'LOW'
+    lifetime: 'transient'
+  
+  python_directory_scanner:
+    implementation: 'modulos.scanner_diretorios_python.ScannerDiretoriosPython'
+    capabilities: ['DIRECTORY_SCANNING', 'WEB_SCANNING']
+    priority: 'MEDIUM'
+    lifetime: 'transient'
+  
+  python_exploit_searcher:
+    implementation: 'modulos.buscador_exploits_python.BuscadorExploitsPython'
+    capabilities: ['EXPLOIT_SEARCH']
+    priority: 'LOW'
+    lifetime: 'transient'
+  
+  python_web_vulnerability_analyzer:
+    implementation: 'modulos.analisador_vulnerabilidades_web.AnalisadorVulnerabilidadesWeb'
+    capabilities: ['VULNERABILITY_SCANNING', 'WEB_SCANNING']
+    priority: 'HIGH'
+    lifetime: 'transient'
+
+# Configurações de execução por perfil
+execution_settings:
+  development:
+    max_parallel_modules: 2
+    timeout_per_module: 300  # 5 minutos
+    retry_count: 2
+    debug_mode: true
+  
+  production:
+    max_parallel_modules: 4
+    timeout_per_module: 600  # 10 minutos
+    retry_count: 3
+    debug_mode: false
+  
+  testing:
+    max_parallel_modules: 1
+    timeout_per_module: 30   # 30 segundos
+    retry_count: 1
+    debug_mode: true
