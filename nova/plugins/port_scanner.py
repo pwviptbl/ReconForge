@@ -1,0 +1,170 @@
+"""
+Plugin de Scanner de Portas
+Baseado no scanner_portas_python.py do projeto original
+"""
+
+import socket
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Any, List
+import ipaddress
+
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from core.plugin_base import NetworkPlugin, PluginResult
+
+
+class PortScannerPlugin(NetworkPlugin):
+    """Plugin para scanning de portas TCP"""
+    
+    def __init__(self):
+        super().__init__()
+        self.description = "Scanner de portas TCP eficiente"
+        self.version = "1.0.0"
+        
+        # Configurações
+        self.timeout = 1.0
+        self.max_workers = 100
+        
+        # Portas comuns para scan rápido
+        self.common_ports = [
+            21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445,
+            993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 
+            8000, 8080, 8443, 8085, 8090
+        ]
+        
+        # Serviços conhecidos
+        self.known_services = {
+            21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+            80: 'HTTP', 110: 'POP3', 135: 'RPC', 139: 'NetBIOS', 143: 'IMAP',
+            443: 'HTTPS', 445: 'SMB', 993: 'IMAPS', 995: 'POP3S',
+            1433: 'MSSQL', 1521: 'Oracle', 3306: 'MySQL', 3389: 'RDP',
+            5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis', 
+            8000: 'HTTP-Alt', 8080: 'HTTP-Proxy', 8443: 'HTTPS-Alt'
+        }
+    
+    def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
+        """Executa scanning de portas"""
+        start_time = time.time()
+        
+        try:
+            # Determinar tipo de scan
+            scan_type = kwargs.get('scan_type', 'quick')
+            
+            # Determinar portas a escanear
+            if scan_type == 'quick':
+                ports = self.common_ports
+            elif scan_type == 'full':
+                ports = list(range(1, 1024))  # Well-known ports
+            else:
+                ports = kwargs.get('ports', self.common_ports)
+            
+            # Resolver target para IP
+            target_ip = self._resolve_target(target)
+            if not target_ip:
+                return PluginResult(
+                    success=False,
+                    plugin_name=self.name,
+                    execution_time=time.time() - start_time,
+                    data={},
+                    error=f"Não foi possível resolver: {target}"
+                )
+            
+            # Executar scan
+            open_ports = self._scan_ports(target_ip, ports)
+            
+            # Identificar serviços
+            services = []
+            for port in open_ports:
+                service_name = self.known_services.get(port, 'unknown')
+                services.append({
+                    'port': port,
+                    'service': service_name,
+                    'host': target_ip
+                })
+            
+            execution_time = time.time() - start_time
+            
+            return PluginResult(
+                success=True,
+                plugin_name=self.name,
+                execution_time=execution_time,
+                data={
+                    'target': target,
+                    'target_ip': target_ip,
+                    'scan_type': scan_type,
+                    'total_ports_scanned': len(ports),
+                    'open_ports': open_ports,
+                    'services': services,
+                    'hosts': [target_ip] if open_ports else []
+                }
+            )
+            
+        except Exception as e:
+            return PluginResult(
+                success=False,
+                plugin_name=self.name,
+                execution_time=time.time() - start_time,
+                data={},
+                error=str(e)
+            )
+    
+    def validate_target(self, target: str) -> bool:
+        """Valida se o target é adequado para port scanning"""
+        try:
+            # Tentar resolver como IP
+            socket.inet_aton(target)
+            return True
+        except socket.error:
+            try:
+                # Tentar resolver como hostname
+                socket.gethostbyname(target)
+                return True
+            except socket.error:
+                # Verificar se é CIDR
+                try:
+                    ipaddress.ip_network(target, strict=False)
+                    return True
+                except:
+                    return False
+    
+    def _resolve_target(self, target: str) -> str:
+        """Resolve target para IP"""
+        try:
+            # Se já é IP, retornar
+            socket.inet_aton(target)
+            return target
+        except socket.error:
+            try:
+                # Tentar resolver hostname
+                return socket.gethostbyname(target)
+            except socket.error:
+                return None
+    
+    def _scan_ports(self, ip: str, ports: List[int]) -> List[int]:
+        """Escaneia portas usando múltiplas threads"""
+        open_ports = []
+        lock = threading.Lock()
+        
+        def scan_port(port: int):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(self.timeout)
+                result = sock.connect_ex((ip, port))
+                
+                if result == 0:
+                    with lock:
+                        open_ports.append(port)
+                
+                sock.close()
+            except:
+                pass
+        
+        # Usar ThreadPoolExecutor para controlar concorrência
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            executor.map(scan_port, ports)
+        
+        return sorted(open_ports)
