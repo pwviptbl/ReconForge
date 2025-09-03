@@ -4,6 +4,7 @@ Agente de IA para tomada de decisões no loop de pentest
 
 import json
 import time
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
@@ -27,6 +28,11 @@ class AIAgent:
         
         # Configurações
         self.api_key = get_config('ai.gemini.api_key')
+        
+        # Verificar variável de ambiente se não estiver configurada
+        if not self.api_key or self.api_key == "YOUR_GEMINI_API_KEY_HERE":
+            self.api_key = os.getenv('GEMINI_API_KEY')
+        
         self.model_name = get_config('ai.gemini.model', 'gemini-2.0-flash-exp')
         self.timeout = get_config('ai.gemini.timeout', 30)
         self.max_retries = get_config('ai.gemini.max_retries', 3)
@@ -34,6 +40,9 @@ class AIAgent:
         # Conectar se configurado
         if self.api_key and self.api_key != "YOUR_GEMINI_API_KEY_HERE":
             self._connect()
+        else:
+            self.logger.warning("⚠️ Chave API do Gemini não configurada - usando fallback")
+            self.logger.info("💡 Configure em config/default.yaml ou variável GEMINI_API_KEY")
     
     def _connect(self) -> bool:
         """Conecta com a API do Gemini"""
@@ -181,7 +190,11 @@ IMPORTANTE: Use EXATAMENTE os nomes dos plugins listados acima."""
     
     def _fallback_decision(self, context: Dict[str, Any], plugins: List[str]) -> Dict[str, Any]:
         """Decisão de fallback quando IA não está disponível"""
-        self.logger.info("🔧 Usando lógica de fallback")
+        if not self.api_key:
+            self.logger.warning("⚠️ IA não configurada - usando lógica simples")
+            self.logger.info("� Para usar IA real: configure GEMINI_API_KEY ou config/default.yaml")
+        else:
+            self.logger.info("�🔧 Usando lógica de fallback (erro na IA)")
         
         executed = set(context.get('executed_plugins', []))
         available = [p for p in plugins if p not in executed]
