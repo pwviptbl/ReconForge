@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Type
 import inspect
 
-from .plugin_base import BasePlugin, PluginResult
+from .plugin_base import BasePlugin, PluginResult, NetworkPlugin, WebPlugin, VulnerabilityPlugin
 from .config import get_config
 from utils.logger import get_logger
 
@@ -59,11 +59,13 @@ class PluginManager:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         
-        # Encontrar classes que herdam de BasePlugin
+        # Encontrar classes que herdam de BasePlugin (mas não são classes base)
+        base_classes = {BasePlugin, NetworkPlugin, WebPlugin, VulnerabilityPlugin}
+        
         for name, obj in inspect.getmembers(module):
             if (inspect.isclass(obj) and 
                 issubclass(obj, BasePlugin) and 
-                obj != BasePlugin):
+                obj not in base_classes):
                 
                 # Instanciar plugin
                 plugin_instance = obj()

@@ -128,19 +128,26 @@ class TechnologyDetectorPlugin(WebPlugin):
         start_time = time.time()
         
         try:
-            url = self._normalize_url(target)
+            # Tentar URLs baseadas no contexto
+            urls_to_try = self._get_urls_to_try(target, context)
             
-            if not self._is_accessible(url):
+            successful_url = None
+            for url in urls_to_try:
+                if self._is_accessible(url):
+                    successful_url = url
+                    break
+            
+            if not successful_url:
                 return PluginResult(
                     success=False,
                     plugin_name=self.name,
                     execution_time=time.time() - start_time,
                     data={},
-                    error=f"URL não acessível: {url}"
+                    error=f"Nenhuma URL acessível encontrada para: {target}"
                 )
             
             # Coletar dados para análise
-            page_data = self._collect_page_data(url)
+            page_data = self._collect_page_data(successful_url)
             
             # Detectar tecnologias
             detected_technologies = self._detect_technologies(page_data)
@@ -155,7 +162,7 @@ class TechnologyDetectorPlugin(WebPlugin):
                 plugin_name=self.name,
                 execution_time=execution_time,
                 data={
-                    'url': url,
+                    'url': successful_url,
                     'technologies': versioned_technologies,
                     'raw_technologies': detected_technologies,
                     'confidence_scores': self._calculate_confidence_scores(page_data, detected_technologies)
@@ -180,10 +187,42 @@ class TechnologyDetectorPlugin(WebPlugin):
         except:
             return False
     
+    def _get_urls_to_try(self, target: str, context: Dict[str, Any]) -> List[str]:
+        """Gera lista de URLs para testar baseada no contexto"""
+        urls = []
+        
+        # Se já é uma URL, usar ela
+        if target.startswith(('http://', 'https://')):
+            urls.append(target)
+            return urls
+        
+        # Obter portas abertas do contexto
+        open_ports = context.get('discoveries', {}).get('open_ports', [])
+        
+        # Priorizar HTTP se porta 80 estiver aberta
+        if 80 in open_ports:
+            urls.append(f"http://{target}")
+        
+        # Adicionar HTTPS se porta 443 estiver aberta
+        if 443 in open_ports:
+            urls.append(f"https://{target}")
+        
+        # Portas web alternativas
+        web_ports = [8080, 8000, 8090, 8008, 3000, 5000]
+        for port in web_ports:
+            if port in open_ports:
+                urls.append(f"http://{target}:{port}")
+        
+        # Se não há portas conhecidas, tentar padrões
+        if not urls:
+            urls = [f"http://{target}", f"https://{target}"]
+        
+        return urls
+    
     def _normalize_url(self, target: str) -> str:
         """Normaliza para URL completa"""
         if not target.startswith(('http://', 'https://')):
-            return f"https://{target}"
+            return f"http://{target}"  # Mudado para HTTP primeiro
         return target
     
     def _is_accessible(self, url: str) -> bool:
