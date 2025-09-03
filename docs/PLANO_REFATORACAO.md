@@ -416,11 +416,11 @@ Fase 5 (Plugins) ← Depende de todas as anteriores
 ### ✅ Fase 1 Concluída (2 de setembro de 2025)
 1. [x] **Container de DI implementado e testado** (77% cobertura)
 2. [x] **Interfaces definidas** (interfaces/ completo)
-3. [x] **main.py refatorado** (agora é a versão refatorada)
+3. [x] **main.py refatorado** (único arquivo, versão refatorada)
 4. [x] **Configuração externa funcionando** (services.yaml)
 5. [x] **Sistema de adaptadores para módulos legados** (adapters/)
-6. [x] **Wrapper de compatibilidade** (simplificado)
-7. [x] **Limpeza de arquivos** (3 mains → 1 main + backups)
+6. [x] **Limpeza TOTAL** (4 mains → 1 main.py único)
+7. [x] **Backup no git** (histórico preservado)
 
 ### Imediatos (Esta Semana) - Iniciar Fase 2
 1. [ ] **Revisar e aprovar conclusão da Fase 1**
