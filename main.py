@@ -15,7 +15,7 @@ import argparse
 import os
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 # Garantir diretório raiz no path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -101,17 +101,72 @@ class PentestApplication:
             return "network"
     
     def _execute_network_mode(self, args: argparse.Namespace) -> int:
-        """Executa modo rede (padrão) usando orquestrador"""
+        """Executa modo rede usando Strategy Pattern (Fase 2) ou orquestrador legado"""
         try:
-            # Usar orquestrador legado por enquanto (compatibilidade)
+            # Tentar usar o novo sistema com Strategy Pattern primeiro
+            if self._try_strategy_execution(args):
+                return 0
+            
+            # Fallback para orquestrador legado (compatibilidade)
+            self.logger.info("🔄 Fallback: Usando orquestrador legado (compatibilidade)")
+            return self._execute_legacy_network_mode(args)
+            
+        except Exception as e:
+            self.logger.error(f"Erro no modo rede: {e}")
+            return 1
+    
+    def _try_strategy_execution(self, args: argparse.Namespace) -> bool:
+        """
+        Tenta executar usando Strategy Pattern (Fase 2)
+        
+        Returns:
+            True se executou com sucesso, False se deve usar fallback
+        """
+        try:
+            # Verificar se as estratégias estão registradas
+            strategy_manager = self.container.get_strategy_manager()
+            
+            if not strategy_manager:
+                self.logger.warning("⚠️  StrategyManager não disponível, usando fallback")
+                return False
+            
+            self.logger.info("🚀 Executando com Strategy Pattern (Fase 2)")
+            
+            # Criar contexto do scan
+            context = self.container.create_scan_context(
+                target=args.alvo,
+                user_preferences={
+                    'verbose': getattr(args, 'verbose', False),
+                    'timeout': getattr(args, 'timeout', 300),
+                    'profile': getattr(args, 'profile', 'default'),
+                    'modo': 'rede'
+                }
+            )
+            
+            # Executar estratégias
+            results = strategy_manager.execute_strategies(args.alvo, context)
+            
+            # Processar resultados para formato compatível
+            resultado_compativel = self._convert_strategy_results_to_legacy_format(results, context)
+            
+            # Salvar resultados usando sistema existente
+            self._save_and_report_results(resultado_compativel, args)
+            
+            self.logger.info("✅ Execução com Strategy Pattern concluída")
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️  Erro no Strategy Pattern: {e}. Usando fallback.")
+            return False
+    
+    def _execute_legacy_network_mode(self, args: argparse.Namespace) -> int:
+        """Executa modo rede usando orquestrador legado"""
+        try:
             from core.orquestrador_inteligente import OrquestradorInteligente
             from modulos.resolucao_dns import ResolucaoDNS
             from modulos.varredura_rustscan import VarreduraRustScan
             from modulos.varredura_nmap import VarreduraNmap
             from modulos.decisao_ia import DecisaoIA
-            
-            # TODO: Fase 2 - Substituir por orquestrador baseado em DI
-            self.logger.info("🔄 Usando orquestrador legado (compatibilidade)")
             
             resolver_dns = ResolucaoDNS()
             scanner_portas = VarreduraRustScan()
@@ -133,7 +188,7 @@ class PentestApplication:
             return self._save_and_report_results(resultado, args)
             
         except Exception as e:
-            self.logger.error(f"Erro no modo rede: {e}")
+            self.logger.error(f"Erro no orquestrador legado: {e}")
             return 1
     
     def _execute_web_mode(self, args: argparse.Namespace) -> int:
@@ -353,6 +408,103 @@ class PentestApplication:
                         
         except Exception as e:
             self.logger.error(f"Erro ao exibir estatísticas: {e}")
+    
+    def _convert_strategy_results_to_legacy_format(self, results: List, context) -> Dict[str, Any]:
+        """
+        Converte resultados das estratégias para formato legado compatível
+        
+        Args:
+            results: Lista de StrategyResult das estratégias executadas
+            context: ScanContext com estado do scan
+            
+        Returns:
+            Dicionário no formato esperado pelo sistema legado
+        """
+        try:
+            from core.scan_context import ScanContext
+            
+            # Criar estrutura base compatível
+            resultado_legado = {
+                'sucesso_geral': True,
+                'alvo': context.target,
+                'timestamp': context.execution_start_time.isoformat() if context.execution_start_time else None,
+                'dados_descoberta': {},
+                'vulnerabilidades_encontradas': context.vulnerabilities,
+                'estatisticas': {},
+                'tempo_total': None,
+                'modulos_executados': []
+            }
+            
+            # Processar descobertas por tipo
+            if context.discovered_hosts:
+                resultado_legado['dados_descoberta']['hosts'] = context.discovered_hosts
+            
+            if context.open_ports:
+                resultado_legado['dados_descoberta']['portas'] = context.open_ports
+                
+            if context.services:
+                resultado_legado['dados_descoberta']['servicos'] = {}
+                for host, services in context.services.items():
+                    resultado_legado['dados_descoberta']['servicos'][host] = [
+                        {
+                            'porta': s.port,
+                            'servico': s.service_name,
+                            'versao': s.version,
+                            'estado': s.state
+                        } for s in services
+                    ]
+            
+            # Calcular estatísticas
+            total_hosts = len(context.discovered_hosts)
+            total_ports = sum(len(ports) for ports in context.open_ports.values())
+            total_services = sum(len(services) for services in context.services.values())
+            total_vulns = len(context.vulnerabilities)
+            
+            resultado_legado['estatisticas'] = {
+                'ips_descobertos': total_hosts,
+                'total_portas_abertas': total_ports,
+                'servicos_detectados': total_services,
+                'vulnerabilidades_encontradas': total_vulns,
+                'modulos_executados': len([r for r in results if r.success])
+            }
+            
+            # Calcular tempo total se disponível
+            if context.execution_start_time and context.execution_end_time:
+                delta = context.execution_end_time - context.execution_start_time
+                resultado_legado['tempo_total'] = f"{delta.total_seconds():.2f}s"
+            
+            # Adicionar informações dos módulos executados
+            for result in results:
+                if result.success:
+                    resultado_legado['modulos_executados'].append({
+                        'nome': result.strategy_name,
+                        'sucesso': result.success,
+                        'tempo_execucao': result.execution_time,
+                        'confianca': result.confidence_score
+                    })
+            
+            # Adicionar dados específicos das estratégias
+            strategy_data = {}
+            for result in results:
+                if result.success and result.data:
+                    strategy_data[result.strategy_name] = result.data
+            
+            if strategy_data:
+                resultado_legado['dados_estrategias'] = strategy_data
+            
+            # Determinar sucesso geral
+            resultado_legado['sucesso_geral'] = any(r.success for r in results)
+            
+            self.logger.debug(f"Convertidos resultados de {len(results)} estratégias para formato legado")
+            return resultado_legado
+            
+        except Exception as e:
+            self.logger.error(f"Erro ao converter resultados das estratégias: {e}")
+            return {
+                'sucesso_geral': False,
+                'erro': f"Erro na conversão: {e}",
+                'alvo': getattr(context, 'target', 'unknown')
+            }
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -420,6 +572,14 @@ def main() -> int:
             profile=args.profile,
             config_path=args.config
         )
+        
+        # Registrar estratégias da Fase 2
+        try:
+            container.register_strategies()
+            print("✅ Estratégias da Fase 2 registradas com sucesso")
+        except Exception as e:
+            print(f"⚠️  Aviso: Erro ao registrar estratégias: {e}")
+            print("   Continuando com sistema legado...")
         
         # Criar e executar aplicação
         app = PentestApplication(container)

@@ -13,12 +13,17 @@ Este módulo implementa um container DI completo que:
 
 import threading
 import sys
-from typing import Any, Dict, Optional, Callable, Type, Union, Set, List
+from typing import Any, Dict, Optional, Callable, Type, Union, Set, List, TYPE_CHECKING
 from enum import Enum
 from dataclasses import dataclass
 import inspect
 import weakref
 from functools import wraps
+
+# Imports para type hints sem dependências circulares
+if TYPE_CHECKING:
+    from core.strategy_manager import StrategyManager
+    from core.scan_context import ScanContext
 
 
 class ServiceLifetime(Enum):
@@ -257,6 +262,117 @@ class DependencyContainer:
         """
         with self._lock:
             return service_type in self._services
+    
+    def register_strategies(self):
+        """
+        Registra todas as estratégias disponíveis no container
+        
+        Este método registra as estratégias implementadas na Fase 2,
+        incluindo StrategyManager e ScanContext.
+        """
+        try:
+            # Importar estratégias (import aqui para evitar dependências circulares)
+            from core.strategy_manager import StrategyManager
+            from core.scan_context import ScanContext
+            from strategies import create_default_strategy_set
+            
+            # Registrar StrategyManager como singleton
+            self.register_singleton(
+                StrategyManager,
+                lambda: self._create_strategy_manager()
+            )
+            
+            # Registrar ScanContext como transient (nova instância para cada scan)
+            # Não registrar no container, criar diretamente via método
+            # self.register_transient(
+            #     ScanContext,
+            #     lambda initial_target=None: ScanContext(initial_target=initial_target) if initial_target else None
+            # )
+            
+            # Registrar estratégias individuais
+            # Tentar obter logger via interface, senão usar None
+            logger = None
+            try:
+                from interfaces import ILogger
+                logger = self.try_resolve(ILogger)
+            except:
+                pass  # Logger não disponível
+            
+            strategies = create_default_strategy_set(logger=logger)
+            
+            for strategy in strategies:
+                strategy_type = type(strategy)
+                # Usar closure correta para capturar estratégia específica
+                factory = lambda container, s=strategy: s
+                self.register_singleton(strategy_type, factory)
+                self._log('DEBUG', f"Estratégia registrada: {strategy_type.__name__}")
+            
+            self._log('INFO', f"Registradas {len(strategies)} estratégias no container")
+            
+        except Exception as e:
+            self._log('ERROR', f"Erro ao registrar estratégias: {e}")
+            raise
+    
+    def _create_strategy_manager(self) -> 'StrategyManager':
+        """Cria uma instância de StrategyManager com estratégias registradas"""
+        try:
+            from core.strategy_manager import StrategyManager
+            from strategies import create_default_strategy_set
+            
+            # Tentar obter logger
+            logger = None
+            try:
+                from interfaces import ILogger
+                logger = self.try_resolve(ILogger)
+            except:
+                pass
+            
+            # Criar manager
+            manager = StrategyManager(logger=logger)
+            
+            # Registrar estratégias no manager
+            strategies = create_default_strategy_set(logger=logger)
+            
+            for strategy in strategies:
+                manager.register_strategy(strategy)
+            
+            self._log('INFO', f"StrategyManager criado com {len(strategies)} estratégias")
+            return manager
+            
+        except Exception as e:
+            self._log('ERROR', f"Erro ao criar StrategyManager: {e}")
+            raise
+    
+    def get_strategy_manager(self) -> Optional['StrategyManager']:
+        """
+        Obtém o StrategyManager registrado
+        
+        Returns:
+            Instância do StrategyManager ou None se não estiver registrado
+        """
+        try:
+            from core.strategy_manager import StrategyManager
+            return self.resolve(StrategyManager)
+        except:
+            return None
+    
+    def create_scan_context(self, target: str, **kwargs) -> 'ScanContext':
+        """
+        Cria um novo ScanContext para um scan
+        
+        Args:
+            target: Alvo do scan
+            **kwargs: Parâmetros adicionais para o contexto
+        
+        Returns:
+            Instância configurada de ScanContext
+        """
+        try:
+            from core.scan_context import ScanContext
+            return ScanContext(initial_target=target, **kwargs)
+        except Exception as e:
+            self._log('ERROR', f"Erro ao criar ScanContext: {e}")
+            raise
     
     def get_registered_services(self) -> List[Type]:
         """
