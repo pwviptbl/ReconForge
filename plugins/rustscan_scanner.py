@@ -41,8 +41,15 @@ class RustscanPlugin(NetworkPlugin):
                     error="Rustscan não está instalado ou não está no PATH"
                 )
             
+            # Obter configurações de porta (padrão ou personalizadas)
+            port_range = kwargs.get('port_range', '1-1000')  # Padrão: top 1000
+            scan_all_ports = kwargs.get('scan_all_ports', False)
+            
+            if scan_all_ports:
+                port_range = '1-65535'
+            
             # Executar varredura
-            rustscan_results = self._run_rustscan(target)
+            rustscan_results = self._run_rustscan(target, port_range)
             
             # Processar resultados
             processed_results = self._process_rustscan_results(rustscan_results, target)
@@ -82,13 +89,14 @@ class RustscanPlugin(NetworkPlugin):
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
     
-    def _run_rustscan(self, target: str) -> Dict[str, Any]:
+    def _run_rustscan(self, target: str, port_range: str = '1-65535') -> Dict[str, Any]:
         """Executa varredura Rustscan"""
         try:
             # Comando Rustscan otimizado
             cmd = [
                 'rustscan',
                 '-a', target,
+                '-p', port_range,  # Range de portas configurável
                 '--ulimit', '5000',  # Limite de arquivos abertos
                 '--timeout', '1000',  # Timeout em ms
                 '--tries', '1',  # Número de tentativas

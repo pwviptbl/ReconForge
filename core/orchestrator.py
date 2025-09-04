@@ -107,6 +107,12 @@ class PentestOrchestrator:
         """Loop principal de execução"""
         self.logger.info("🔄 Iniciando loop principal de IA")
         
+        # NOVA FUNCIONALIDADE: Executar plugins obrigatórios primeiro
+        mandatory_plugins = self._get_mandatory_plugins()
+        if mandatory_plugins:
+            self.logger.info(f"🎯 Executando {len(mandatory_plugins)} plugins obrigatórios primeiro")
+            self._execute_mandatory_plugins(mandatory_plugins)
+        
         no_progress_count = 0
         max_no_progress = get_config('loop.auto_stop.no_progress_limit', 3)
         
@@ -176,6 +182,82 @@ class PentestOrchestrator:
                 suitable.append(plugin_name)
         
         return suitable
+    
+    def _get_mandatory_plugins(self) -> List[Dict[str, Any]]:
+        """Obtém lista de plugins obrigatórios configurados"""
+        mandatory_config = get_config('execution.mandatory_plugins', [])
+        
+        if not mandatory_config:
+            return []
+        
+        mandatory_plugins = []
+        for plugin_config in mandatory_config:
+            if isinstance(plugin_config, str):
+                # Configuração simples: apenas nome do plugin
+                mandatory_plugins.append({
+                    'name': plugin_config,
+                    'config': {}
+                })
+            elif isinstance(plugin_config, dict):
+                # Configuração avançada: nome + configurações específicas
+                mandatory_plugins.append(plugin_config)
+        
+        return mandatory_plugins
+    
+    def _execute_mandatory_plugins(self, mandatory_plugins: List[Dict[str, Any]]):
+        """Executa plugins obrigatórios em sequência"""
+        for plugin_config in mandatory_plugins:
+            plugin_name = plugin_config['name']
+            custom_config = plugin_config.get('config', {})
+            
+            self.logger.info(f"📋 Executando plugin obrigatório: {plugin_name}")
+            
+            try:
+                # Executar plugin com configuração personalizada se fornecida
+                if custom_config:
+                    result = self.plugin_manager.execute_plugin(
+                        plugin_name, 
+                        self.context['target'], 
+                        self.context,
+                        **custom_config
+                    )
+                else:
+                    result = self.plugin_manager.execute_plugin(
+                        plugin_name, 
+                        self.context['target'], 
+                        self.context
+                    )
+                
+                # Processar resultado
+                previous_state = self._get_current_state()
+                self.context['executed_plugins'].append(plugin_name)
+                
+                if result.success:
+                    self._update_context_with_result(result)
+                    current_state = self._get_current_state()
+                    progress_made = self._compare_states(previous_state, current_state)
+                    
+                    if progress_made:
+                        self.logger.info(f"✅ Plugin obrigatório {plugin_name} descobriu novas informações")
+                    else:
+                        self.logger.info(f"ℹ️ Plugin obrigatório {plugin_name} executou sem novas descobertas")
+                else:
+                    self.logger.warning(f"❌ Plugin obrigatório {plugin_name} falhou: {result.error}")
+                    self.context['errors'].append({
+                        'plugin': plugin_name,
+                        'error': result.error,
+                        'timestamp': result.timestamp,
+                        'mandatory': True
+                    })
+                
+            except Exception as e:
+                self.logger.error(f"💥 Erro executando plugin obrigatório {plugin_name}: {e}")
+                self.context['errors'].append({
+                    'plugin': plugin_name,
+                    'error': str(e),
+                    'timestamp': datetime.now().isoformat(),
+                    'mandatory': True
+                })
     
     def _execute_plugin_iteration(self, plugin_name: str, decision: Dict) -> bool:
         """
