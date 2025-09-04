@@ -134,12 +134,29 @@ class WebCrawlerPlugin(WebPlugin):
             # Normalizar URL
             url = self._normalize_url(target)
             
+            # Extrair cookies/sessão dos parâmetros
+            custom_cookies = kwargs.get('cookies')
+            cookie_string = kwargs.get('cookie_string')
+            session_data = kwargs.get('session')
+            
             # Configurar WebDriver
             self._setup_driver()
+            
+            # Aplicar cookies/sessão se fornecidos
+            authentication_applied = False
+            if custom_cookies or cookie_string or session_data:
+                self._apply_authentication(url, custom_cookies, cookie_string, session_data)
+                authentication_applied = True
             
             results = {
                 'target': url,
                 'timestamp': time.time(),
+                'authentication_used': authentication_applied,
+                'authentication_details': {
+                    'custom_cookies_count': len(custom_cookies) if custom_cookies else 0,
+                    'cookie_string_provided': bool(cookie_string),
+                    'session_data_provided': bool(session_data)
+                },
                 'pages_crawled': [],
                 'forms_found': [],
                 'login_attempts': [],
@@ -349,6 +366,127 @@ class WebCrawlerPlugin(WebPlugin):
             except:
                 pass
             self.driver = None
+    
+    def _apply_authentication(self, url: str, custom_cookies: Optional[List[Dict]], 
+                             cookie_string: Optional[str], session_data: Optional[Dict]):
+        """
+        Aplica autenticação usando cookies ou dados de sessão
+        
+        Args:
+            url: URL base para definir domínio dos cookies
+            custom_cookies: Lista de cookies no formato [{'name': 'nome', 'value': 'valor', ...}]
+            cookie_string: String de cookies no formato "nome1=valor1; nome2=valor2"
+            session_data: Dados de sessão adicionais
+        """
+        try:
+            # Primeiro navegar para o domínio para poder definir cookies
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc
+            base_url = f"{parsed_url.scheme}://{domain}"
+            
+            print(f"🍪 Aplicando autenticação para domínio: {domain}")
+            
+            # Navegar para a página base primeiro
+            self.driver.get(base_url)
+            time.sleep(2)  # Aguardar carregamento inicial
+            
+            cookies_applied = 0
+            
+            # Aplicar cookies individuais se fornecidos
+            if custom_cookies:
+                print(f"   📋 Aplicando {len(custom_cookies)} cookies personalizados...")
+                for cookie in custom_cookies:
+                    try:
+                        # Garantir que o cookie tenha pelo menos nome e valor
+                        if 'name' in cookie and 'value' in cookie:
+                            cookie_data = {
+                                'name': cookie['name'],
+                                'value': cookie['value'],
+                                'domain': cookie.get('domain', domain),
+                                'path': cookie.get('path', '/'),
+                                'secure': cookie.get('secure', False),
+                                'httpOnly': cookie.get('httpOnly', False)
+                            }
+                            
+                            # Remover campos None ou vazios
+                            cookie_data = {k: v for k, v in cookie_data.items() if v is not None}
+                            
+                            self.driver.add_cookie(cookie_data)
+                            cookies_applied += 1
+                            print(f"      ✅ {cookie['name']}")
+                            
+                    except Exception as e:
+                        print(f"      ❌ Erro ao aplicar cookie {cookie.get('name', 'sem nome')}: {e}")
+            
+            # Aplicar cookie string se fornecida
+            if cookie_string:
+                print(f"   📄 Aplicando cookies da string...")
+                cookies_from_string = self._parse_cookie_string(cookie_string, domain)
+                for cookie in cookies_from_string:
+                    try:
+                        self.driver.add_cookie(cookie)
+                        cookies_applied += 1
+                        print(f"      ✅ {cookie['name']}")
+                    except Exception as e:
+                        print(f"      ❌ Erro ao aplicar cookie {cookie['name']}: {e}")
+            
+            # Aplicar dados de sessão adicionais
+            if session_data:
+                print(f"   🔑 Aplicando dados de sessão...")
+                # Adicionar dados de sessão ao localStorage se fornecidos
+                for key, value in session_data.items():
+                    try:
+                        self.driver.execute_script(f"localStorage.setItem('{key}', '{value}');")
+                        print(f"      ✅ localStorage[{key}]")
+                    except Exception as e:
+                        print(f"      ❌ Erro ao definir localStorage[{key}]: {e}")
+            
+            print(f"   🎯 Total de cookies aplicados: {cookies_applied}")
+            
+            # Atualizar página para aplicar cookies
+            if cookies_applied > 0:
+                print(f"   🔄 Atualizando página para aplicar autenticação...")
+                self.driver.refresh()
+                time.sleep(3)  # Aguardar aplicação dos cookies
+                
+            print(f"   ✅ Autenticação aplicada com sucesso!")
+            
+        except Exception as e:
+            print(f"   ❌ Erro ao aplicar autenticação: {e}")
+            # Não falhar completamente, apenas registrar erro
+    
+    def _parse_cookie_string(self, cookie_string: str, domain: str) -> List[Dict]:
+        """
+        Converte string de cookies para formato do Selenium
+        
+        Args:
+            cookie_string: String no formato "nome1=valor1; nome2=valor2; ..."
+            domain: Domínio para os cookies
+            
+        Returns:
+            Lista de dicionários de cookies
+        """
+        cookies = []
+        
+        # Dividir por ';' e processar cada cookie
+        for cookie_part in cookie_string.split(';'):
+            cookie_part = cookie_part.strip()
+            if '=' in cookie_part:
+                name, value = cookie_part.split('=', 1)
+                name = name.strip()
+                value = value.strip()
+                
+                if name and value:
+                    cookies.append({
+                        'name': name,
+                        'value': value,
+                        'domain': domain,
+                        'path': '/',
+                        'secure': False,
+                        'httpOnly': False
+                    })
+        
+        return cookies
     
     def _crawl_page(self, url: str, depth: int) -> Optional[Dict[str, Any]]:
         """Navega para uma página e extrai informações"""
@@ -917,12 +1055,14 @@ class WebCrawlerPlugin(WebPlugin):
             'Navegação web automatizada com Selenium',
             'Análise completa de formulários',
             'Tentativas de login automático',
+            'Autenticação com cookies/sessões personalizadas',
             'Mapeamento de aplicações web',
             'Extração de parâmetros e endpoints',
             'Detecção de frameworks/tecnologias',
             'Análise de cookies e segurança',
             'Screenshots automáticos em erros',
             'Suporte a JavaScript',
-            'Crawling em profundidade'
+            'Crawling em profundidade',
+            'Acesso a páginas autenticadas'
         ]
         return info

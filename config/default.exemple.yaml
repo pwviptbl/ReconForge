@@ -1,0 +1,121 @@
+ai:
+  gemini:
+    api_key: ''
+    enabled: true
+    max_retries: 3
+    model: gemini-2.5-flash-lite
+    temperature: 0.3
+    timeout: 30
+  security:
+    anonymize_ips: true
+    max_context_size: 4000
+logging:
+  backup_count: 5
+  file: null
+  level: INFO
+  max_size_mb: 10
+loop:
+  auto_stop:
+    critical_vuln_limit: 10
+    no_progress_limit: 3
+  max_iterations: 30
+  min_interval: 2
+network:
+  delay: 0.1
+  max_threads: 100
+  timeout: 10
+output:
+  data_dir: data
+  max_results: 50
+  timestamp_format: '%Y%m%d_%H%M%S'
+plugins:
+  config:
+    DNSResolverPlugin:
+      dns_servers:
+      - 8.8.8.8
+      - 8.8.4.4
+      max_subdomains: 50
+      timeout: 30
+      use_custom_dns: false
+    NmapScannerPlugin:
+      max_ports: 1000
+      scan_type: syn
+      script_scan: true
+      timing: T4
+    NucleiScannerPlugin:
+      max_templates: 1000
+      severity_filter:
+      - info
+      - low
+      - medium
+      - high
+      - critical
+      timeout: 300
+    PortScannerPlugin:
+      common_ports_only: false
+      max_threads: 100
+      timeout: 5
+    ReconnaissancePlugin:
+      dns_servers:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+      subdomain_wordlist: wordlists/subdomains.txt
+      max_subdomains: 200
+      max_threads: 50
+      timeout: 15
+      use_apis: true
+      api_delay: 1.0
+      brute_force_subdomains: true
+      check_email_patterns: true
+      geoip_enabled: true
+      whois_enabled: true
+      asn_lookup: true
+      crt_sh_api: true
+      securitytrails_api: false
+      virustotal_api: false
+    WebCrawlerPlugin:
+      headless: true
+      timeout: 30
+      page_load_timeout: 60
+      implicit_wait: 10
+      max_depth: 3
+      max_pages: 50
+      screenshot_on_error: true
+      follow_redirects: true
+      analyze_forms: true
+      attempt_login: true
+      common_credentials: true
+      javascript_enabled: true
+      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      window_size: [1920, 1080]
+      extract_apis: true
+      analyze_cookies: true
+      check_security_headers: true
+      detect_frameworks: true
+    SQLMapPlugin:
+      level: 1
+      risk_level: 1
+      timeout: 600
+    WebScannerPlugin:
+      follow_redirects: true
+      max_depth: 3
+      timeout: 30
+      user_agent: VarreduraIA/1.0
+  default_timeout: 300
+  directory: plugins
+  enabled:
+    DNSResolverPlugin: true
+    DirectoryScannerPlugin: true
+    NmapScannerPlugin: true
+    NucleiScannerPlugin: true
+    PortScannerPlugin: true
+    ReconnaissancePlugin: true
+    RustScanPlugin: true
+    SQLMapPlugin: true
+    SubdomainEnumeratorPlugin: true
+    TechnologyDetectorPlugin: true
+    WebCrawlerPlugin: true
+    WebScannerPlugin: true
+    WebVulnScannerPlugin: true
+  max_parallel: 3

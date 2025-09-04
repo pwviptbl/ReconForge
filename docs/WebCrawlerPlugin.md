@@ -18,6 +18,14 @@ O **WebCrawlerPlugin** é um plugin avançado para o VarreduraIA que utiliza Sel
 - **Suporte a redirecionamentos** pós-login
 - **Análise de respostas** para determinar falhas/sucessos
 
+### 🍪 Autenticação com Cookies/Sessões ⭐ NOVO!
+- **Suporte a cookies personalizados** para acesso autenticado
+- **String de cookies** (formato do browser F12)
+- **Lista de cookies** com controle fino de propriedades
+- **Dados de sessão** (localStorage/sessionStorage)
+- **Aplicação automática** antes da navegação
+- **Compatível com qualquer sistema** (Portainer, eCidade, etc.)
+
 ### 🕷️ Crawling Inteligente
 - **Navegação em profundidade** configurável
 - **Extração de links** e mapeamento de estrutura
@@ -112,6 +120,96 @@ if result.success:
     print(f"Tentativas de login: {data['statistics']['login_attempts']}")
 ```
 
+## 🍪 Autenticação com Cookies/Sessões ⭐ NOVO!
+
+### Método 1: String de Cookies (Mais Simples)
+```python
+from plugins.web_crawler_plugin import WebCrawlerPlugin
+
+plugin = WebCrawlerPlugin()
+
+# Copie cookies do browser (F12 > Application > Cookies)
+cookie_string = "session_id=abc123; user_token=xyz789; csrf_token=def456"
+
+result = plugin.execute(
+    target='https://app.com/dashboard',
+    context={},
+    cookie_string=cookie_string
+)
+```
+
+### Método 2: Lista de Cookies (Controle Fino)
+```python
+cookies = [
+    {
+        "name": "session_id",
+        "value": "abc123session",
+        "domain": "app.com",
+        "path": "/",
+        "secure": True,
+        "httpOnly": True
+    },
+    {
+        "name": "csrf_token",
+        "value": "xyz789token",
+        "domain": "app.com"
+    }
+]
+
+result = plugin.execute(
+    target='https://app.com/admin',
+    context={},
+    cookies=cookies
+)
+```
+
+### Método 3: Cookies + Dados de Sessão
+```python
+session_data = {
+    "user_id": "12345",
+    "user_role": "admin",
+    "theme": "dark"
+}
+
+result = plugin.execute(
+    target='https://app.com',
+    context={},
+    cookie_string="session=abc123",
+    session=session_data  # Vai para localStorage
+)
+```
+
+### Exemplo Real: Portainer/eCidade
+```python
+# Cookies obtidos após login manual
+portainer_cookies = """
+ECIDADEWINDOWMAIN=923c3bf1505e3e05a6213d23d413dec3f1aac8ed;
+portainer_api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3NTY5ODUwNzIsImp0aSI6ImViZTE3NmUyLWZjN2MtNGY4NS1hMDMzLWE0NTZmOTkxODFjOCIsImlhdCI6MTc1Njk1NjI3Mn0.JECPLL8rgEepbfuiVcDnlWphFwzm1c2q6ueQosTXPzI;
+_gorilla_csrf=MTc1Njk1NjI3MnxJbmRzVVd4WE4yOVVOWFpVWkhoSlZYQk1LMUpPT0d0MVUxUTVWbnB2YlVoalVGUXdWVGhMVTBSc1FVMDlJZ285fGt5YjM7VMTNWaW5V7c4NWLLLM3rPUGMXxPtxBaQAi0O;
+aceita_cookie=sim
+""".replace('\n', '').strip()
+
+# Navegar como usuário autenticado
+result = plugin.execute(
+    target='https://seu-portainer.com/#!/dashboard',
+    context={},
+    cookie_string=portainer_cookies
+)
+
+# Analisar páginas administrativas autenticadas
+if result.success:
+    web_data = result.data['web_crawling']
+    print(f"Autenticação usada: {web_data['authentication_used']}")
+    print(f"Formulários admin: {web_data['statistics']['total_forms']}")
+```
+
+### Como Obter Cookies
+1. **Fazer login normalmente** no sistema
+2. **Abrir DevTools** (F12)
+3. **Ir para Application > Cookies** (Chrome) ou **Storage > Cookies** (Firefox)
+4. **Copiar todos os cookies** relevantes
+5. **Usar no plugin** como string ou lista
+
 ## 📊 Resultados Produzidos
 
 ### Estrutura de Dados
@@ -120,6 +218,12 @@ if result.success:
   "web_crawling": {
     "target": "https://exemplo.com",
     "timestamp": 1234567890,
+    "authentication_used": true,
+    "authentication_details": {
+      "custom_cookies_count": 3,
+      "cookie_string_provided": true,
+      "session_data_provided": false
+    },
     "pages_crawled": [
       {
         "url": "https://exemplo.com",
