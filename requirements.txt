@@ -6,6 +6,12 @@ requests>=2.28.0
 lxml>=4.9.0
 psutil>=5.9.0
 
+# Reconhecimento avançado
+ipwhois>=1.2.0  # Para consultas WHOIS e ASN
+geoip2>=4.7.0   # Para GeoIP com banco MaxMind
+tldextract>=3.4.0  # Para extração de domínios/subdomínios
+python-whois>=0.8.0  # Para consultas WHOIS tradicionais
+
 # IA e agentes autônomos (Fase 1)
 langchain>=0.1.0
 langchain-google-genai>=0.0.6

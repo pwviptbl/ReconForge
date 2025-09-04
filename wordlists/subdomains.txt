@@ -1,0 +1,203 @@
+# Wordlist básica para enumeração de subdomínios
+# Subdomínios comuns organizados por categoria
+
+# Serviços Web
+www
+www1
+www2
+web
+webmail
+portal
+app
+mobile
+m
+secure
+ssl
+
+# Administração
+admin
+administrator
+root
+cpanel
+whm
+plesk
+control
+panel
+manage
+management
+
+# Email e Comunicação
+mail
+email
+smtp
+pop
+pop3
+imap
+webmail
+exchange
+mx
+mx1
+mx2
+
+# DNS e Infraestrutura
+ns
+ns1
+ns2
+ns3
+ns4
+dns
+dns1
+dns2
+nameserver
+
+# FTP e Arquivos
+ftp
+sftp
+files
+file
+upload
+download
+static
+assets
+cdn
+media
+images
+img
+
+# Desenvolvimento
+dev
+development
+test
+testing
+stage
+staging
+beta
+alpha
+demo
+sandbox
+lab
+
+# Produção
+prod
+production
+live
+www-prod
+api-prod
+
+# APIs e Serviços
+api
+rest
+soap
+service
+services
+ws
+webservice
+
+# Bancos de Dados
+db
+database
+mysql
+postgres
+oracle
+mongo
+redis
+sql
+
+# Monitoramento
+monitor
+monitoring
+stats
+analytics
+metrics
+logs
+log
+
+# Suporte
+support
+help
+helpdesk
+ticket
+tickets
+docs
+documentation
+wiki
+kb
+faq
+
+# Loja/E-commerce
+shop
+store
+cart
+checkout
+payment
+pay
+ecommerce
+
+# Redes Sociais/Blog
+blog
+news
+forum
+forums
+community
+social
+
+# Backup e Segurança
+backup
+bak
+old
+archive
+vault
+security
+vpn
+
+# Cloud e DevOps
+cloud
+aws
+azure
+gcp
+docker
+k8s
+kubernetes
+jenkins
+ci
+cd
+build
+deploy
+
+# Conferência/Comunicação
+meet
+conference
+zoom
+teams
+skype
+webex
+
+# Interno
+internal
+intranet
+private
+corp
+corporate
+office
+
+# Localização
+us
+eu
+asia
+uk
+de
+fr
+jp
+au
+ca
+
+# Subdomínios específicos por setor
+crm
+erp
+hr
+finance
+accounting
+billing
+invoice
+sales
+marketing

@@ -6,6 +6,7 @@ O VarreduraIA possui um sistema flexível de plugins que permite ativar/desativa
 
 ### Tipos de Plugins Disponíveis
 
+- **🔍 Plugins de Reconhecimento**: Reconnaissance (avançado)
 - **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, RustScan, Subdomain Enumerator
 - **🔗 Plugins Web**: Web Scanner, Technology Detector, Directory Scanner
 - **🔍 Plugins de Vulnerabilidade**: Nuclei Scanner, SQLMap Scanner, Web Vuln Scanner
@@ -15,6 +16,18 @@ O VarreduraIA possui um sistema flexível de plugins que permite ativar/desativa
 Por padrão, a maioria dos plugins está **habilitada**, exceto:
 - `SQLMapScannerPlugin` - Desabilitado por ser muito agressivo
 - `WebVulnScannerPlugin` - Desabilitado por ser potencialmente invasivo
+
+#### ✅ **Habilitados por padrão (seguros):**
+- **ReconnaissancePlugin** - 🔍 **NOVO!** Reconhecimento avançado completo
+- DNSResolverPlugin - Resolução DNS básica
+- NmapScannerPlugin - Scanner Nmap completo
+- PortScannerPlugin - Scanner de portas básico
+- RustScanPlugin - Scanner de portas rápido
+- SubdomainEnumeratorPlugin - Enumeração de subdomínios
+- WebScannerPlugin - Scanner web básico
+- TechnologyDetectorPlugin - Detector de tecnologias
+- DirectoryScannerPlugin - Scanner de diretórios
+- NucleiScannerPlugin - Scanner de vulnerabilidades
 
 ## 🛠️ Como Gerenciar Plugins
 
@@ -111,6 +124,57 @@ python manage_plugins.py export backup_plugins.yaml
    ```
 
 ### Configurações Importantes por Plugin
+
+#### 🔍 **ReconnaissancePlugin (NOVO!)**
+**O plugin mais avançado para reconhecimento completo!**
+
+```yaml
+ReconnaissancePlugin:
+  # Servidores DNS para consultas
+  dns_servers: ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+  
+  # Enumeração de subdomínios
+  subdomain_wordlist: "wordlists/subdomains.txt"
+  max_subdomains: 200
+  brute_force_subdomains: true
+  
+  # APIs externas (grátis)
+  use_apis: true
+  api_delay: 1.0
+  crt_sh_api: true           # Certificate Transparency
+  securitytrails_api: false  # Requer API key
+  virustotal_api: false      # Requer API key
+  
+  # Recursos de reconhecimento
+  check_email_patterns: true
+  geoip_enabled: true
+  whois_enabled: true
+  asn_lookup: true
+  
+  # Performance
+  max_threads: 50
+  timeout: 15
+```
+
+**Funcionalidades do ReconnaissancePlugin:**
+- 🌐 **Resolução DNS completa** (A, AAAA, MX, NS, TXT, CNAME)
+- 🔄 **DNS reverso** para descobrir hostnames
+- 🏢 **Informações ASN** e ranges de rede via IPWhois
+- 🌍 **Enumeração de subdomínios** (brute-force + Certificate Transparency)
+- 📧 **Descoberta de emails** com padrões comuns
+- 🗺️ **Localização geográfica** via APIs gratuitas
+- 📋 **Informações WHOIS** completas
+- ⚡ **Multi-threading** para alta performance
+- 🛡️ **Rate limiting** para respeitar APIs
+
+**Exemplo de uso:**
+```bash
+# O plugin executa automaticamente no loop principal
+python main.py --target example.com
+
+# Testar especificamente o plugin
+python test_reconnaissance.py
+```
 
 #### 🌐 DNSResolverPlugin
 ```yaml

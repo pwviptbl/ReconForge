@@ -1,0 +1,91 @@
+# Configuração para Reconhecimento Passivo - VarreduraIA
+# Esta configuração usa apenas técnicas passivas e APIs públicas
+# Recomendada para ambientes corporativos ou quando discrição é importante
+
+plugins:
+  enabled:
+    # Reconhecimento passivo
+    ReconnaissancePlugin: true
+    DNSResolverPlugin: true
+    TechnologyDetectorPlugin: true
+    
+    # Desabilitar scanners ativos
+    NmapScannerPlugin: false
+    PortScannerPlugin: false
+    RustScanPlugin: false
+    DirectoryScannerPlugin: false
+    WebVulnScannerPlugin: false
+    NucleiScannerPlugin: false
+    SQLMapPlugin: false
+    
+    # Web scanner básico apenas
+    WebScannerPlugin: true
+    SubdomainEnumeratorPlugin: false  # ReconnaissancePlugin já faz isso
+  
+  config:
+    ReconnaissancePlugin:
+      # DNS Configuração
+      dns_servers: ["8.8.8.8", "1.1.1.1", "8.8.4.4"]
+      timeout: 30
+      
+      # Enumeração de subdomínios - PASSIVA APENAS
+      brute_force_subdomains: false  # Não fazer brute force
+      max_subdomains: 100
+      subdomain_wordlist: "wordlists/subdomains.txt"
+      
+      # APIs externas (todas gratuitas e passivas)
+      use_apis: true
+      api_delay: 2.0  # Delay maior para ser mais discreto
+      crt_sh_api: true  # Certificate Transparency
+      securitytrails_api: false
+      virustotal_api: false
+      
+      # Outros recursos passivos
+      check_email_patterns: true
+      geoip_enabled: true
+      whois_enabled: true
+      asn_lookup: true
+      
+      # Performance conservadora
+      max_threads: 10  # Menos threads para ser discreto
+    
+    WebScannerPlugin:
+      # Web scanning passivo
+      follow_redirects: true
+      max_depth: 2  # Limitado
+      timeout: 30
+      max_pages: 20  # Limitado
+      check_robots_txt: true
+      check_sitemap: true
+      check_common_files: false  # Não verificar arquivos comuns
+      user_agent: "Mozilla/5.0 (compatible; VarreduraIA/1.0)"
+    
+    TechnologyDetectorPlugin:
+      # Detecção passiva de tecnologias
+      check_headers: true
+      check_cookies: true
+      check_html: true
+      check_scripts: true
+      check_meta_tags: true
+      fingerprint_depth: "basic"  # Apenas básico
+
+# Configurações globais conservadoras
+network:
+  timeout: 30
+  max_threads: 10
+  delay: 2.0  # Delay maior entre requests
+
+# Loop de IA mais conservador
+loop:
+  max_iterations: 15  # Menos iterações
+  min_interval: 5     # Mais tempo entre iterações
+  auto_stop:
+    no_progress_limit: 2
+    critical_vuln_limit: 5
+
+# Logging detalhado para monitoramento
+logging:
+  level: "INFO"
+  file: "logs/reconnaissance_passive.log"
+  max_size_mb: 20
+  backup_count: 5
