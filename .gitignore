@@ -18,7 +18,12 @@ dados/
 relatorios/*.html
 temp/
 
-# Arquivos de teste
+# Arquivos de teste e desenvolvimento
 *.xml
+data/test_*.json
+data/demo_*.json
+data/simple_test_*.json
+data/form_test_*.json
+data/*_test_*.json
 
 historico_ia/*.json
