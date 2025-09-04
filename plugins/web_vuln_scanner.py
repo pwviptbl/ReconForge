@@ -58,25 +58,34 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
         start_time = time.time()
         
         try:
-            url = self._normalize_url(target)
+            # Buscar URLs acessíveis baseadas no contexto
+            accessible_urls = self._find_accessible_urls(target, context)
             
-            if not self._is_accessible(url):
+            if not accessible_urls:
                 return PluginResult(
                     success=False,
                     plugin_name=self.name,
                     execution_time=time.time() - start_time,
                     data={},
-                    error=f"URL não acessível: {url}"
+                    error=f"Nenhuma URL web acessível encontrada para: {target}"
                 )
             
-            vulnerabilities = []
+            all_vulnerabilities = []
+            tested_urls = []
             
-            # Testes de segurança básicos
-            vulnerabilities.extend(self._test_security_headers(url))
-            vulnerabilities.extend(self._test_directory_traversal(url))
-            vulnerabilities.extend(self._test_sql_injection(url))
-            vulnerabilities.extend(self._test_xss_reflection(url))
-            vulnerabilities.extend(self._test_sensitive_files(url))
+            # Testar cada URL encontrada
+            for url in accessible_urls:
+                tested_urls.append(url)
+                vulnerabilities = []
+                
+                # Testes de segurança básicos
+                vulnerabilities.extend(self._test_security_headers(url))
+                vulnerabilities.extend(self._test_directory_traversal(url))
+                vulnerabilities.extend(self._test_sql_injection(url))
+                vulnerabilities.extend(self._test_xss_reflection(url))
+                vulnerabilities.extend(self._test_sensitive_files(url))
+                
+                all_vulnerabilities.extend(vulnerabilities)
             
             execution_time = time.time() - start_time
             
@@ -85,8 +94,10 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
                 plugin_name=self.name,
                 execution_time=execution_time,
                 data={
-                    'url': url,
-                    'vulnerabilities': vulnerabilities,
+                    'target': target,
+                    'tested_urls': tested_urls,
+                    'vulnerabilities': all_vulnerabilities,
+                    'vulnerabilities_count': len(all_vulnerabilities),
                     'tests_performed': [
                         'security_headers', 'directory_traversal', 
                         'sql_injection', 'xss_reflection', 'sensitive_files'
@@ -95,6 +106,13 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
             )
             
         except Exception as e:
+            return PluginResult(
+                success=False,
+                plugin_name=self.name,
+                execution_time=time.time() - start_time,
+                data={},
+                error=str(e)
+            )
             return PluginResult(
                 success=False,
                 plugin_name=self.name,
@@ -118,10 +136,92 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
             return f"https://{target}"
         return target
     
+    def _find_accessible_urls(self, target: str, context: Dict[str, Any]) -> List[str]:
+        """Encontra URLs web acessíveis baseadas no contexto"""
+        accessible_urls = []
+        
+        # Lista de portas web comuns para testar
+        web_ports = [80, 443, 8000, 8080, 8443, 9000, 9443, 3000]
+        
+        # Tentar descobrir portas do contexto
+        discovered_ports = []
+        
+        # Buscar portas descobertas no contexto
+        if 'discoveries' in context:
+            discoveries = context['discoveries']
+            
+            # Buscar hosts e portas
+            if 'hosts' in discoveries:
+                for host_info in discoveries.get('hosts', []):
+                    if isinstance(host_info, dict) and 'ports' in host_info:
+                        for port_info in host_info['ports']:
+                            port = port_info.get('port')
+                            service = port_info.get('service', '').lower()
+                            
+                            # Verificar se é porta web
+                            if port in web_ports or any(web_service in service for web_service in ['http', 'web', 'apache', 'nginx']):
+                                discovered_ports.append(port)
+        
+        # Adicionar portas padrão se nenhuma foi descoberta
+        if not discovered_ports:
+            discovered_ports = [80, 443, 8000, 8080]
+        
+        # Gerar URLs para testar
+        host = target.replace('http://', '').replace('https://', '').split('/')[0]
+        
+        for port in discovered_ports:
+            # Determinar protocolo baseado na porta
+            if port in [443, 8443, 9443]:
+                urls_to_test = [f"https://{host}:{port}", f"https://{host}"]
+            else:
+                urls_to_test = [f"http://{host}:{port}", f"http://{host}"]
+            
+            for url in urls_to_test:
+                if self._is_accessible(url):
+                    accessible_urls.append(url)
+                    break  # Para evitar duplicatas para o mesmo host
+        
+        # Se ainda não encontrou nada, tentar URLs básicas
+        if not accessible_urls:
+            basic_urls = [
+                f"http://{host}",
+                f"https://{host}",
+                f"http://{host}:80",
+                f"http://{host}:8000",
+                f"http://{host}:8080"
+            ]
+            
+            for url in basic_urls:
+                if self._is_accessible(url):
+                    accessible_urls.append(url)
+        
+        return list(set(accessible_urls))  # Remover duplicatas
+    
     def _is_accessible(self, url: str) -> bool:
         """Verifica se URL é acessível"""
         try:
-            response = requests.head(url, headers=self.headers, timeout=5, verify=False)
+            # Primeiro tenta HEAD
+            response = requests.head(
+                url, 
+                headers=self.headers, 
+                timeout=5, 
+                verify=False,
+                allow_redirects=True
+            )
+            if response.status_code < 500:
+                return True
+        except:
+            pass
+        
+        try:
+            # Se HEAD falhar, tenta GET
+            response = requests.get(
+                url, 
+                headers=self.headers, 
+                timeout=5, 
+                verify=False,
+                allow_redirects=True
+            )
             return response.status_code < 500
         except:
             return False
