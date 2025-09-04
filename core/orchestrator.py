@@ -185,7 +185,7 @@ class PentestOrchestrator:
     
     def _get_mandatory_plugins(self) -> List[Dict[str, Any]]:
         """Obtém lista de plugins obrigatórios configurados"""
-        mandatory_config = get_config('execution.mandatory_plugins', [])
+        mandatory_config = get_config('plugins.mandatory', [])
         
         if not mandatory_config:
             return []

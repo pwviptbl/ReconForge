@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from core.config import get_config
 
 
 class PortScannerPlugin(NetworkPlugin):
@@ -33,7 +34,7 @@ class PortScannerPlugin(NetworkPlugin):
         self.common_ports = [
             21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445,
             993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 
-            8000, 8080, 8443, 8085, 8090
+            8000, 8080, 8096, 8443, 8085, 8090
         ]
         
         # Serviços conhecidos
@@ -43,7 +44,7 @@ class PortScannerPlugin(NetworkPlugin):
             443: 'HTTPS', 445: 'SMB', 993: 'IMAPS', 995: 'POP3S',
             1433: 'MSSQL', 1521: 'Oracle', 3306: 'MySQL', 3389: 'RDP',
             5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis', 
-            8000: 'HTTP-Alt', 8080: 'HTTP-Proxy', 8443: 'HTTPS-Alt'
+            8000: 'HTTP-Alt', 8080: 'HTTP-Proxy', 8096: 'Jellyfin/Media', 8443: 'HTTPS-Alt'
         }
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
@@ -51,14 +52,20 @@ class PortScannerPlugin(NetworkPlugin):
         start_time = time.time()
         
         try:
-            # Determinar tipo de scan
-            scan_type = kwargs.get('scan_type', 'quick')
+            # Ler configurações do YAML
+            common_ports_only = get_config('plugins.config.PortScannerPlugin.common_ports_only', False)
+            
+            # Determinar tipo de scan baseado na configuração
+            if common_ports_only:
+                scan_type = kwargs.get('scan_type', 'quick')
+            else:
+                scan_type = kwargs.get('scan_type', 'full')
             
             # Determinar portas a escanear
             if scan_type == 'quick':
                 ports = self.common_ports
             elif scan_type == 'full':
-                ports = list(range(1, 1024))  # Well-known ports
+                ports = list(range(1, 9000))  # Extended range to cover common services like 8096
             else:
                 ports = kwargs.get('ports', self.common_ports)
             

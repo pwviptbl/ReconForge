@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from core.config import get_config
 
 
 class RustscanPlugin(NetworkPlugin):
@@ -41,12 +42,17 @@ class RustscanPlugin(NetworkPlugin):
                     error="Rustscan não está instalado ou não está no PATH"
                 )
             
-            # Obter configurações de porta (padrão ou personalizadas)
-            port_range = kwargs.get('port_range', '1-1000')  # Padrão: top 1000
-            scan_all_ports = kwargs.get('scan_all_ports', False)
+            # Obter configurações de porta do config YAML
+            port_range = get_config('plugins.config.RustscanPlugin.port_range', '1-1000')
+            scan_all_ports = get_config('plugins.config.RustscanPlugin.scan_all_ports', False)
             
+            # Se scan_all_ports está ativo, usar range completo
             if scan_all_ports:
                 port_range = '1-65535'
+            
+            # Permitir override via kwargs
+            port_range = kwargs.get('port_range', port_range)
+            scan_all_ports = kwargs.get('scan_all_ports', scan_all_ports)
             
             # Executar varredura
             rustscan_results = self._run_rustscan(target, port_range)
@@ -96,7 +102,7 @@ class RustscanPlugin(NetworkPlugin):
             cmd = [
                 'rustscan',
                 '-a', target,
-                '-p', port_range,  # Range de portas configurável
+                '-r', port_range,  # Range de portas configurável
                 '--ulimit', '5000',  # Limite de arquivos abertos
                 '--timeout', '1000',  # Timeout em ms
                 '--tries', '1',  # Número de tentativas
@@ -179,13 +185,26 @@ class RustscanPlugin(NetworkPlugin):
             r'Open\s+(\d+\.\d+\.\d+\.\d+):(\d+)',  # Open IP:PORT
             r'(\d+\.\d+\.\d+\.\d+):(\d+)',  # IP:PORT
             r'(\d+)/tcp\s+open.*?(\d+\.\d+\.\d+\.\d+)',  # PORT/tcp open IP
+            r'(\d+\.\d+\.\d+\.\d+)\s*->\s*\[([0-9,]+)\]'  # IP -> [port1,port2,port3]
         ]
         
         for line in output.split('\n'):
             line = line.strip()
             
-            # Tentar diferentes padrões
-            for pattern in patterns:
+            # Verificar primeiro o padrão mais específico (IP -> [ports])
+            arrow_match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s*->\s*\[([0-9,]+)\]', line)
+            if arrow_match:
+                host_ip = arrow_match.group(1)
+                ports_str = arrow_match.group(2)
+                try:
+                    ports = [int(p.strip()) for p in ports_str.split(',') if p.strip()]
+                    hosts_ports[host_ip] = ports
+                    continue
+                except ValueError:
+                    pass
+            
+            # Tentar outros padrões
+            for pattern in patterns[:-1]:  # Excluir o último padrão que já foi testado
                 matches = re.finditer(pattern, line)
                 for match in matches:
                     if len(match.groups()) == 2:
