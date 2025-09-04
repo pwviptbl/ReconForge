@@ -54,18 +54,22 @@ class PortScannerPlugin(NetworkPlugin):
         try:
             # Ler configurações do YAML
             common_ports_only = get_config('plugins.config.PortScannerPlugin.common_ports_only', False)
+            max_ports = get_config('plugins.config.PortScannerPlugin.max_ports', 1024)
+            default_scan_type = get_config('plugins.config.PortScannerPlugin.scan_type', 'full')
             
             # Determinar tipo de scan baseado na configuração
             if common_ports_only:
                 scan_type = kwargs.get('scan_type', 'quick')
             else:
-                scan_type = kwargs.get('scan_type', 'full')
+                scan_type = kwargs.get('scan_type', default_scan_type)
             
             # Determinar portas a escanear
             if scan_type == 'quick':
                 ports = self.common_ports
             elif scan_type == 'full':
-                ports = list(range(1, 9000))  # Extended range to cover common services like 8096
+                ports = list(range(1, 1024))  # Well-known ports
+            elif scan_type == 'extended':
+                ports = list(range(1, max_ports + 1))  # Extended range based on config
             else:
                 ports = kwargs.get('ports', self.common_ports)
             
