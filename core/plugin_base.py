@@ -22,6 +22,17 @@ class PluginResult:
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now().isoformat()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte o resultado para dicionário"""
+        return {
+            'success': self.success,
+            'plugin_name': self.plugin_name,
+            'execution_time': self.execution_time,
+            'data': self.data,
+            'error': self.error,
+            'timestamp': self.timestamp
+        }
 
 
 class BasePlugin(ABC):
