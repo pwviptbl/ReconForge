@@ -35,6 +35,7 @@ class BasePlugin(ABC):
         self.category = "general"
         self.requirements = []  # Lista de dependências
         self.supported_targets = ["ip", "domain", "url"]  # Tipos de alvo suportados
+        self.config = {}  # Configurações específicas do plugin
         
     @abstractmethod
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:

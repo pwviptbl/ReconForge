@@ -1,1 +1,0 @@
-# VarreduraIA Core Package

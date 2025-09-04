@@ -1,1 +1,0 @@
-# Módulos especializados para diferentes tipos de varredura e análise

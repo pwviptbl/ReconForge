@@ -1,1 +1,1 @@
-# Utilitários e funções auxiliares
+# VarreduraIA Utils Package

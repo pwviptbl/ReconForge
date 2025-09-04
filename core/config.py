@@ -12,7 +12,7 @@ class Config:
     """Classe de configuração centralizada"""
     
     def __init__(self, config_file: Optional[str] = None):
-        self.config_dir = Path(__file__).parent
+        self.config_dir = Path(__file__).parent.parent / "config"  # Pasta config/ na raiz
         self.default_config_file = self.config_dir / "default.yaml"
         self.user_config_file = config_file
         self._config = {}
@@ -66,6 +66,13 @@ class Config:
             config = config[key]
         
         config[keys[-1]] = value
+    
+    def save_config(self, config_file: Optional[str] = None):
+        """Salva configuração atual em arquivo"""
+        target_file = config_file or self.default_config_file
+        
+        with open(target_file, 'w', encoding='utf-8') as f:
+            yaml.dump(self._config, f, default_flow_style=False, allow_unicode=True)
     
     @property
     def all(self) -> Dict[str, Any]:

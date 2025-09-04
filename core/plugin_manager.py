@@ -67,9 +67,27 @@ class PluginManager:
                 issubclass(obj, BasePlugin) and 
                 obj not in base_classes):
                 
+                # Verificar se o plugin está habilitado na configuração
+                plugin_class_name = obj.__name__
+                is_enabled = get_config(f'plugins.enabled.{plugin_class_name}')
+                
+                # Se não está definido na configuração, usar True como padrão
+                # Mas se está explicitamente definido como False, respeitar
+                if is_enabled is False:
+                    self.logger.info(f"  ⏭️ {plugin_class_name} desabilitado na configuração")
+                    continue
+                elif is_enabled is None:
+                    # Plugin não configurado, usar padrão True
+                    is_enabled = True
+                
                 # Instanciar plugin
                 plugin_instance = obj()
                 plugin_name = plugin_instance.name
+                
+                # Aplicar configurações específicas do plugin se existirem
+                plugin_config = get_config(f'plugins.config.{plugin_class_name}', {})
+                if plugin_config:
+                    plugin_instance.config.update(plugin_config)
                 
                 self.plugins[plugin_name] = plugin_instance
                 self.plugin_classes[plugin_name] = obj
@@ -190,3 +208,113 @@ class PluginManager:
         for plugin in self.plugins.values():
             categories.add(plugin.category)
         return sorted(list(categories))
+    
+    def list_enabled_plugins(self) -> Dict[str, bool]:
+        """Retorna dicionário com status de todos os plugins (habilitado/desabilitado)"""
+        enabled_status = {}
+        
+        # Verificar plugins carregados (habilitados)
+        for plugin_name, plugin in self.plugins.items():
+            plugin_class_name = plugin.__class__.__name__
+            enabled_status[plugin_class_name] = True
+        
+        # Verificar plugins desabilitados na configuração
+        all_plugin_configs = get_config('plugins.enabled', {})
+        for plugin_class_name, is_enabled in all_plugin_configs.items():
+            if not is_enabled and plugin_class_name not in [p.__class__.__name__ for p in self.plugins.values()]:
+                enabled_status[plugin_class_name] = False
+        
+        return enabled_status
+    
+    def enable_plugin(self, plugin_class_name: str) -> bool:
+        """
+        Habilita um plugin específico (atualiza configuração e recarrega)
+        
+        Args:
+            plugin_class_name: Nome da classe do plugin
+            
+        Returns:
+            True se foi habilitado com sucesso
+        """
+        try:
+            # Atualizar configuração global (isso requer acesso à instância de Config)
+            from .config import _config
+            if _config:
+                _config.set(f'plugins.enabled.{plugin_class_name}', True)
+                _config.save_config()  # Salvar no arquivo
+                self.logger.info(f"✅ Plugin {plugin_class_name} habilitado")
+                return True
+            return False
+        except Exception as e:
+            self.logger.error(f"❌ Erro ao habilitar plugin {plugin_class_name}: {e}")
+            return False
+    
+    def disable_plugin(self, plugin_class_name: str) -> bool:
+        """
+        Desabilita um plugin específico (atualiza configuração e recarrega)
+        
+        Args:
+            plugin_class_name: Nome da classe do plugin
+            
+        Returns:
+            True se foi desabilitado com sucesso
+        """
+        try:
+            # Atualizar configuração global
+            from .config import _config
+            if _config:
+                _config.set(f'plugins.enabled.{plugin_class_name}', False)
+                _config.save_config()  # Salvar no arquivo
+                
+                # Remover plugin dos plugins carregados se estiver presente
+                plugin_to_remove = None
+                for plugin_name, plugin in self.plugins.items():
+                    if plugin.__class__.__name__ == plugin_class_name:
+                        plugin_to_remove = plugin_name
+                        break
+                
+                if plugin_to_remove:
+                    del self.plugins[plugin_to_remove]
+                    del self.plugin_classes[plugin_to_remove]
+                
+                self.logger.info(f"❌ Plugin {plugin_class_name} desabilitado")
+                return True
+            return False
+        except Exception as e:
+            self.logger.error(f"❌ Erro ao desabilitar plugin {plugin_class_name}: {e}")
+            return False
+    
+    def get_plugin_config(self, plugin_class_name: str) -> Dict:
+        """Obtém configuração específica de um plugin"""
+        return get_config(f'plugins.config.{plugin_class_name}', {})
+    
+    def update_plugin_config(self, plugin_class_name: str, config_updates: Dict) -> bool:
+        """
+        Atualiza configuração específica de um plugin
+        
+        Args:
+            plugin_class_name: Nome da classe do plugin
+            config_updates: Dicionário com as atualizações de configuração
+            
+        Returns:
+            True se foi atualizado com sucesso
+        """
+        try:
+            from .config import _config
+            if _config:
+                current_config = self.get_plugin_config(plugin_class_name)
+                current_config.update(config_updates)
+                _config.set(f'plugins.config.{plugin_class_name}', current_config)
+                
+                # Atualizar configuração do plugin se estiver carregado
+                for plugin in self.plugins.values():
+                    if plugin.__class__.__name__ == plugin_class_name:
+                        plugin.config.update(config_updates)
+                        break
+                
+                self.logger.info(f"🔧 Configuração do plugin {plugin_class_name} atualizada")
+                return True
+            return False
+        except Exception as e:
+            self.logger.error(f"❌ Erro ao atualizar configuração do plugin {plugin_class_name}: {e}")
+            return False
