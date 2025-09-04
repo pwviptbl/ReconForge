@@ -17,9 +17,8 @@ settings.json
 dados/
 relatorios/*.html
 temp/
-
-# Arquivos de teste e desenvolvimento
-*.xml
 data/
+history/
 
+# Histórico da IA
 historico_ia/*.json

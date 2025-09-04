@@ -13,6 +13,8 @@ from .config import get_config
 from .plugin_manager import PluginManager
 from .ai_agent import AIAgent
 from utils.logger import get_logger
+from utils.ai_history import AIHistoryManager
+from utils.simple_ai_logger import SimpleAILogger
 
 
 class PentestOrchestrator:
@@ -25,10 +27,13 @@ class PentestOrchestrator:
         # Inicializar componentes
         self.plugin_manager = PluginManager()
         self.ai_agent = AIAgent()
+        self.history_manager = AIHistoryManager()
+        self.simple_logger = SimpleAILogger()  # Logger simples de conversas
         
         # Estado do pentest
         self.context = {}
         self.results = {}
+        self.session_id = None
         
         self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
     
@@ -45,6 +50,12 @@ class PentestOrchestrator:
             Dict com resultados do pentest
         """
         self.logger.info(f"🚀 Iniciando pentest: {target} (modo: {mode})")
+        
+        # Iniciar sessão de histórico (sistema completo)
+        self.session_id = self.history_manager.start_session(target, mode)
+        
+        # Iniciar logger simples de conversas
+        self.simple_session_id = self.simple_logger.start_session(target, mode)
         
         # Inicializar contexto
         self.context = {
@@ -88,6 +99,18 @@ class PentestOrchestrator:
                 'context': self.context
             }
             
+            # Finalizar sessão de histórico
+            final_stats = {
+                "duration_seconds": duration,
+                "plugins_executed": len(self.context['executed_plugins']),
+                "vulnerabilities_found": len(self.context['vulnerabilities']),
+                "iterations_used": self.context['current_iteration']
+            }
+            self.history_manager.end_session(final_stats)
+            
+            # Finalizar logger simples
+            self.simple_logger.end_session(final_stats)
+            
             self.logger.info(f"✅ Pentest concluído em {duration:.1f}s")
             self.logger.info(f"📊 {len(self.context['executed_plugins'])} plugins, "
                            f"{len(self.context['vulnerabilities'])} vulnerabilidades")
@@ -129,8 +152,30 @@ class PentestOrchestrator:
                 self.logger.info("🛑 Nenhum plugin disponível, parando")
                 break
             
-            # Consultar IA para próxima ação
+            # Consultar IA para próxima ação (capturar para histórico)
+            ai_start_time = time.time()
             decision = self.ai_agent.decide_next_action(self.context, available_plugins)
+            ai_response_time = time.time() - ai_start_time
+            
+            # Registrar interação com IA no histórico
+            prompt_context = self.ai_agent.get_last_prompt() if hasattr(self.ai_agent, 'get_last_prompt') else "N/A"
+            self.history_manager.log_ai_interaction(
+                iteration=iteration,
+                context=self.context,
+                prompt=prompt_context,
+                response=decision,
+                response_time=ai_response_time
+            )
+            
+            # Registrar no logger simples de conversas
+            context_summary = self.simple_logger.create_context_summary(self.context)
+            self.simple_logger.log_interaction(
+                iteration=iteration,
+                prompt=prompt_context,
+                response=decision,
+                response_time=ai_response_time,
+                context_summary=context_summary
+            )
             
             if decision['action'] == 'stop':
                 self.logger.info(f"🛑 IA decidiu parar: {decision['reasoning']}")
@@ -277,6 +322,31 @@ class PentestOrchestrator:
             plugin_name, 
             self.context['target'], 
             self.context
+        )
+        
+        # Registrar execução do plugin no histórico
+        discoveries_made = False
+        if result.success:
+            current_state = self._get_current_state()
+            discoveries_made = self._compare_states(previous_state, current_state)
+        
+        self.history_manager.log_plugin_execution(
+            plugin_name=plugin_name,
+            execution_time=result.execution_time,
+            success=result.success,
+            discoveries_made=discoveries_made,
+            error=str(result.error) if result.error else None
+        )
+        
+        # Registrar no logger simples
+        discoveries_text = f"Novas descobertas: {discoveries_made}" if result.success else ""
+        error_text = str(result.error) if result.error else ""
+        self.simple_logger.log_plugin_execution(
+            plugin_name=plugin_name,
+            execution_time=result.execution_time,
+            success=result.success,
+            discoveries=discoveries_text,
+            error=error_text
         )
         
         # Atualizar contexto

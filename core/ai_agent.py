@@ -25,6 +25,7 @@ class AIAgent:
         self.logger = get_logger('AIAgent')
         self.model = None
         self.connected = False
+        self.last_prompt = None  # Para capturar o último prompt
         
         # Configurações
         self.api_key = get_config('ai.gemini.api_key')
@@ -84,6 +85,7 @@ class AIAgent:
             return self._fallback_decision(context, available_plugins)
         
         prompt = self._create_decision_prompt(context, available_plugins)
+        self.last_prompt = prompt  # Salvar prompt para histórico
         
         try:
             response = self._query_gemini(prompt)
@@ -97,6 +99,10 @@ class AIAgent:
         
         # Fallback
         return self._fallback_decision(context, available_plugins)
+    
+    def get_last_prompt(self) -> str:
+        """Retorna o último prompt enviado à IA"""
+        return self.last_prompt or "N/A"
     
     def _create_decision_prompt(self, context: Dict[str, Any], plugins: List[str]) -> str:
         """Cria prompt para decisão da IA"""
