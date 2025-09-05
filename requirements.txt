@@ -45,6 +45,13 @@ markdown>=3.4.0
 cryptography>=40.0.0
 pyopenssl>=23.0.0  # Para análise avançada de certificados SSL
 
+# Análise de Rede (Novos plugins)
+scapy>=2.4.5       # Manipulação de pacotes de rede
+python-nmap>=0.7.1 # Interface Python para Nmap
+pyshark>=0.5.3     # Análise de tráfego de rede
+ssl-verify>=1.1.1  # Verificação SSL avançada
+netaddr>=0.8.0     # Manipulação de endereços de rede
+
 # Configuração e validação
 pydantic>=1.10.0
 toml>=0.10.0
