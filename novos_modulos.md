@@ -26,13 +26,13 @@ exploitation/
 ├── payload_generator.py    # Gerador de payloads
 └── post_exploitation.py    # Ações pós-exploração -->
 
-5. Módulo de Análise de Rede
+<!-- 5. Módulo de Análise de Rede
 network/
 ├── __init__.py
 ├── network_mapper.py       # Mapeamento de rede
 ├── ssl_analyzer.py         # Análise de certificados SSL/TLS
 ├── firewall_detector.py    # Detecção de firewall/WAF
-├── traffic_analyzer.py     # Análise de tráfego
+├── traffic_analyzer.py     # Análise de tráfego -->
 
 6. Módulo de OSINT (Open Source Intelligence)
 osint/

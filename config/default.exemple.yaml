@@ -1,6 +1,6 @@
 ai:
   gemini:
-    api_key: ''
+    api_key: AIzaSyDvgL5ssyTOQk5x-9Fl7tLV3hy1H62Q2UQ
     enabled: true
     max_retries: 3
     model: gemini-2.5-flash-lite
@@ -29,6 +29,11 @@ output:
   max_results: 50
   timestamp_format: '%Y%m%d_%H%M%S'
 plugins:
+  # Plugins obrigatórios - executados antes das decisões da IA
+  mandatory:
+    - ReconnaissancePlugin
+    - PortScannerPlugin
+  
   config:
     DNSResolverPlugin:
       dns_servers:
@@ -53,8 +58,10 @@ plugins:
       timeout: 300
     PortScannerPlugin:
       common_ports_only: false
-      max_threads: 100
-      timeout: 5
+      max_threads: 200
+      timeout: 3
+      scan_type: extended
+      max_ports: 65535
     ReconnaissancePlugin:
       dns_servers:
       - 8.8.8.8
@@ -74,6 +81,18 @@ plugins:
       crt_sh_api: true
       securitytrails_api: false
       virustotal_api: false
+      # OSINT Intelligence Features
+      social_media_scan: false
+      check_data_breaches: false
+      threat_intelligence: false
+      advanced_email_harvesting: false
+    RustscanPlugin:
+      port_range: '1-65535'
+      scan_all_ports: true
+      timeout: 300
+      ulimit: 5000
+      batch_size: 10000
+      tries: 1
     WebCrawlerPlugin:
       headless: true
       timeout: 30
@@ -102,6 +121,32 @@ plugins:
       max_depth: 3
       timeout: 30
       user_agent: VarreduraIA/1.0
+    # Novos plugins de análise de rede
+    NetworkMapperPlugin:
+      max_hops: 30
+      timeout: 5
+      parallel_threads: 10
+      enable_traceroute: true
+      enable_host_discovery: true
+      enable_topology_mapping: true
+    SSLAnalyzerPlugin:
+      check_vulnerabilities: true
+      verify_chain: true
+      check_revocation: true
+      analyze_ciphers: true
+      check_hsts: true
+    FirewallDetectorPlugin:
+      stealth_mode: true
+      timing_template: T3
+      max_retries: 3
+      detect_waf: true
+      suggest_bypasses: true
+    TrafficAnalyzerPlugin:
+      capture_duration: 60
+      analysis_window: 300
+      anomaly_threshold: 2.5
+      protocol_analysis: true
+      bandwidth_measurement: true
   default_timeout: 300
   directory: plugins
   enabled:
@@ -111,11 +156,16 @@ plugins:
     NucleiScannerPlugin: true
     PortScannerPlugin: true
     ReconnaissancePlugin: true
-    RustScanPlugin: true
-    SQLMapPlugin: true
+    RustscanPlugin: true
+    SQLMapPlugin: false
     SubdomainEnumeratorPlugin: true
     TechnologyDetectorPlugin: true
     WebCrawlerPlugin: true
     WebScannerPlugin: true
     WebVulnScannerPlugin: true
+    # Novos plugins de análise de rede
+    NetworkMapperPlugin: true
+    SSLAnalyzerPlugin: true
+    FirewallDetectorPlugin: true
+    TrafficAnalyzerPlugin: false  # Desabilitado por padrão (pode ser intensivo)
   max_parallel: 3

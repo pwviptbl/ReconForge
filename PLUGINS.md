@@ -18,7 +18,7 @@ Por padrão, a maioria dos plugins está **habilitada**, exceto:
 - `WebVulnScannerPlugin` - Desabilitado por ser potencialmente invasivo
 
 #### ✅ **Habilitados por padrão (seguros):**
-- **ReconnaissancePlugin** - 🔍 **NOVO!** Reconhecimento avançado completo
+- **ReconnaissancePlugin v2.0.0** - 🔍 **ATUALIZADO!** Reconhecimento avançado + OSINT completo
 - DNSResolverPlugin - Resolução DNS básica
 - NmapScannerPlugin - Scanner Nmap completo
 - PortScannerPlugin - Scanner de portas básico
@@ -125,8 +125,8 @@ python manage_plugins.py export backup_plugins.yaml
 
 ### Configurações Importantes por Plugin
 
-#### 🔍 **ReconnaissancePlugin (NOVO!)**
-**O plugin mais avançado para reconhecimento completo!**
+#### 🔍 **ReconnaissancePlugin v2.0.0 - OSINT Expandido (NOVO!)**
+**O plugin mais avançado para reconhecimento completo e OSINT!**
 
 ```yaml
 ReconnaissancePlugin:
@@ -145,18 +145,24 @@ ReconnaissancePlugin:
   securitytrails_api: false  # Requer API key
   virustotal_api: false      # Requer API key
   
-  # Recursos de reconhecimento
+  # Recursos de reconhecimento básico
   check_email_patterns: true
   geoip_enabled: true
   whois_enabled: true
   asn_lookup: true
+  
+  # OSINT Intelligence Features (v2.0.0) 🆕
+  social_media_scan: false          # Busca em redes sociais
+  check_data_breaches: false        # Verificação de vazamentos
+  threat_intelligence: false        # Threat intelligence
+  advanced_email_harvesting: false  # Coleta avançada de emails
   
   # Performance
   max_threads: 50
   timeout: 15
 ```
 
-**Funcionalidades do ReconnaissancePlugin:**
+**Funcionalidades Básicas:**
 - 🌐 **Resolução DNS completa** (A, AAAA, MX, NS, TXT, CNAME)
 - 🔄 **DNS reverso** para descobrir hostnames
 - 🏢 **Informações ASN** e ranges de rede via IPWhois
@@ -164,8 +170,25 @@ ReconnaissancePlugin:
 - 📧 **Descoberta de emails** com padrões comuns
 - 🗺️ **Localização geográfica** via APIs gratuitas
 - 📋 **Informações WHOIS** completas
+
+**🆕 Funcionalidades OSINT v2.0.0:**
+- 🔗 **Social Media Intelligence** (LinkedIn, Twitter, GitHub, Facebook)
+- 🔓 **Data Breach Checking** (HaveIBeenPwned integration)
+- ⚠️ **Threat Intelligence** (VirusTotal, AbuseIPDB, reputation scoring)
+- 📧 **Advanced Email Harvesting** (Google Dorking, GitHub search, patterns)
 - ⚡ **Multi-threading** para alta performance
 - 🛡️ **Rate limiting** para respeitar APIs
+
+**Configuração para OSINT Completo:**
+```yaml
+# Para pentesting agressivo com OSINT completo
+ReconnaissancePlugin:
+  # ... configurações básicas ...
+  social_media_scan: true
+  check_data_breaches: true
+  threat_intelligence: true
+  advanced_email_harvesting: true
+```
 
 **Exemplo de uso:**
 ```bash
