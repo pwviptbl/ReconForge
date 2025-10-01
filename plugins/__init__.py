@@ -7,12 +7,14 @@ from .network_mapper import NetworkMapperPlugin
 from .ssl_analyzer import SSLAnalyzerPlugin
 from .firewall_detector import FirewallDetectorPlugin
 from .traffic_analyzer import TrafficAnalyzerPlugin
+from .exploit_searcher import ExploitSearcherPlugin
 
 __all__ = [
     'NetworkMapperPlugin',
     'SSLAnalyzerPlugin', 
     'FirewallDetectorPlugin',
-    'TrafficAnalyzerPlugin'
+    'TrafficAnalyzerPlugin',
+    'ExploitSearcherPlugin'
 ]
 
 # Configurações padrão do módulo
@@ -45,5 +47,14 @@ DEFAULT_CONFIG = {
         'anomaly_threshold': 2.5,
         'protocol_analysis': True,
         'bandwidth_measurement': True
+    },
+    'ExploitSearcherPlugin': {
+        'search_exploitdb': True,
+        'search_cve': True,
+        'search_nvd': True,
+        'search_github': True,
+        'max_results_per_source': 20,
+        'min_cvss_score': 0.0,
+        'timeout': 10
     }
 }
