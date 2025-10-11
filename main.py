@@ -37,6 +37,8 @@ Exemplos:
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Output verboso')
     parser.add_argument('--config', help='Arquivo de configuração personalizado')
+    parser.add_argument('--manual', action='store_true',
+                          help='Ativa o modo de decisão manual pelo usuário')
     
     args = parser.parse_args()
     
@@ -54,7 +56,8 @@ Exemplos:
         result = orchestrator.run_pentest(
             target=args.target,
             mode=args.mode,
-            max_iterations=args.max_iterations
+            max_iterations=args.max_iterations,
+            manual_mode=args.manual
         )
         
         if result.get('success'):

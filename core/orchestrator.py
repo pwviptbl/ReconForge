@@ -37,7 +37,7 @@ class PentestOrchestrator:
         
         self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
     
-    def run_pentest(self, target: str, mode: str = 'auto', max_iterations: int = 20) -> Dict[str, Any]:
+    def run_pentest(self, target: str, mode: str = 'auto', max_iterations: int = 20, manual_mode: bool = False) -> Dict[str, Any]:
         """
         Executa pentest completo no alvo
         
@@ -45,11 +45,14 @@ class PentestOrchestrator:
             target: Alvo da varredura
             mode: Modo de execução (auto, network, web)
             max_iterations: Número máximo de iterações
+            manual_mode: Ativa o modo de decisão manual pelo usuário
             
         Returns:
             Dict com resultados do pentest
         """
         self.logger.info(f"🚀 Iniciando pentest: {target} (modo: {mode})")
+        if manual_mode:
+            self.logger.info("👨‍💻 Modo de decisão manual ativado")
         
         # Iniciar sessão de histórico (sistema completo)
         self.session_id = self.history_manager.start_session(target, mode)
@@ -62,6 +65,7 @@ class PentestOrchestrator:
             'target': target,
             'mode': mode,
             'max_iterations': max_iterations,
+            'manual_mode': manual_mode,
             'current_iteration': 0,
             'start_time': datetime.now(),
             'executed_plugins': [],
@@ -152,30 +156,34 @@ class PentestOrchestrator:
                 self.logger.info("🛑 Nenhum plugin disponível, parando")
                 break
             
-            # Consultar IA para próxima ação (capturar para histórico)
-            ai_start_time = time.time()
-            decision = self.ai_agent.decide_next_action(self.context, available_plugins)
-            ai_response_time = time.time() - ai_start_time
-            
-            # Registrar interação com IA no histórico
-            prompt_context = self.ai_agent.get_last_prompt() if hasattr(self.ai_agent, 'get_last_prompt') else "N/A"
-            self.history_manager.log_ai_interaction(
-                iteration=iteration,
-                context=self.context,
-                prompt=prompt_context,
-                response=decision,
-                response_time=ai_response_time
-            )
-            
-            # Registrar no logger simples de conversas
-            context_summary = self.simple_logger.create_context_summary(self.context)
-            self.simple_logger.log_interaction(
-                iteration=iteration,
-                prompt=prompt_context,
-                response=decision,
-                response_time=ai_response_time,
-                context_summary=context_summary
-            )
+            # Decidir próxima ação: manual ou IA
+            if self.context.get('manual_mode', False):
+                decision = self._run_manual_iteration(available_plugins)
+            else:
+                # Consultar IA para próxima ação (capturar para histórico)
+                ai_start_time = time.time()
+                decision = self.ai_agent.decide_next_action(self.context, available_plugins)
+                ai_response_time = time.time() - ai_start_time
+
+                # Registrar interação com IA no histórico
+                prompt_context = self.ai_agent.get_last_prompt() if hasattr(self.ai_agent, 'get_last_prompt') else "N/A"
+                self.history_manager.log_ai_interaction(
+                    iteration=iteration,
+                    context=self.context,
+                    prompt=prompt_context,
+                    response=decision,
+                    response_time=ai_response_time
+                )
+
+                # Registrar no logger simples de conversas
+                context_summary = self.simple_logger.create_context_summary(self.context)
+                self.simple_logger.log_interaction(
+                    iteration=iteration,
+                    prompt=prompt_context,
+                    response=decision,
+                    response_time=ai_response_time,
+                    context_summary=context_summary
+                )
             
             if decision['action'] == 'stop':
                 self.logger.info(f"🛑 IA decidiu parar: {decision['reasoning']}")
@@ -211,6 +219,60 @@ class PentestOrchestrator:
         
         self.logger.info(f"🏁 Loop concluído após {self.context['current_iteration']} iterações")
     
+    def _run_manual_iteration(self, available_plugins: List[str]) -> Dict[str, Any]:
+        """Processa uma iteração no modo manual"""
+        print("\n" + "="*50)
+        self.logger.info("👨‍💻 Modo de Decisão Manual")
+        print("="*50)
+
+        # 1. Apresentar resumo do contexto
+        print("\n🔍 Resumo das Descobertas Atuais:")
+        discoveries = self.context.get('discoveries', {})
+        vulnerabilities = self.context.get('vulnerabilities', [])
+
+        print(f"  - Hosts: {len(discoveries.get('hosts', []))}")
+        print(f"  - Portas Abertas: {len(discoveries.get('open_ports', []))}")
+        print(f"  - Serviços: {len(discoveries.get('services', []))}")
+        print(f"  - Tecnologias: {len(discoveries.get('technologies', []))}")
+        print(f"  - Vulnerabilidades: {len(vulnerabilities)}")
+
+        # 2. Listar plugins disponíveis
+        print("\n🔌 Plugins Disponíveis:")
+        if not available_plugins:
+            print("  Nenhum plugin disponível.")
+        else:
+            for i, plugin_name in enumerate(available_plugins):
+                print(f"  [{i+1}] {plugin_name}")
+
+        print("\n" + "-"*50)
+
+        # 3. Solicitar ação do usuário
+        while True:
+            try:
+                choice_str = input("👉 Escolha o número do plugin para executar, ou 's' para parar: ")
+
+                if choice_str.lower() in ['s', 'sair', 'stop']:
+                    return {'action': 'stop', 'reasoning': 'Usuário decidiu parar'}
+
+                choice = int(choice_str) - 1
+
+                if 0 <= choice < len(available_plugins):
+                    selected_plugin = available_plugins[choice]
+                    self.logger.info(f"✅ Usuário selecionou: {selected_plugin}")
+                    return {
+                        'action': 'execute_plugin',
+                        'plugin': selected_plugin,
+                        'reasoning': 'Seleção manual do usuário'
+                    }
+                else:
+                    self.logger.warning("❌ Opção inválida, tente novamente.")
+
+            except ValueError:
+                self.logger.warning("❌ Entrada inválida. Digite um número ou 's'.")
+            except (KeyboardInterrupt, EOFError):
+                self.logger.info("\n🛑 Operação cancelada pelo usuário.")
+                return {'action': 'stop', 'reasoning': 'Usuário cancelou a operação'}
+
     def _get_available_plugins(self) -> List[str]:
         """Obtém lista de plugins disponíveis para execução"""
         all_plugins = list(self.plugin_manager.plugins.keys())
