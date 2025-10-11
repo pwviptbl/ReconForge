@@ -17,12 +17,13 @@ class PluginResult:
     execution_time: float
     data: Dict[str, Any]
     error: Optional[str] = None
+    summary: Optional[str] = None
     timestamp: Optional[str] = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now().isoformat()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Converte o resultado para dicionário"""
         return {
@@ -31,6 +32,7 @@ class PluginResult:
             'execution_time': self.execution_time,
             'data': self.data,
             'error': self.error,
+            'summary': self.summary,
             'timestamp': self.timestamp
         }
 

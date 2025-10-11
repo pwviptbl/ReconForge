@@ -82,6 +82,11 @@ class PluginManager:
                 
                 # Instanciar plugin
                 plugin_instance = obj()
+
+                # Verificar dependências
+                if not self._check_dependencies(plugin_instance):
+                    continue
+
                 plugin_name = plugin_instance.name
                 
                 # Aplicar configurações específicas do plugin se existirem
@@ -93,6 +98,28 @@ class PluginManager:
                 self.plugin_classes[plugin_name] = obj
                 
                 self.logger.debug(f"  📦 {plugin_name} ({plugin_instance.category})")
+
+    def _check_dependencies(self, plugin: BasePlugin) -> bool:
+        """Verifica se as dependências de um plugin estão instaladas."""
+        if not plugin.requirements:
+            return True
+
+        for requirement in plugin.requirements:
+            try:
+                if importlib.util.find_spec(requirement) is None:
+                    self.logger.warning(
+                        f"  ⏭️ Plugin '{plugin.name}' desabilitado: "
+                        f"dependência '{requirement}' não encontrada."
+                    )
+                    return False
+            except ModuleNotFoundError:
+                self.logger.warning(
+                    f"  ⏭️ Plugin '{plugin.name}' desabilitado: "
+                    f"dependência '{requirement}' não encontrada."
+                )
+                return False
+
+        return True
     
     def get_plugin(self, name: str) -> Optional[BasePlugin]:
         """Obtém plugin pelo nome"""

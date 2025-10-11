@@ -69,6 +69,7 @@ class PentestOrchestrator:
             'current_iteration': 0,
             'start_time': datetime.now(),
             'executed_plugins': [],
+            'plugin_states': {},  # Rastreia o estado de cada plugin (success, failed)
             'discoveries': {
                 'hosts': [],
                 'open_ports': [],
@@ -219,7 +220,7 @@ class PentestOrchestrator:
         
         self.logger.info(f"🏁 Loop concluído após {self.context['current_iteration']} iterações")
     
-    def _run_manual_iteration(self, available_plugins: List[str]) -> Dict[str, Any]:
+    def _run_manual_iteration(self, available_plugins: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Processa uma iteração no modo manual"""
         print("\n" + "="*50)
         self.logger.info("👨‍💻 Modo de Decisão Manual")
@@ -241,8 +242,8 @@ class PentestOrchestrator:
         if not available_plugins:
             print("  Nenhum plugin disponível.")
         else:
-            for i, plugin_name in enumerate(available_plugins):
-                print(f"  [{i+1}] {plugin_name}")
+            for i, plugin_info in enumerate(available_plugins):
+                print(f"  [{i+1}] {plugin_info['name']} ({plugin_info.get('category', 'N/A')}) - {plugin_info.get('description', 'N/A')}")
 
         print("\n" + "-"*50)
 
@@ -257,11 +258,11 @@ class PentestOrchestrator:
                 choice = int(choice_str) - 1
 
                 if 0 <= choice < len(available_plugins):
-                    selected_plugin = available_plugins[choice]
-                    self.logger.info(f"✅ Usuário selecionou: {selected_plugin}")
+                    selected_plugin_name = available_plugins[choice]['name']
+                    self.logger.info(f"✅ Usuário selecionou: {selected_plugin_name}")
                     return {
                         'action': 'execute_plugin',
-                        'plugin': selected_plugin,
+                        'plugin': selected_plugin_name,
                         'reasoning': 'Seleção manual do usuário'
                     }
                 else:
@@ -273,20 +274,20 @@ class PentestOrchestrator:
                 self.logger.info("\n🛑 Operação cancelada pelo usuário.")
                 return {'action': 'stop', 'reasoning': 'Usuário cancelou a operação'}
 
-    def _get_available_plugins(self) -> List[str]:
-        """Obtém lista de plugins disponíveis para execução"""
+    def _get_available_plugins(self) -> List[Dict[str, Any]]:
+        """Obtém lista de plugins disponíveis para execução com seus detalhes"""
         all_plugins = list(self.plugin_manager.plugins.keys())
         executed = set(self.context['executed_plugins'])
         
         # Filtrar plugins já executados
-        available = [p for p in all_plugins if p not in executed]
+        available_names = [p for p in all_plugins if p not in executed]
         
-        # Filtrar por adequação ao alvo
+        # Obter informações detalhadas e filtrar por adequação ao alvo
         suitable = []
-        for plugin_name in available:
+        for plugin_name in available_names:
             plugin = self.plugin_manager.get_plugin(plugin_name)
             if plugin and plugin.validate_target(self.context['target']):
-                suitable.append(plugin_name)
+                suitable.append(plugin.get_info())
         
         return suitable
     
@@ -340,6 +341,7 @@ class PentestOrchestrator:
                 self.context['executed_plugins'].append(plugin_name)
                 
                 if result.success:
+                    self.context['plugin_states'][plugin_name] = 'success'
                     self._update_context_with_result(result)
                     current_state = self._get_current_state()
                     progress_made = self._compare_states(previous_state, current_state)
@@ -349,10 +351,12 @@ class PentestOrchestrator:
                     else:
                         self.logger.info(f"ℹ️ Plugin obrigatório {plugin_name} executou sem novas descobertas")
                 else:
+                    self.context['plugin_states'][plugin_name] = 'failed'
                     self.logger.warning(f"❌ Plugin obrigatório {plugin_name} falhou: {result.error}")
                     self.context['errors'].append({
                         'plugin': plugin_name,
                         'error': result.error,
+                        'summary': result.summary,
                         'timestamp': result.timestamp,
                         'mandatory': True
                     })
@@ -413,25 +417,28 @@ class PentestOrchestrator:
         
         # Atualizar contexto
         self.context['executed_plugins'].append(plugin_name)
-        
+
         if result.success:
+            self.context['plugin_states'][plugin_name] = 'success'
             self._update_context_with_result(result)
-            
+
             # Verificar se houve progresso
             current_state = self._get_current_state()
             progress_made = self._compare_states(previous_state, current_state)
-            
+
             if progress_made:
                 self.logger.info(f"✅ Plugin {plugin_name} descobriu novas informações")
             else:
                 self.logger.info(f"ℹ️ Plugin {plugin_name} executou sem novas descobertas")
-            
+
             return progress_made
         else:
+            self.context['plugin_states'][plugin_name] = 'failed'
             self.logger.warning(f"❌ Plugin {plugin_name} falhou: {result.error}")
             self.context['errors'].append({
                 'plugin': plugin_name,
                 'error': result.error,
+                'summary': result.summary,
                 'timestamp': result.timestamp
             })
             return False

@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from core.models import Host
 
 
 class SubdomainEnumeratorPlugin(NetworkPlugin):
@@ -23,9 +24,11 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
     
     def __init__(self):
         super().__init__()
+        self.name = "SubdomainEnumerator"
         self.description = "Enumeração de subdomínios usando wordlist e APIs públicas"
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.supported_targets = ["domain"]
+        self.requirements = ["dns"]  # Dependência para dnspython
         self.timeout = 3
         self.max_workers = 30
     
@@ -43,7 +46,8 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
                     plugin_name=self.name,
                     execution_time=time.time() - start_time,
                     data={},
-                    error="Domínio inválido"
+                    error="Domínio inválido",
+                    summary="O alvo fornecido não é um domínio válido."
                 )
             
             # Coletar subdomínios de diferentes fontes
@@ -66,10 +70,10 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
             subdomains.update(reverse_subs)
             
             # Validar subdomínios encontrados
-            valid_subdomains = self._validate_subdomains(list(subdomains))
+            valid_subdomains_names = self._validate_subdomains(list(subdomains))
             
             # Resolver IPs dos subdomínios válidos
-            subdomain_info = self._resolve_subdomains(valid_subdomains)
+            resolved_hosts = self._resolve_subdomains(valid_subdomains_names)
             
             execution_time = time.time() - start_time
             
@@ -77,18 +81,19 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
                 success=True,
                 plugin_name=self.name,
                 execution_time=execution_time,
+                summary=f"Encontrados {len(resolved_hosts)} subdomínios para {domain}.",
                 data={
                     'target_domain': domain,
-                    'subdomains_found': len(valid_subdomains),
-                    'subdomains': subdomain_info,
+                    'subdomains_found': len(resolved_hosts),
+                    'subdomains': [host.to_dict() for host in resolved_hosts],
                     'enumeration_methods': {
                         'wordlist': len(wordlist_subs),
                         'certificate_transparency': len(ct_subs),
                         'zone_transfer': len(zone_subs),
                         'reverse_dns': len(reverse_subs)
                     },
-                    'hosts': [info['ip'] for info in subdomain_info if info.get('ip')],
-                    'valid_subdomains': valid_subdomains
+                    'hosts': [host.ip for host in resolved_hosts if host.ip],
+                    'valid_subdomains': valid_subdomains_names
                 }
             )
             
@@ -98,7 +103,8 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
                 plugin_name=self.name,
                 execution_time=time.time() - start_time,
                 data={},
-                error=str(e)
+                error=str(e),
+                summary="Ocorreu um erro inesperado durante a enumeração."
             )
     
     def validate_target(self, target: str) -> bool:
@@ -273,24 +279,16 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
         
         return valid_subdomains
     
-    def _resolve_subdomains(self, subdomains: List[str]) -> List[Dict[str, Any]]:
-        """Resolve IPs dos subdomínios válidos"""
-        subdomain_info = []
+    def _resolve_subdomains(self, subdomains: List[str]) -> List[Host]:
+        """Resolve IPs dos subdomínios válidos e retorna objetos Host."""
+        resolved_hosts = []
         
         def resolve_subdomain(subdomain):
             try:
                 ip = socket.gethostbyname(subdomain)
-                return {
-                    'subdomain': subdomain,
-                    'ip': ip,
-                    'resolved': True
-                }
+                return Host(ip=ip, hostname=subdomain)
             except socket.gaierror:
-                return {
-                    'subdomain': subdomain,
-                    'ip': None,
-                    'resolved': False
-                }
+                return None
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {executor.submit(resolve_subdomain, sub): sub for sub in subdomains}
@@ -299,8 +297,8 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
                 try:
                     result = future.result(timeout=self.timeout)
                     if result:
-                        subdomain_info.append(result)
+                        resolved_hosts.append(result)
                 except:
                     continue
         
-        return subdomain_info
+        return resolved_hosts
