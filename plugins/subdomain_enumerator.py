@@ -46,12 +46,21 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
                     error="Domínio inválido"
                 )
             
+            # Detectar Wildcard DNS antes de enumerar
+            wildcard_detected = self._detect_wildcard(domain)
+            if wildcard_detected:
+                self.logger.warning(
+                    f"Wildcard DNS detectado. A enumeração por wordlist será pulada para evitar falsos positivos."
+                )
+
             # Coletar subdomínios de diferentes fontes
             subdomains = set()
             
-            # 1. Wordlist brute force
-            wordlist_subs = self._wordlist_enumeration(domain)
-            subdomains.update(wordlist_subs)
+            # 1. Wordlist brute force (apenas se não houver wildcard)
+            wordlist_subs = set()
+            if not wildcard_detected:
+                wordlist_subs = self._wordlist_enumeration(domain)
+                subdomains.update(wordlist_subs)
             
             # 2. Certificate Transparency (crt.sh)
             ct_subs = self._certificate_transparency_search(domain)
@@ -79,6 +88,7 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
                 execution_time=execution_time,
                 data={
                     'target_domain': domain,
+                    'wildcard_detected': wildcard_detected,
                     'subdomains_found': len(valid_subdomains),
                     'subdomains': subdomain_info,
                     'enumeration_methods': {
@@ -249,6 +259,22 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
         
         return found_subdomains
     
+    def _detect_wildcard(self, domain: str) -> bool:
+        """Detecta a presença de um DNS wildcard."""
+        import uuid
+        # Gera um subdomínio aleatório que é improvável de existir
+        random_subdomain = f"{uuid.uuid4().hex[:12]}.{domain}"
+        try:
+            socket.gethostbyname(random_subdomain)
+            self.logger.info(f"Wildcard DNS detectado para o domínio: {domain}")
+            return True
+        except socket.gaierror:
+            # Isso é o esperado se não houver wildcard
+            return False
+        except Exception as e:
+            self.logger.warning(f"Ocorreu um erro inesperado durante a detecção de wildcard: {e}")
+            return False
+
     def _validate_subdomains(self, subdomains: List[str]) -> List[str]:
         """Valida se os subdomínios realmente resolvem"""
         valid_subdomains = []
