@@ -19,7 +19,7 @@ class AIHistoryManager:
         self.current_session = None
         self.session_file = None
         
-    def start_session(self, target: str, mode: str = "auto") -> str:
+    def start_session(self, target: str) -> str:
         """Inicia uma nova sessão de histórico"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         session_id = f"session_{target.replace('.', '_')}_{timestamp}"
@@ -27,7 +27,6 @@ class AIHistoryManager:
         self.current_session = {
             "session_id": session_id,
             "target": target,
-            "mode": mode,
             "start_time": datetime.now().isoformat(),
             "end_time": None,
             "total_iterations": 0,

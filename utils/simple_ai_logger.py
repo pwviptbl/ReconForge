@@ -18,7 +18,7 @@ class SimpleAILogger:
         self.current_session_file = None
         self.session_id = None
         
-    def start_session(self, target: str, mode: str = "auto") -> str:
+    def start_session(self, target: str) -> str:
         """Inicia uma nova sessão de log"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_id = f"conversation_{target.replace('.', '_')}_{timestamp}"
@@ -33,7 +33,6 @@ class SimpleAILogger:
 =================================================================
 Sessão: {self.session_id}
 Alvo: {target}
-Modo: {mode}
 Início: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}
 =================================================================
 

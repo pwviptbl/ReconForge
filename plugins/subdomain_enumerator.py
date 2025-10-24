@@ -22,7 +22,7 @@ from core.models import Host
 class SubdomainEnumeratorPlugin(NetworkPlugin):
     """Plugin para enumeração de subdomínios"""
     
-    def __init__(self):
+    def __init__(self, plugin_source=None):
         super().__init__()
         self.name = "SubdomainEnumerator"
         self.description = "Enumeração de subdomínios usando wordlist e APIs públicas"

@@ -37,21 +37,18 @@ class PentestOrchestrator:
         
         self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
     
-    def run_pentest(self, target: str, max_iterations: int = 20, manual_mode: bool = False) -> Dict[str, Any]:
+    def run_pentest(self, target: str, max_iterations: int = 20) -> Dict[str, Any]:
         """
         Executa pentest completo no alvo
 
         Args:
             target: Alvo da varredura
             max_iterations: Número máximo de iterações
-            manual_mode: Ativa o modo de decisão manual pelo usuário
 
         Returns:
             Dict com resultados do pentest
         """
         self.logger.info(f"🚀 Iniciando pentest: {target}")
-        if manual_mode:
-            self.logger.info("👨‍💻 Modo de decisão manual ativado")
         
         # Iniciar sessão de histórico (sistema completo)
         self.session_id = self.history_manager.start_session(target)
@@ -63,7 +60,6 @@ class PentestOrchestrator:
         self.context = {
             'target': target,
             'max_iterations': max_iterations,
-            'manual_mode': manual_mode,
             'current_iteration': 0,
             'start_time': datetime.now(),
             'executed_plugins': [],
@@ -510,7 +506,6 @@ class PentestOrchestrator:
         report_data = {
             'metadata': {
                 'target': self.context['target'],
-                'mode': self.context['mode'],
                 'start_time': self.context['start_time'].isoformat(),
                 'end_time': datetime.now().isoformat(),
                 'duration_seconds': (datetime.now() - self.context['start_time']).total_seconds(),

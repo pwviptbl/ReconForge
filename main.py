@@ -54,9 +54,7 @@ Exemplos:
         # Executar pentest
         result = orchestrator.run_pentest(
             target=args.target,
-            mode='network',
-            max_iterations=args.max_iterations,
-            manual_mode=args.manual
+            max_iterations=args.max_iterations
         )
         
         if result.get('success'):

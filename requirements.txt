@@ -49,7 +49,6 @@ pyopenssl>=23.0.0  # Para análise avançada de certificados SSL
 scapy>=2.4.5       # Manipulação de pacotes de rede
 python-nmap>=0.7.1 # Interface Python para Nmap
 pyshark>=0.5.3     # Análise de tráfego de rede
-ssl-verify>=1.1.1  # Verificação SSL avançada
 netaddr>=0.8.0     # Manipulação de endereços de rede
 
 # Configuração e validação
@@ -189,3 +188,4 @@ pytest-cov>=4.0.0
 # Ubuntu/Debian: sudo apt-get install graphviz
 # Python: pip install graphviz
 graphviz>=0.20.0
+PyYAML
