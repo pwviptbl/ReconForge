@@ -25,7 +25,7 @@ class NmapScannerPlugin(NetworkPlugin):
     def __init__(self):
         super().__init__()
         self.description = "Varredura Nmap completa com detecção de serviços e scripts NSE"
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.requirements = ["nmap"]
         self.supported_targets = ["ip", "cidr", "domain"]
     
@@ -48,7 +48,7 @@ class NmapScannerPlugin(NetworkPlugin):
             scan_type = self._determine_scan_type(target, context)
             
             # Executar varredura
-            nmap_results = self._run_nmap_scan(target, scan_type)
+            nmap_results = self._run_nmap_scan(target, scan_type, context)
             
             # Processar resultados
             processed_results = self._process_nmap_results(nmap_results, target)
@@ -102,7 +102,7 @@ class NmapScannerPlugin(NetworkPlugin):
         # Varredura padrão
         return 'standard'
     
-    def _run_nmap_scan(self, target: str, scan_type: str) -> Dict[str, Any]:
+    def _run_nmap_scan(self, target: str, scan_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Executa varredura Nmap específica"""
         # Definir comando baseado no tipo
         base_cmd = ['nmap', '-T4']
@@ -114,10 +114,17 @@ class NmapScannerPlugin(NetworkPlugin):
             # Scan aprofundado com detecção de SO, serviços, scripts padrão e de vulnerabilidade
             cmd = base_cmd + [
                 '-sS', '-sU', '-sV', '-O',
-                '--script', 'default,vuln',
-                '--top-ports', '1000',
-                target
+                '--script', 'default,vuln'
             ]
+            # Otimização: se já conhecemos as portas, escanear apenas elas
+            open_ports = context.get('discoveries', {}).get('open_ports')
+            if open_ports:
+                ports_str = ','.join(map(str, open_ports))
+                cmd.extend(['-p', ports_str])
+            else:
+                cmd.extend(['--top-ports', '1000'])
+
+            cmd.append(target)
             timeout = 1200  # Aumentar timeout para scan aprofundado
         else:  # standard
             cmd = base_cmd + ['-sS', '-sV', '--top-ports', '100', target]
@@ -209,18 +216,29 @@ class NmapScannerPlugin(NetworkPlugin):
 
                                 # Processar scripts de vulnerabilidade
                                 for script in port_info.get('scripts', []):
-                                    if script.get('id', '').endswith('-vuln'):
-                                        processed['vulnerabilities'].append({
-                                            'host': host_info['ip'],
-                                            'port': port_info['port'],
-                                            'script_id': script['id'],
-                                            'output': script['output']
-                                        })
+                                    script_id = script.get('id', '')
+                                    script_output = script.get('output', '')
+
+                                    if 'vuln' in script_id or 'CVE-' in script_output.upper():
+                                        extracted_cves = self._extract_cves_from_output(script_output)
+                                        if extracted_cves:
+                                            processed['vulnerabilities'].append({
+                                                'host': host_info['ip'],
+                                                'port': port_info['port'],
+                                                'script_id': script_id,
+                                                'output': script_output,
+                                                'cves': extracted_cves
+                                            })
                 
             except ET.ParseError as e:
                 processed['xml_parse_error'] = str(e)
         
         return processed
+
+    def _extract_cves_from_output(self, output: str) -> List[str]:
+        """Extrai CVEs de uma string de output"""
+        cve_pattern = r'CVE-\d{4}-\d{4,}'
+        return list(set(re.findall(cve_pattern, output)))
     
     def _process_host(self, host_element) -> Dict[str, Any]:
         """Processa elemento host do XML"""
