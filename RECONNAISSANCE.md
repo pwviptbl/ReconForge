@@ -208,7 +208,7 @@ ReconnaissancePlugin:
 ### 🔍 **Reconhecimento Inicial**
 ```bash
 # Descoberta básica de um domínio
-python main.py --target example.com --mode auto
+python main.py --target example.com
 ```
 
 ### 🌐 **Mapeamento de Infraestrutura**

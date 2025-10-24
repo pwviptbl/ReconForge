@@ -20,18 +20,17 @@ def main():
     """Função principal"""
     parser = argparse.ArgumentParser(
         description='VarreduraIA - Sistema de Pentest Inteligente Simplificado',
-        epilog="""
+    epilog="""
 Exemplos:
   %(prog)s --target google.com
-  %(prog)s --target 192.168.1.0/24 --mode network
-  %(prog)s --target https://example.com --mode web
-        """
+  %(prog)s --target 192.168.1.0/24
+  %(prog)s --target https://example.com
+    """
     )
     
     parser.add_argument('--target', required=True, 
                        help='Alvo: IP, domínio, URL ou CIDR')
-    parser.add_argument('--mode', choices=['auto', 'network', 'web'], 
-                       default='auto', help='Modo de varredura')
+    # O modo foi simplificado para foco em rede. O orquestrador usa 'network' por padrão.
     parser.add_argument('--max-iterations', type=int, default=20,
                        help='Número máximo de iterações do loop IA')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -55,7 +54,7 @@ Exemplos:
         # Executar pentest
         result = orchestrator.run_pentest(
             target=args.target,
-            mode=args.mode,
+            mode='network',
             max_iterations=args.max_iterations,
             manual_mode=args.manual
         )

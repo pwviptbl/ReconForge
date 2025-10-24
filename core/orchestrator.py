@@ -37,7 +37,7 @@ class PentestOrchestrator:
         
         self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
     
-    def run_pentest(self, target: str, mode: str = 'auto', max_iterations: int = 20, manual_mode: bool = False) -> Dict[str, Any]:
+    def run_pentest(self, target: str, mode: str = 'network', max_iterations: int = 20, manual_mode: bool = False) -> Dict[str, Any]:
         """
         Executa pentest completo no alvo
         

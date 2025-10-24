@@ -20,7 +20,7 @@ Use os scripts prontos em `scripts/` para criar e instalar o venv de forma simpl
 
 # VarreduraIA - Sistema Simplificado
 
-Este é o **VarreduraIA** reimplementado de forma simplificada, focando na arquitetura de plugins desacoplados e loop de decisão por IA.
+Este é o **VarreduraIA** reimplementado de forma simplificada, com foco em varreduras de rede. Análises web são realizadas quando decorrentes das descobertas de rede.
 
 ## 🏗️ Arquitetura
 
@@ -163,14 +163,14 @@ pip install requests google-generativeai pyyaml
 ### Execução
 
 ```bash
-# Varredura automática
+# Varredura automática (foco em rede)
 python main.py --target google.com
 
-# Varredura de rede
-python main.py --target 192.168.1.0/24 --mode network
+# Para uma rede local
+python main.py --target 192.168.1.0/24
 
-# Varredura web
-python main.py --target https://example.com --mode web
+# Para um alvo HTTP (será tratado como consequência do scan de rede)
+python main.py --target https://example.com
 
 # Com mais iterações
 python main.py --target example.com --max-iterations 30 --verbose
@@ -182,11 +182,12 @@ python main.py --target example.com --max-iterations 30 --verbose
 # Scan básico de um domínio
 python main.py --target example.com
 
-# Scan de uma rede local
-python main.py --target 192.168.1.0/24 --mode network
 
-# Análise web detalhada
-python main.py --target https://app.example.com --mode web --verbose
+# Scan de uma rede local
+python main.py --target 192.168.1.0/24
+
+# Análise web detalhada (após descoberta)
+python main.py --target https://app.example.com --verbose
 
 # Scan com limite customizado
 python main.py --target target.com --max-iterations 15
