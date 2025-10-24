@@ -37,33 +37,31 @@ class PentestOrchestrator:
         
         self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
     
-    def run_pentest(self, target: str, mode: str = 'network', max_iterations: int = 20, manual_mode: bool = False) -> Dict[str, Any]:
+    def run_pentest(self, target: str, max_iterations: int = 20, manual_mode: bool = False) -> Dict[str, Any]:
         """
         Executa pentest completo no alvo
-        
+
         Args:
             target: Alvo da varredura
-            mode: Modo de execução (auto, network, web)
             max_iterations: Número máximo de iterações
             manual_mode: Ativa o modo de decisão manual pelo usuário
-            
+
         Returns:
             Dict com resultados do pentest
         """
-        self.logger.info(f"🚀 Iniciando pentest: {target} (modo: {mode})")
+        self.logger.info(f"🚀 Iniciando pentest: {target}")
         if manual_mode:
             self.logger.info("👨‍💻 Modo de decisão manual ativado")
         
         # Iniciar sessão de histórico (sistema completo)
-        self.session_id = self.history_manager.start_session(target, mode)
+        self.session_id = self.history_manager.start_session(target)
         
         # Iniciar logger simples de conversas
-        self.simple_session_id = self.simple_logger.start_session(target, mode)
+        self.simple_session_id = self.simple_logger.start_session(target)
         
         # Inicializar contexto
         self.context = {
             'target': target,
-            'mode': mode,
             'max_iterations': max_iterations,
             'manual_mode': manual_mode,
             'current_iteration': 0,
@@ -94,7 +92,6 @@ class PentestOrchestrator:
             result = {
                 'success': True,
                 'target': target,
-                'mode': mode,
                 'duration_seconds': duration,
                 'iterations_completed': self.context['current_iteration'],
                 'plugins_executed': len(self.context['executed_plugins']),
