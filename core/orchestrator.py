@@ -227,10 +227,59 @@ class PentestOrchestrator:
         vulnerabilities = self.context.get('vulnerabilities', [])
 
         print(f"  - Hosts: {len(discoveries.get('hosts', []))}")
+        if discoveries.get('hosts'):
+            for host in discoveries['hosts']:
+                print(f"    • {host}")
+
         print(f"  - Portas Abertas: {len(discoveries.get('open_ports', []))}")
+        if discoveries.get('open_ports'):
+            ports_display = []
+            for port in sorted(discoveries['open_ports']):
+                # Tentar encontrar o serviço correspondente
+                service_info = ""
+                for service in discoveries.get('services', []):
+                    if isinstance(service, dict) and service.get('port') == port:
+                        service_name = service.get('service', 'unknown')
+                        if service.get('version'):
+                            service_info = f" ({service_name} {service.get('version')})"
+                        else:
+                            service_info = f" ({service_name})"
+                        break
+                ports_display.append(f"{port}{service_info}")
+            print(f"    • {', '.join(ports_display)}")
+
         print(f"  - Serviços: {len(discoveries.get('services', []))}")
+        if discoveries.get('services'):
+            services_display = []
+            for service in discoveries['services']:
+                if isinstance(service, dict):
+                    port = service.get('port', 'N/A')
+                    service_name = service.get('service', 'unknown')
+                    version = service.get('version', '')
+                    product = service.get('product', '')
+                    details = f"{service_name}"
+                    if version:
+                        details += f" {version}"
+                    if product and product != version:
+                        details += f" ({product})"
+                    services_display.append(f"{port}:{details}")
+                else:
+                    services_display.append(str(service))
+            print(f"    • {', '.join(services_display)}")
+
         print(f"  - Tecnologias: {len(discoveries.get('technologies', []))}")
+        if discoveries.get('technologies'):
+            for tech in discoveries['technologies']:
+                print(f"    • {tech}")
+
         print(f"  - Vulnerabilidades: {len(vulnerabilities)}")
+        if vulnerabilities:
+            for vuln in vulnerabilities[:5]:  # Mostrar apenas as primeiras 5
+                severity = vuln.get('severity', 'unknown')
+                description = vuln.get('description', vuln.get('title', 'N/A'))
+                print(f"    • [{severity.upper()}] {description}")
+            if len(vulnerabilities) > 5:
+                print(f"    • ... e mais {len(vulnerabilities) - 5} vulnerabilidades")
 
         # 2. Listar plugins disponíveis
         print("\n🔌 Plugins Disponíveis:")
