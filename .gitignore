@@ -3,6 +3,7 @@ logs/
 logs/sistema.log
 .vscode/
 .github
+.venv/
 
 # Python cache
 __pycache__/
