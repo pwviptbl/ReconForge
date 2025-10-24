@@ -104,7 +104,14 @@ class PluginManager:
         if not plugin.requirements:
             return True
 
+        import shutil
+        
         for requirement in plugin.requirements:
+            # Verificar se é um executável do sistema
+            if shutil.which(requirement):
+                continue  # Executável encontrado
+            
+            # Verificar se é um módulo Python
             try:
                 if importlib.util.find_spec(requirement) is None:
                     self.logger.warning(

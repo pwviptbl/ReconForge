@@ -81,7 +81,6 @@ plugins:
       crt_sh_api: true
       securitytrails_api: false
       virustotal_api: false
-      # OSINT Intelligence Features
       social_media_scan: false
       check_data_breaches: false
       threat_intelligence: false
@@ -157,15 +156,14 @@ plugins:
     PortScannerPlugin: true
     ReconnaissancePlugin: true
     RustscanPlugin: true
-    SQLMapPlugin: false
+    SQLMapPlugin: true
     SubdomainEnumeratorPlugin: true
     TechnologyDetectorPlugin: true
     WebCrawlerPlugin: true
     WebScannerPlugin: true
     WebVulnScannerPlugin: true
-    # Novos plugins de análise de rede
     NetworkMapperPlugin: true
     SSLAnalyzerPlugin: true
     FirewallDetectorPlugin: true
-    TrafficAnalyzerPlugin: false  # Desabilitado por padrão (pode ser intensivo)
+    TrafficAnalyzerPlugin: true
   max_parallel: 3

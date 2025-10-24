@@ -65,6 +65,113 @@ if $INSTALL; then
   echo "Atualizando pip..."
   "${PIP_EXEC}" install --upgrade pip
 
+  # Instalar ferramentas de sistema necessárias
+  echo "Instalando ferramentas de segurança do sistema..."
+  if command -v apt >/dev/null 2>&1; then
+    echo "Sistema Debian/Ubuntu detectado. Instalando ferramentas com apt..."
+    sudo apt update
+    
+    # Instalar ferramentas disponíveis via apt
+    sudo apt install -y \
+      sqlmap \
+      nmap \
+      dnsutils \
+      curl \
+      wget \
+      git \
+      build-essential
+    
+    # Instalar rustscan via snap (mais confiável que apt)
+    if ! command -v rustscan >/dev/null 2>&1; then
+      echo "Instalando rustscan via snap..."
+      sudo snap install rustscan || {
+        echo "Falhou instalação via snap. Tentando instalação manual..."
+        # Fallback: tentar instalar via cargo/rust se disponível
+        if command -v cargo >/dev/null 2>&1; then
+          cargo install rustscan || echo "Aviso: rustscan não pôde ser instalado automaticamente"
+        else
+          echo "Aviso: rustscan não pôde ser instalado. Instale manualmente de https://github.com/RustScan/RustScan"
+        fi
+      }
+    fi
+    
+    # Instalar nuclei manualmente (não disponível em repositórios padrão)
+    if ! command -v nuclei >/dev/null 2>&1; then
+      echo "Instalando nuclei..."
+      # Baixar a versão mais recente do GitHub
+      NUCLEI_VERSION=$(curl -s https://api.github.com/repos/projectdiscovery/nuclei/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+      if [ -n "$NUCLEI_VERSION" ]; then
+        wget -q "https://github.com/projectdiscovery/nuclei/releases/download/${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION#v}_linux_amd64.zip" -O nuclei.zip
+        unzip -q nuclei.zip
+        sudo mv nuclei /usr/local/bin/ || mv nuclei ~/bin/
+        rm nuclei.zip
+      else
+        echo "Aviso: Não foi possível determinar versão do nuclei. Instale manualmente de https://github.com/projectdiscovery/nuclei"
+      fi
+    fi
+    
+    # Instalar exploitdb (searchsploit)
+    if ! command -v searchsploit >/dev/null 2>&1; then
+      echo "Instalando exploitdb..."
+      sudo apt install -y exploitdb || {
+        echo "Tentando instalar via git..."
+        git clone https://github.com/offensive-security/exploitdb.git /opt/exploitdb
+        sudo ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit
+      }
+    fi
+    
+  elif command -v yum >/dev/null 2>&1; then
+    echo "Sistema RHEL/CentOS detectado. Instalando ferramentas com yum..."
+    sudo yum update -y
+    sudo yum install -y \
+      sqlmap \
+      nmap \
+      bind-utils \
+      curl \
+      wget \
+      git \
+      gcc \
+      make
+    echo "Aviso: rustscan, nuclei e exploitdb podem precisar ser instalados manualmente neste sistema"
+    
+  elif command -v dnf >/dev/null 2>&1; then
+    echo "Sistema Fedora detectado. Instalando ferramentas com dnf..."
+    sudo dnf update -y
+    sudo dnf install -y \
+      sqlmap \
+      nmap \
+      bind-utils \
+      curl \
+      wget \
+      git \
+      gcc \
+      make
+    echo "Aviso: rustscan, nuclei e exploitdb podem precisar ser instalados manualmente neste sistema"
+    
+  elif command -v pacman >/dev/null 2>&1; then
+    echo "Sistema Arch Linux detectado. Instalando ferramentas com pacman..."
+    sudo pacman -Syu --noconfirm \
+      sqlmap \
+      nmap \
+      bind \
+      curl \
+      wget \
+      git \
+      gcc \
+      make \
+      rustscan \
+      nuclei \
+      exploitdb
+  else
+    echo "Aviso: Gerenciador de pacotes não detectado. Instale manualmente:"
+    echo "  - rustscan (https://github.com/RustScan/RustScan)"
+    echo "  - nuclei (https://github.com/projectdiscovery/nuclei)"
+    echo "  - sqlmap"
+    echo "  - exploitdb/searchsploit"
+    echo "  - nmap"
+    echo "  - dnsutils/bind-utils"
+  fi
+
   if [[ -f "requirements.txt" ]]; then
     echo "Instalando dependências de requirements.txt..."
     "${PIP_EXEC}" install -r requirements.txt
