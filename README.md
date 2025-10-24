@@ -1,65 +1,23 @@
-## ⚙️ Como criar e usar o venv (Linux / macOS / Windows)
+## ⚙️ Virtualenv (resumo rápido)
 
-Para isolar dependências recomendamos usar um virtual environment (venv). A seguir estão instruções para criar, ativar e instalar dependências em diferentes sistemas.
-### Linux / macOS (bash)
+Use os scripts prontos em `scripts/` para criar e instalar o venv de forma simples.
 
-1. Crie o venv:
-```
-python3 -m venv .venv
-```
-2. Ative o venv:
+- Linux / macOS:
 
-```
-source .venv/bin/activate
-```
-3. (Opcional) Instale dependências:
+  ```bash
+  chmod +x scripts/install_venv.sh
+  ./scripts/install_venv.sh --install --name .venv
+  source .venv/bin/activate
+  ```
 
-```
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-Você também pode usar o script auxiliar:
+- Windows (PowerShell):
 
-```
-chmod +x scripts/create_venv.sh
-./scripts/create_venv.sh --install
-```
-### Windows (PowerShell)
+  ```powershell
+  .\scripts\install_venv.ps1 -Install --name .venv
+  .\.venv\Scripts\Activate.ps1
+  ```
 
-1. Crie o venv:
-```
-python -m venv .venv
-```
-2. Ative no PowerShell (pode precisar ajustar a execução de scripts):
 
-```
-.\.venv\Scripts\Activate.ps1
-```
-3. Instale dependências:
-
-```
-.venv\Scripts\pip.exe install --upgrade pip
-.venv\Scripts\pip.exe install -r requirements.txt
-```
-Script auxiliar para PowerShell:
-
-```
-./scripts/create_venv.ps1 -Install
-```
-### Windows (cmd.exe)
-
-Ative com:
-```
-.venv\Scripts\activate.bat
-```
-### Dicas e observações
-
-- Use Python 3.8+ quando possível.
-- Se estiver com problema de permissão ao executar scripts no PowerShell, execute: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` (considere as políticas de segurança do seu ambiente).
-- Para sair do venv (qualquer plataforma): `deactivate`.
-- Os scripts auxiliares adicionados ficam em `scripts/create_venv.sh` e `scripts/create_venv.ps1`.
-
-```
 # VarreduraIA - Sistema Simplificado
 
 Este é o **VarreduraIA** reimplementado de forma simplificada, focando na arquitetura de plugins desacoplados e loop de decisão por IA.

@@ -51,6 +51,15 @@ echo "Criando virtualenv em ${VENV_DIR} usando ${PYTHON}..."
 ACTIVATE_CMD="source ${VENV_DIR}/bin/activate"
 echo "Ative com: ${ACTIVATE_CMD}"
 
+# Copiar configuração de exemplo se necessário
+EXAMPLE_CONFIG="config/default.exemple.yaml"
+TARGET_CONFIG="config/default.yaml"
+if [[ ! -f "${TARGET_CONFIG}" && -f "${EXAMPLE_CONFIG}" ]]; then
+  mkdir -p "config"
+  cp "${EXAMPLE_CONFIG}" "${TARGET_CONFIG}"
+  echo "Arquivo de configuração padrão criado: ${TARGET_CONFIG} (copiado de ${EXAMPLE_CONFIG})"
+fi
+
 if $INSTALL; then
   PIP_EXEC="${VENV_DIR}/bin/pip"
   echo "Atualizando pip..."
@@ -61,10 +70,8 @@ if $INSTALL; then
     "${PIP_EXEC}" install -r requirements.txt
   else
     echo "requirements.txt não encontrado — instalando conjunto mínimo de dependências..."
-    PKGS=(requests pyyaml)
-    if $WITH_AI; then
-      PKGS+=(google-generativeai)
-    fi
+    # Instalar conjunto mínimo + IA por padrão (a aplicação usa google-generativeai)
+    PKGS=(requests pyyaml google-generativeai)
     echo "Instalando: ${PKGS[*]}"
     "${PIP_EXEC}" install "${PKGS[@]}"
   fi

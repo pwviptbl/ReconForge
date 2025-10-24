@@ -22,6 +22,15 @@ python -m venv $VenvDir
 Write-Host "Para ativar no PowerShell: .\$VenvDir\Scripts\Activate.ps1"
 Write-Host "Para ativar no cmd.exe: $VenvDir\Scripts\activate.bat"
 
+# Copiar configuração de exemplo se necessário
+$example = 'config\default.exemple.yaml'
+$target = 'config\default.yaml'
+if (-not (Test-Path $target) -and (Test-Path $example)) {
+    New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
+    Copy-Item -Path $example -Destination $target -Force
+    Write-Host "Arquivo de configuração padrão criado: $target (copiado de $example)"
+}
+
 if ($Install) {
     $pip = Join-Path $VenvDir 'Scripts\pip.exe'
     Write-Host "Atualizando pip..."
@@ -32,8 +41,8 @@ if ($Install) {
         & $pip install -r requirements.txt
     } else {
         Write-Host "requirements.txt não encontrado — instalando conjunto mínimo de dependências..."
-        $pkgs = @('requests','pyyaml')
-        if ($WithAI) { $pkgs += 'google-generativeai' }
+    # Incluir google-generativeai por padrão (a aplicação usa esta biblioteca)
+    $pkgs = @('requests','pyyaml','google-generativeai')
         Write-Host "Instalando: $($pkgs -join ', ')"
         & $pip install $pkgs
     }
