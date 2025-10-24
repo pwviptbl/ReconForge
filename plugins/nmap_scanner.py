@@ -8,6 +8,7 @@ import json
 import xml.etree.ElementTree as ET
 import tempfile
 import time
+import re
 from typing import Dict, Any, List
 from pathlib import Path
 
@@ -104,16 +105,22 @@ class NmapScannerPlugin(NetworkPlugin):
     def _run_nmap_scan(self, target: str, scan_type: str) -> Dict[str, Any]:
         """Executa varredura Nmap específica"""
         # Definir comando baseado no tipo
-        base_cmd = ['nmap']
+        base_cmd = ['nmap', '-T4']
         
         if scan_type == 'host_discovery':
-            cmd = base_cmd + ['-sn', '-T4', target]
+            cmd = base_cmd + ['-sn', target]
             timeout = 180
         elif scan_type == 'service_detection':
-            cmd = base_cmd + ['-sV', '-sC', '-T4', '--top-ports', '1000', target]
-            timeout = 300
+            # Scan aprofundado com detecção de SO, serviços, scripts padrão e de vulnerabilidade
+            cmd = base_cmd + [
+                '-sS', '-sU', '-sV', '-O',
+                '--script', 'default,vuln',
+                '--top-ports', '1000',
+                target
+            ]
+            timeout = 1200  # Aumentar timeout para scan aprofundado
         else:  # standard
-            cmd = base_cmd + ['-sS', '-sV', '-T4', '--top-ports', '100', target]
+            cmd = base_cmd + ['-sS', '-sV', '--top-ports', '100', target]
             timeout = 120
         
         # Adicionar output XML
@@ -170,7 +177,7 @@ class NmapScannerPlugin(NetworkPlugin):
             'hosts': [],
             'open_ports': [],
             'services': [],
-            'scripts_output': [],
+            'vulnerabilities': [],
             'raw_output': nmap_results.get('stdout', ''),
             'errors': nmap_results.get('stderr', '')
         }
@@ -187,7 +194,7 @@ class NmapScannerPlugin(NetworkPlugin):
                     if host_info:
                         processed['hosts'].append(host_info)
                         
-                        # Adicionar portas abertas
+                        # Adicionar portas abertas e vulnerabilidades
                         for port_info in host_info.get('ports', []):
                             if port_info.get('state') == 'open':
                                 processed['open_ports'].append(port_info['port'])
@@ -199,6 +206,16 @@ class NmapScannerPlugin(NetworkPlugin):
                                     'version': port_info.get('version', ''),
                                     'product': port_info.get('product', '')
                                 })
+
+                                # Processar scripts de vulnerabilidade
+                                for script in port_info.get('scripts', []):
+                                    if script.get('id', '').endswith('-vuln'):
+                                        processed['vulnerabilities'].append({
+                                            'host': host_info['ip'],
+                                            'port': port_info['port'],
+                                            'script_id': script['id'],
+                                            'output': script['output']
+                                        })
                 
             except ET.ParseError as e:
                 processed['xml_parse_error'] = str(e)
@@ -211,6 +228,7 @@ class NmapScannerPlugin(NetworkPlugin):
             'ip': None,
             'hostnames': [],
             'status': 'unknown',
+            'os_detection': {},
             'ports': []
         }
         
@@ -230,6 +248,22 @@ class NmapScannerPlugin(NetworkPlugin):
             for hostname in hostnames.findall('hostname'):
                 host_info['hostnames'].append(hostname.get('name'))
         
+        # Detecção de SO
+        os_element = host_element.find('os')
+        if os_element is not None:
+            for match in os_element.findall('osmatch'):
+                os_class = match.find('osclass')
+                if os_class is not None:
+                    host_info['os_detection'] = {
+                        'name': match.get('name'),
+                        'accuracy': match.get('accuracy'),
+                        'vendor': os_class.get('vendor'),
+                        'osfamily': os_class.get('osfamily'),
+                        'osgen': os_class.get('osgen'),
+                        'type': os_class.get('type')
+                    }
+                    break # Pegar o melhor resultado
+
         # Portas
         ports = host_element.find('ports')
         if ports is not None:

@@ -221,51 +221,37 @@ class FirewallDetectorPlugin(NetworkPlugin):
             return None, None, None
     
     def _detect_network_firewall(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Detecta firewall de rede usando técnicas de fingerprinting"""
+        """Detecta firewall de rede usando técnicas avançadas de Nmap"""
         try:
-            detection_results = {
-                'tcp_fingerprinting': self._tcp_fingerprinting(hostname, port),
-                'icmp_analysis': self._icmp_analysis(hostname),
-                'port_scan_detection': self._detect_port_scan_protection(hostname),
-                'ttl_analysis': self._analyze_ttl_patterns(hostname)
-            }
-            
-            # Análise geral
-            firewall_indicators = 0
-            indicators = []
-            
-            # Verificar indicadores de firewall
-            tcp_fp = detection_results.get('tcp_fingerprinting', {})
-            if tcp_fp.get('filtered_ports', 0) > 0:
-                firewall_indicators += 1
-                indicators.append('Portas filtradas detectadas')
-            
-            if tcp_fp.get('stealth_scan_detected', False):
-                firewall_indicators += 1
-                indicators.append('Detecção de stealth scan')
-            
-            icmp_analysis = detection_results.get('icmp_analysis', {})
-            if icmp_analysis.get('icmp_filtered', False):
-                firewall_indicators += 1
-                indicators.append('ICMP filtrado')
-            
-            # Determinar probabilidade de firewall
-            if firewall_indicators >= 2:
-                likelihood = 'high'
-            elif firewall_indicators == 1:
-                likelihood = 'medium'
-            else:
-                likelihood = 'low'
-            
-            detection_results['summary'] = {
-                'firewall_detected': firewall_indicators > 0,
+            # Executar scans Nmap especializados para firewall
+            ack_scan_results = self._run_nmap_firewall_scan(hostname, 'ack')
+            window_scan_results = self._run_nmap_firewall_scan(hostname, 'window')
+
+            # Analisar resultados
+            filtered_ports_ack = self._parse_nmap_filtered_ports(ack_scan_results)
+            filtered_ports_window = self._parse_nmap_filtered_ports(window_scan_results)
+
+            # Lógica de detecção de firewall
+            firewall_detected = len(filtered_ports_ack) > 0 or len(filtered_ports_window) > 0
+            likelihood = 'low'
+            if firewall_detected:
+                if len(filtered_ports_ack) > 5 and len(filtered_ports_window) > 5:
+                    likelihood = 'high'
+                elif len(filtered_ports_ack) > 0 or len(filtered_ports_window) > 0:
+                    likelihood = 'medium'
+
+            return {
+                'firewall_detected': firewall_detected,
                 'likelihood': likelihood,
-                'indicators': indicators,
-                'indicator_count': firewall_indicators
+                'details': {
+                    'ack_scan_filtered_ports': filtered_ports_ack,
+                    'window_scan_filtered_ports': filtered_ports_window,
+                    'ack_scan_raw': ack_scan_results,
+                    'window_scan_raw': window_scan_results
+                },
+                'summary': f"Detecção de firewall: {likelihood.upper()}. Portas filtradas (ACK): {len(filtered_ports_ack)}, (Window): {len(filtered_ports_window)}."
             }
-            
-            return detection_results
-            
+
         except Exception as e:
             return {'error': str(e)}
     
@@ -452,41 +438,35 @@ class FirewallDetectorPlugin(NetworkPlugin):
     
     # Métodos auxiliares de detecção
     
-    def _tcp_fingerprinting(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Fingerprinting TCP para detectar firewall"""
+    def _run_nmap_firewall_scan(self, hostname: str, scan_type: str) -> str:
+        """Executa scans Nmap específicos para detecção de firewall"""
+        if scan_type == 'ack':
+            cmd = ['nmap', '-sA', '-T4', '-p', '1-1024', hostname]
+        elif scan_type == 'window':
+            cmd = ['nmap', '-sW', '-T4', '-p', '1-1024', hostname]
+        else:
+            raise ValueError("Tipo de scan Nmap inválido para detecção de firewall")
+
         try:
-            # Teste de conectividade básica
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(self.timeout)
-            
-            try:
-                result = sock.connect_ex((hostname, port))
-                if result == 0:
-                    # Conexão bem-sucedida
-                    return {
-                        'connection_status': 'open',
-                        'filtered_ports': 0,
-                        'stealth_scan_detected': False
-                    }
-                else:
-                    # Conexão rejeitada
-                    return {
-                        'connection_status': 'closed_or_filtered',
-                        'filtered_ports': 1,
-                        'stealth_scan_detected': False
-                    }
-            finally:
-                sock.close()
-                
-        except socket.timeout:
-            return {
-                'connection_status': 'filtered',
-                'filtered_ports': 1,
-                'stealth_scan_detected': True
-            }
-        except Exception as e:
-            return {'error': str(e)}
-    
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            return result.stdout
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            return f"Erro ao executar Nmap: {str(e)}"
+
+    def _parse_nmap_filtered_ports(self, nmap_output: str) -> List[int]:
+        """Analisa o output do Nmap para encontrar portas filtradas"""
+        filtered_ports = []
+        # Procura por linhas como "80/tcp filtered"
+        matches = re.findall(r'(\d+)/tcp\s+filtered', nmap_output)
+        for port in matches:
+            filtered_ports.append(int(port))
+        return filtered_ports
+
     def _icmp_analysis(self, hostname: str) -> Dict[str, Any]:
         """Análise ICMP para detectar filtragem"""
         try:
