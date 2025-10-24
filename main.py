@@ -48,7 +48,8 @@ Exemplos:
         # Criar orquestrador
         orchestrator = PentestOrchestrator(
             config_file=args.config,
-            verbose=args.verbose
+            verbose=args.verbose,
+            manual_mode=args.manual
         )
         
         # Executar pentest

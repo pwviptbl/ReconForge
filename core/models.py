@@ -83,7 +83,7 @@ class Vulnerability:
     cvss_score: Optional[float] = None
     host: Optional[Host] = None
     port: Optional[Port] = None
-    plugin_source: str
+    plugin_source: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {

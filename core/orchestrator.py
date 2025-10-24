@@ -20,9 +20,10 @@ from utils.simple_ai_logger import SimpleAILogger
 class PentestOrchestrator:
     """Orquestrador principal do sistema"""
     
-    def __init__(self, config_file: Optional[str] = None, verbose: bool = False):
+    def __init__(self, config_file: Optional[str] = None, verbose: bool = False, manual_mode: bool = False):
         self.logger = get_logger('Orchestrator')
         self.config_file = config_file
+        self.manual_mode = manual_mode
         
         # Inicializar componentes
         self.plugin_manager = PluginManager()
@@ -71,7 +72,8 @@ class PentestOrchestrator:
                 'technologies': []
             },
             'vulnerabilities': [],
-            'errors': []
+            'errors': [],
+            'manual_mode': self.manual_mode
         }
         
         try:
