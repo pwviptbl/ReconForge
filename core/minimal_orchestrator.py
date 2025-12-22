@@ -1,6 +1,7 @@
 """
 Orquestrador Minimalista do VarreduraIA
 Versão sem IA, com seleção manual de plugins via menu interativo
+Permite ver resultados entre execuções para tomada de decisão
 """
 
 import json
@@ -33,19 +34,13 @@ class MinimalOrchestrator:
         # Estado do pentest
         self.context = {}
         self.results = {}
-        self.active_plugins: Set[str] = set()  # Plugins ativos selecionados pelo usuário
         
-        self.logger.info("🎯 VarreduraIA Orquestrador Minimalista inicializado")
+        self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
     
     def run_interactive(self, target: str) -> Dict[str, Any]:
         """
         Executa pentest com seleção interativa de plugins
-        
-        Args:
-            target: Alvo da varredura
-            
-        Returns:
-            Dict com resultados do pentest
+        O usuário escolhe um plugin por vez, vê os resultados e decide o próximo
         """
         self.logger.info(f"🚀 Iniciando varredura: {target}")
         
@@ -66,15 +61,8 @@ class MinimalOrchestrator:
         }
         
         try:
-            # Menu principal de seleção de plugins
-            self._show_plugin_selection_menu()
-            
-            if not self.active_plugins:
-                rprint("[yellow]⚠️ Nenhum plugin selecionado. Encerrando.[/yellow]")
-                return {'success': False, 'error': 'Nenhum plugin selecionado'}
-            
-            # Loop de execução
-            self._run_execution_loop()
+            # Loop principal interativo
+            self._run_interactive_loop()
             
             # Gerar relatório final
             report_path = self._generate_report()
@@ -100,6 +88,8 @@ class MinimalOrchestrator:
             
         except Exception as e:
             self.logger.error(f"💥 Erro na varredura: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'success': False,
                 'error': str(e),
@@ -107,236 +97,454 @@ class MinimalOrchestrator:
                 'context': self.context
             }
     
-    def _show_plugin_selection_menu(self):
-        """Mostra menu de seleção de plugins"""
+    def _run_interactive_loop(self):
+        """Loop principal: mostra resultados atuais e permite escolher próximo plugin"""
         while True:
             self.console.clear()
             
-            # Cabeçalho
-            self.console.print(Panel.fit(
-                f"[bold cyan]🔌 Seleção de Plugins[/bold cyan]\n"
-                f"[dim]Alvo: {self.context['target']}[/dim]",
-                border_style="cyan"
-            ))
+            # Mostrar estado atual
+            self._show_current_state()
             
-            # Obter todos os plugins disponíveis
-            all_plugins = self._get_all_plugins_info()
+            # Mostrar plugins disponíveis
+            available = self._get_available_plugins()
             
-            # Agrupar por categoria
-            categories = {}
-            for plugin in all_plugins:
-                cat = plugin.get('category', 'outros')
-                if cat not in categories:
-                    categories[cat] = []
-                categories[cat].append(plugin)
-            
-            # Mostrar tabela de plugins por categoria
-            for category, plugins in sorted(categories.items()):
-                table = Table(title=f"📂 {category.upper()}", show_header=True, header_style="bold magenta")
-                table.add_column("#", style="dim", width=4)
-                table.add_column("Plugin", style="cyan", no_wrap=True)
-                table.add_column("Status", style="bold", width=10)
-                table.add_column("Descrição", style="white")
-                
-                for i, plugin in enumerate(plugins):
-                    status = "[green]✅ ATIVO[/green]" if plugin['name'] in self.active_plugins else "[red]❌[/red]"
-                    table.add_row(
-                        str(i + 1),
-                        plugin['name'],
-                        status,
-                        plugin.get('description', 'N/A')[:50]
-                    )
-                
-                self.console.print(table)
-                self.console.print()
-            
-            # Estatísticas
-            rprint(f"\n[bold]📊 Plugins ativos: {len(self.active_plugins)}/{len(all_plugins)}[/bold]")
-            
-            # Menu de opções
-            rprint("\n[bold yellow]Opções:[/bold yellow]")
-            rprint("  [cyan]1-N[/cyan]  - Toggle plugin por número (ex: 1, 5, 12)")
-            rprint("  [cyan]nome[/cyan] - Toggle plugin por nome (ex: NmapScannerPlugin)")
-            rprint("  [cyan]cat:X[/cyan]- Toggle todos de uma categoria (ex: cat:network)")
-            rprint("  [cyan]all[/cyan]  - Ativar todos os plugins")
-            rprint("  [cyan]none[/cyan] - Desativar todos os plugins")
-            rprint("  [cyan]run[/cyan]  - Iniciar execução")
-            rprint("  [cyan]quit[/cyan] - Sair sem executar")
-            
-            # Input do usuário
-            choice = Prompt.ask("\n[bold green]👉 Escolha[/bold green]").strip().lower()
-            
-            if choice == 'quit' or choice == 'q':
-                self.active_plugins.clear()
+            if not available:
+                rprint("\n[yellow]⚠️ Todos os plugins foram executados![/yellow]")
+                input("\nPressione ENTER para ver o resumo final...")
                 break
             
-            elif choice == 'run' or choice == 'r':
-                if self.active_plugins:
+            # Mostrar menu de plugins
+            self._show_plugin_menu(available)
+            
+            # Ler escolha do usuário
+            choice = Prompt.ask("\n[bold green]👉 Escolha[/bold green]").strip().lower()
+            
+            if choice in ['q', 'quit', 'sair', 'exit']:
+                if Confirm.ask("[yellow]Deseja encerrar a varredura?[/yellow]"):
                     break
-                else:
-                    rprint("[red]❌ Selecione pelo menos um plugin![/red]")
-                    time.sleep(1)
+                continue
             
-            elif choice == 'all':
-                self.active_plugins = set(p['name'] for p in all_plugins)
-                rprint("[green]✅ Todos os plugins ativados![/green]")
-                time.sleep(0.5)
+            if choice in ['r', 'results', 'resultados']:
+                self._show_detailed_results()
+                continue
             
-            elif choice == 'none':
-                self.active_plugins.clear()
-                rprint("[yellow]❌ Todos os plugins desativados![/yellow]")
-                time.sleep(0.5)
+            if choice in ['v', 'vulns', 'vulnerabilities']:
+                self._show_vulnerabilities()
+                continue
             
-            elif choice.startswith('cat:'):
-                category = choice[4:].strip()
-                if category in categories:
-                    for plugin in categories[category]:
-                        if plugin['name'] in self.active_plugins:
-                            self.active_plugins.discard(plugin['name'])
-                        else:
-                            self.active_plugins.add(plugin['name'])
-                    rprint(f"[cyan]🔄 Categoria '{category}' alterada[/cyan]")
-                else:
-                    rprint(f"[red]❌ Categoria '{category}' não encontrada[/red]")
-                time.sleep(0.5)
+            if choice in ['s', 'services', 'servicos']:
+                self._show_services()
+                continue
             
+            # Tentar executar plugin
+            plugin_name = self._parse_plugin_choice(choice, available)
+            
+            if plugin_name:
+                self._execute_plugin(plugin_name)
+                input("\n[dim]Pressione ENTER para continuar...[/dim]")
             else:
-                # Tentar como número ou nome
-                self._toggle_plugin(choice, all_plugins)
-                time.sleep(0.3)
+                rprint(f"[red]❌ Opção inválida: {choice}[/red]")
+                time.sleep(1)
     
-    def _toggle_plugin(self, choice: str, all_plugins: List[Dict]):
-        """Toggle um plugin por número ou nome"""
+    def _show_current_state(self):
+        """Mostra o estado atual da varredura com todas as descobertas"""
+        discoveries = self.context['discoveries']
+        vulns = self.context['vulnerabilities']
+        executed = self.context['executed_plugins']
+        
+        # Cabeçalho
+        self.console.print(Panel.fit(
+            f"[bold cyan]🔍 VarreduraIA - Análise Interativa[/bold cyan]\n"
+            f"[dim]Alvo: {self.context['target']}[/dim]",
+            border_style="cyan"
+        ))
+        
+        # Estatísticas rápidas
+        stats = Table(show_header=False, box=None, padding=(0, 2))
+        stats.add_column("", style="bold")
+        stats.add_column("")
+        stats.add_row("🔌 Plugins executados:", f"[cyan]{len(executed)}[/cyan]")
+        stats.add_row("🖥️  Hosts:", f"[green]{len(discoveries['hosts'])}[/green]")
+        stats.add_row("🔓 Portas abertas:", f"[yellow]{len(discoveries['open_ports'])}[/yellow]")
+        stats.add_row("⚙️  Serviços:", f"[blue]{len(discoveries['services'])}[/blue]")
+        stats.add_row("🛠️  Tecnologias:", f"[magenta]{len(discoveries['technologies'])}[/magenta]")
+        stats.add_row("⚠️  Vulnerabilidades:", f"[red]{len(vulns)}[/red]")
+        self.console.print(stats)
+        
+        # Mostrar descobertas detalhadas se houver
+        if discoveries['hosts'] or discoveries['open_ports'] or discoveries['services']:
+            self.console.print("\n[bold]═══ Descobertas Atuais ═══[/bold]")
+            
+            # Hosts
+            if discoveries['hosts']:
+                hosts_str = ", ".join(str(h) for h in discoveries['hosts'][:10])
+                if len(discoveries['hosts']) > 10:
+                    hosts_str += f" (+{len(discoveries['hosts']) - 10})"
+                rprint(f"  [green]Hosts:[/green] {hosts_str}")
+            
+            # Portas com serviços
+            if discoveries['open_ports'] or discoveries['services']:
+                self._show_ports_services_summary()
+            
+            # Tecnologias
+            if discoveries['technologies']:
+                techs = list(set(discoveries['technologies']))[:10]
+                techs_str = ", ".join(str(t) for t in techs)
+                if len(discoveries['technologies']) > 10:
+                    techs_str += f" (+{len(discoveries['technologies']) - 10})"
+                rprint(f"  [magenta]Tecnologias:[/magenta] {techs_str}")
+        
+        # Mostrar vulnerabilidades resumidas se houver
+        if vulns:
+            self.console.print("\n[bold red]═══ Vulnerabilidades Encontradas ═══[/bold red]")
+            for vuln in vulns[:5]:
+                severity = vuln.get('severity', 'unknown').upper()
+                title = vuln.get('title', vuln.get('description', 'N/A'))[:60]
+                if severity in ['CRITICAL', 'HIGH']:
+                    rprint(f"  [red]• [{severity}][/red] {title}")
+                elif severity == 'MEDIUM':
+                    rprint(f"  [yellow]• [{severity}][/yellow] {title}")
+                else:
+                    rprint(f"  [dim]• [{severity}][/dim] {title}")
+            if len(vulns) > 5:
+                rprint(f"  [dim]... e mais {len(vulns) - 5} vulnerabilidades (digite 'v' para ver todas)[/dim]")
+    
+    def _show_ports_services_summary(self):
+        """Mostra resumo de portas e serviços"""
+        discoveries = self.context['discoveries']
+        ports = discoveries['open_ports']
+        services = discoveries['services']
+        
+        # Criar mapa de porta -> serviço
+        port_service_map = {}
+        for service in services:
+            if isinstance(service, dict):
+                port = service.get('port')
+                if port:
+                    svc_name = service.get('service', 'unknown')
+                    version = service.get('version', '')
+                    product = service.get('product', '')
+                    info = svc_name
+                    if version:
+                        info += f" {version}"
+                    if product and product not in info:
+                        info += f" ({product})"
+                    port_service_map[port] = info
+        
+        # Mostrar portas com serviços
+        port_info = []
+        for port in sorted(set(ports))[:15]:
+            if port in port_service_map:
+                port_info.append(f"{port}/{port_service_map[port]}")
+            else:
+                port_info.append(str(port))
+        
+        if port_info:
+            rprint(f"  [yellow]Portas/Serviços:[/yellow] {', '.join(port_info)}")
+            if len(ports) > 15:
+                rprint(f"  [dim]... e mais {len(ports) - 15} portas (digite 's' para ver todas)[/dim]")
+    
+    def _show_plugin_menu(self, available: List[Dict]):
+        """Mostra menu de plugins disponíveis"""
+        self.console.print("\n[bold]═══ Plugins Disponíveis ═══[/bold]")
+        
+        # Agrupar por categoria
+        categories = {}
+        for plugin in available:
+            cat = plugin.get('category', 'outros')
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(plugin)
+        
+        # Contador global para numeração
+        idx = 1
+        plugin_map = {}
+        
+        for category, plugins in sorted(categories.items()):
+            rprint(f"\n  [bold magenta]📂 {category.upper()}[/bold magenta]")
+            for plugin in plugins:
+                name = plugin['name']
+                desc = plugin.get('description', '')[:40]
+                rprint(f"    [cyan]{idx:2}[/cyan] - {name} [dim]({desc})[/dim]")
+                plugin_map[idx] = name
+                plugin_map[name.lower()] = name
+                idx += 1
+        
+        self._plugin_map = plugin_map
+        
+        # Opções adicionais
+        rprint("\n[bold yellow]Outras opções:[/bold yellow]")
+        rprint("  [cyan]r[/cyan] - Ver resultados detalhados de plugins executados")
+        rprint("  [cyan]s[/cyan] - Ver lista completa de serviços")
+        rprint("  [cyan]v[/cyan] - Ver todas as vulnerabilidades")
+        rprint("  [cyan]q[/cyan] - Encerrar varredura")
+    
+    def _get_available_plugins(self) -> List[Dict]:
+        """Retorna plugins ainda não executados"""
+        executed = set(self.context['executed_plugins'])
+        available = []
+        
+        for plugin_name, plugin in self.plugin_manager.plugins.items():
+            if plugin_name not in executed:
+                if plugin.validate_target(self.context['target']):
+                    available.append(plugin.get_info())
+        
+        return sorted(available, key=lambda x: (x.get('category', 'z'), x['name']))
+    
+    def _parse_plugin_choice(self, choice: str, available: List[Dict]) -> Optional[str]:
+        """Converte escolha do usuário em nome de plugin"""
         # Tentar como número
         try:
             num = int(choice)
-            if 1 <= num <= len(all_plugins):
-                plugin_name = all_plugins[num - 1]['name']
-                if plugin_name in self.active_plugins:
-                    self.active_plugins.discard(plugin_name)
-                    rprint(f"[red]❌ {plugin_name} desativado[/red]")
-                else:
-                    self.active_plugins.add(plugin_name)
-                    rprint(f"[green]✅ {plugin_name} ativado[/green]")
-                return
+            if hasattr(self, '_plugin_map') and num in self._plugin_map:
+                return self._plugin_map[num]
         except ValueError:
             pass
         
         # Tentar como nome (busca parcial)
-        for plugin in all_plugins:
-            if choice.lower() in plugin['name'].lower():
-                plugin_name = plugin['name']
-                if plugin_name in self.active_plugins:
-                    self.active_plugins.discard(plugin_name)
-                    rprint(f"[red]❌ {plugin_name} desativado[/red]")
-                else:
-                    self.active_plugins.add(plugin_name)
-                    rprint(f"[green]✅ {plugin_name} ativado[/green]")
-                return
+        choice_lower = choice.lower()
+        for plugin in available:
+            if choice_lower in plugin['name'].lower():
+                return plugin['name']
         
-        rprint(f"[red]❌ Plugin '{choice}' não encontrado[/red]")
+        # Tentar no mapa
+        if hasattr(self, '_plugin_map') and choice_lower in self._plugin_map:
+            return self._plugin_map[choice_lower]
+        
+        return None
     
-    def _get_all_plugins_info(self) -> List[Dict[str, Any]]:
-        """Obtém informações de todos os plugins"""
-        plugins_info = []
-        for plugin_name, plugin in self.plugin_manager.plugins.items():
-            plugins_info.append(plugin.get_info())
-        return sorted(plugins_info, key=lambda x: (x.get('category', 'z'), x['name']))
-    
-    def _run_execution_loop(self):
-        """Executa os plugins ativos em sequência"""
-        self.console.clear()
+    def _execute_plugin(self, plugin_name: str):
+        """Executa um plugin e mostra resultados detalhados"""
+        self.console.print(f"\n[bold cyan]{'═' * 50}[/bold cyan]")
+        self.console.print(f"[bold cyan]🔌 Executando: {plugin_name}[/bold cyan]")
+        self.console.print(f"[bold cyan]{'═' * 50}[/bold cyan]")
         
-        self.console.print(Panel.fit(
-            f"[bold green]🚀 Executando Varredura[/bold green]\n"
-            f"[dim]Alvo: {self.context['target']} | Plugins: {len(self.active_plugins)}[/dim]",
-            border_style="green"
-        ))
+        plugin = self.plugin_manager.get_plugin(plugin_name)
+        if not plugin:
+            rprint(f"[red]❌ Plugin não encontrado![/red]")
+            return
         
-        plugins_to_run = list(self.active_plugins)
-        total = len(plugins_to_run)
+        # Executar plugin
+        start_time = time.time()
+        rprint(f"[dim]⏳ Executando {plugin_name}...[/dim]")
         
-        for i, plugin_name in enumerate(plugins_to_run, 1):
-            rprint(f"\n[bold cyan]═══ [{i}/{total}] {plugin_name} ═══[/bold cyan]")
+        try:
+            result = self.plugin_manager.execute_plugin(
+                plugin_name,
+                self.context['target'],
+                self.context
+            )
             
-            # Verificar se o plugin está disponível e é adequado para o alvo
-            plugin = self.plugin_manager.get_plugin(plugin_name)
-            if not plugin:
-                rprint(f"[red]❌ Plugin não encontrado![/red]")
+            execution_time = time.time() - start_time
+            
+            self.context['executed_plugins'].append(plugin_name)
+            
+            if result.success:
+                self.context['plugin_states'][plugin_name] = 'success'
+                rprint(f"\n[green]✅ Concluído em {execution_time:.1f}s[/green]")
+                
+                # Mostrar resultados DETALHADOS do plugin
+                self._show_plugin_result_details(result)
+                
+                # Atualizar contexto
+                self._update_context_with_result(result)
+                
+            else:
+                self.context['plugin_states'][plugin_name] = 'failed'
+                rprint(f"\n[red]❌ Falhou após {execution_time:.1f}s[/red]")
+                rprint(f"[red]Erro: {result.error}[/red]")
                 self.context['errors'].append({
                     'plugin': plugin_name,
-                    'error': 'Plugin não encontrado',
-                    'timestamp': datetime.now().isoformat()
+                    'error': result.error,
+                    'timestamp': result.timestamp
                 })
-                continue
-            
-            if not plugin.validate_target(self.context['target']):
-                rprint(f"[yellow]⚠️ Plugin não é adequado para este alvo, pulando...[/yellow]")
-                continue
-            
-            # Executar plugin
-            start_time = time.time()
-            rprint(f"[dim]⏳ Executando...[/dim]")
-            
-            try:
-                result = self.plugin_manager.execute_plugin(
-                    plugin_name,
-                    self.context['target'],
-                    self.context
-                )
                 
-                execution_time = time.time() - start_time
-                
-                self.context['executed_plugins'].append(plugin_name)
-                
-                if result.success:
-                    self.context['plugin_states'][plugin_name] = 'success'
-                    self._update_context_with_result(result)
-                    rprint(f"[green]✅ Concluído em {execution_time:.1f}s[/green]")
-                    
-                    # Mostrar resumo das descobertas
-                    self._show_plugin_discoveries(result)
-                else:
-                    self.context['plugin_states'][plugin_name] = 'failed'
-                    rprint(f"[red]❌ Falhou: {result.error}[/red]")
-                    self.context['errors'].append({
-                        'plugin': plugin_name,
-                        'error': result.error,
-                        'timestamp': result.timestamp
-                    })
-                    
-            except Exception as e:
-                self.logger.error(f"💥 Erro ao executar {plugin_name}: {e}")
-                self.context['errors'].append({
-                    'plugin': plugin_name,
-                    'error': str(e),
-                    'timestamp': datetime.now().isoformat()
-                })
-                rprint(f"[red]💥 Erro: {e}[/red]")
-        
-        rprint("\n[bold green]════════════════════════════════════════[/bold green]")
-        rprint("[bold green]       Execução dos plugins concluída![/bold green]")
-        rprint("[bold green]════════════════════════════════════════[/bold green]")
+        except Exception as e:
+            self.logger.error(f"💥 Erro ao executar {plugin_name}: {e}")
+            rprint(f"[red]💥 Erro: {e}[/red]")
+            self.context['errors'].append({
+                'plugin': plugin_name,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            })
     
-    def _show_plugin_discoveries(self, result):
-        """Mostra as descobertas de um plugin"""
+    def _show_plugin_result_details(self, result):
+        """Mostra resultados detalhados de um plugin executado"""
         data = result.data
         
-        discoveries = []
+        rprint(f"\n[bold]📊 Resultados do {result.plugin_name}:[/bold]")
         
+        # Hosts descobertos
         if data.get('hosts'):
-            discoveries.append(f"Hosts: {len(data['hosts'])}")
-        if data.get('open_ports'):
-            discoveries.append(f"Portas: {len(data['open_ports'])}")
-        if data.get('services'):
-            discoveries.append(f"Serviços: {len(data['services'])}")
-        if data.get('technologies'):
-            discoveries.append(f"Tecnologias: {len(data['technologies'])}")
-        if data.get('vulnerabilities'):
-            discoveries.append(f"Vulnerabilidades: {len(data['vulnerabilities'])}")
+            rprint(f"\n  [green][bold]🖥️  Hosts ({len(data['hosts'])}):[/bold][/green]")
+            for host in data['hosts'][:20]:
+                rprint(f"    • {host}")
+            if len(data['hosts']) > 20:
+                rprint(f"    [dim]... e mais {len(data['hosts']) - 20}[/dim]")
         
-        if discoveries:
-            rprint(f"[dim]   📊 Descobertas: {', '.join(discoveries)}[/dim]")
+        # Portas abertas
+        if data.get('open_ports'):
+            rprint(f"\n  [yellow][bold]🔓 Portas Abertas ({len(data['open_ports'])}):[/bold][/yellow]")
+            ports_str = ", ".join(str(p) for p in sorted(data['open_ports'])[:30])
+            rprint(f"    {ports_str}")
+            if len(data['open_ports']) > 30:
+                rprint(f"    [dim]... e mais {len(data['open_ports']) - 30}[/dim]")
+        
+        # Serviços
+        if data.get('services'):
+            rprint(f"\n  [blue][bold]⚙️  Serviços ({len(data['services'])}):[/bold][/blue]")
+            for service in data['services'][:15]:
+                if isinstance(service, dict):
+                    port = service.get('port', 'N/A')
+                    svc = service.get('service', 'unknown')
+                    version = service.get('version', '')
+                    product = service.get('product', '')
+                    line = f"    • Porta {port}: {svc}"
+                    if version:
+                        line += f" {version}"
+                    if product:
+                        line += f" ({product})"
+                    rprint(line)
+                else:
+                    rprint(f"    • {service}")
+            if len(data['services']) > 15:
+                rprint(f"    [dim]... e mais {len(data['services']) - 15}[/dim]")
+        
+        # Tecnologias
+        if data.get('technologies'):
+            rprint(f"\n  [magenta][bold]🛠️  Tecnologias ({len(data['technologies'])}):[/bold][/magenta]")
+            techs = list(set(data['technologies']))
+            for tech in techs[:10]:
+                rprint(f"    • {tech}")
+            if len(techs) > 10:
+                rprint(f"    [dim]... e mais {len(techs) - 10}[/dim]")
+        
+        # Vulnerabilidades
+        if data.get('vulnerabilities'):
+            rprint(f"\n  [red][bold]⚠️  Vulnerabilidades ({len(data['vulnerabilities'])}):[/bold][/red]")
+            for vuln in data['vulnerabilities'][:10]:
+                severity = vuln.get('severity', 'unknown').upper()
+                title = vuln.get('title', vuln.get('description', 'N/A'))[:70]
+                if severity in ['CRITICAL', 'HIGH']:
+                    rprint(f"    [red]• [{severity}] {title}[/red]")
+                elif severity == 'MEDIUM':
+                    rprint(f"    [yellow]• [{severity}] {title}[/yellow]")
+                else:
+                    rprint(f"    • [{severity}] {title}")
+            if len(data['vulnerabilities']) > 10:
+                rprint(f"    [dim]... e mais {len(data['vulnerabilities']) - 10}[/dim]")
+        
+        # Dados brutos (resumo)
+        other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
+        if other_keys:
+            rprint(f"\n  [dim][bold]📋 Outros dados:[/bold] {', '.join(other_keys)}[/dim]")
+    
+    def _show_detailed_results(self):
+        """Mostra resultados detalhados de todos os plugins executados"""
+        self.console.clear()
+        
+        if not self.results:
+            rprint("[yellow]Nenhum plugin foi executado ainda.[/yellow]")
+            input("\nPressione ENTER para voltar...")
+            return
+        
+        self.console.print(Panel.fit(
+            "[bold]📋 Resultados Detalhados dos Plugins[/bold]",
+            border_style="cyan"
+        ))
+        
+        for plugin_name, result in self.results.items():
+            self.console.print(f"\n[bold cyan]═══ {plugin_name} ═══[/bold cyan]")
+            self._show_plugin_result_details(result)
+        
+        input("\n[dim]Pressione ENTER para voltar...[/dim]")
+    
+    def _show_vulnerabilities(self):
+        """Mostra todas as vulnerabilidades encontradas"""
+        self.console.clear()
+        
+        vulns = self.context['vulnerabilities']
+        
+        if not vulns:
+            rprint("[green]Nenhuma vulnerabilidade encontrada ainda.[/green]")
+            input("\nPressione ENTER para voltar...")
+            return
+        
+        self.console.print(Panel.fit(
+            f"[bold red]⚠️  Vulnerabilidades Encontradas ({len(vulns)})[/bold red]",
+            border_style="red"
+        ))
+        
+        # Agrupar por severidade
+        by_severity = {'CRITICAL': [], 'HIGH': [], 'MEDIUM': [], 'LOW': [], 'INFO': [], 'UNKNOWN': []}
+        for vuln in vulns:
+            sev = vuln.get('severity', 'unknown').upper()
+            if sev not in by_severity:
+                sev = 'UNKNOWN'
+            by_severity[sev].append(vuln)
+        
+        for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO', 'UNKNOWN']:
+            if by_severity[severity]:
+                if severity in ['CRITICAL', 'HIGH']:
+                    color = "red"
+                elif severity == 'MEDIUM':
+                    color = "yellow"
+                else:
+                    color = "dim"
+                
+                rprint(f"\n[{color}][bold]{severity} ({len(by_severity[severity])}):[/bold][/{color}]")
+                for vuln in by_severity[severity]:
+                    title = vuln.get('title', vuln.get('description', 'N/A'))
+                    rprint(f"  • {title}")
+                    if vuln.get('url'):
+                        rprint(f"    [dim]URL: {vuln['url']}[/dim]")
+        
+        input("\n[dim]Pressione ENTER para voltar...[/dim]")
+    
+    def _show_services(self):
+        """Mostra lista completa de serviços descobertos"""
+        self.console.clear()
+        
+        services = self.context['discoveries']['services']
+        ports = self.context['discoveries']['open_ports']
+        
+        if not services and not ports:
+            rprint("[yellow]Nenhum serviço descoberto ainda.[/yellow]")
+            input("\nPressione ENTER para voltar...")
+            return
+        
+        self.console.print(Panel.fit(
+            f"[bold blue]⚙️  Serviços Descobertos[/bold blue]",
+            border_style="blue"
+        ))
+        
+        # Criar tabela de serviços
+        table = Table(show_header=True, header_style="bold blue")
+        table.add_column("Porta", style="yellow", width=8)
+        table.add_column("Serviço", style="cyan")
+        table.add_column("Versão", style="white")
+        table.add_column("Produto", style="dim")
+        
+        # Processar serviços
+        seen_ports = set()
+        for service in services:
+            if isinstance(service, dict):
+                port = str(service.get('port', 'N/A'))
+                svc = service.get('service', 'unknown')
+                version = service.get('version', '')
+                product = service.get('product', '')
+                table.add_row(port, svc, version, product)
+                if service.get('port'):
+                    seen_ports.add(service['port'])
+        
+        # Adicionar portas sem serviço identificado
+        for port in sorted(set(ports)):
+            if port not in seen_ports:
+                table.add_row(str(port), "[dim]unknown[/dim]", "", "")
+        
+        self.console.print(table)
+        
+        input("\n[dim]Pressione ENTER para voltar...[/dim]")
     
     def _update_context_with_result(self, result):
         """Atualiza contexto com resultado do plugin"""
@@ -368,11 +576,15 @@ class MinimalOrchestrator:
     
     def _show_final_summary(self, result: Dict):
         """Mostra resumo final da varredura"""
-        self.console.print("\n")
+        self.console.clear()
         
-        # Resumo de descobertas
         discoveries = self.context['discoveries']
         vulns = self.context['vulnerabilities']
+        
+        self.console.print(Panel.fit(
+            "[bold green]✅ Varredura Concluída[/bold green]",
+            border_style="green"
+        ))
         
         summary_table = Table(title="📊 Resumo Final", show_header=True, header_style="bold green")
         summary_table.add_column("Métrica", style="cyan")
@@ -396,7 +608,7 @@ class MinimalOrchestrator:
             vuln_table.add_column("Severidade", style="bold")
             vuln_table.add_column("Descrição", style="white")
             
-            for vuln in vulns[:10]:  # Limitar a 10
+            for vuln in vulns[:10]:
                 severity = vuln.get('severity', 'unknown').upper()
                 if severity in ['CRITICAL', 'HIGH']:
                     sev_style = "[red]"
@@ -421,7 +633,7 @@ class MinimalOrchestrator:
         data_dir.mkdir(exist_ok=True)
         
         timestamp = datetime.now().strftime(get_config('output.timestamp_format', '%Y%m%d_%H%M%S'))
-        report_file = data_dir / f"minimal_scan_{timestamp}.json"
+        report_file = data_dir / f"scan_{timestamp}.json"
         
         # Preparar dados do relatório
         report_data = {
@@ -430,10 +642,9 @@ class MinimalOrchestrator:
                 'start_time': self.context['start_time'].isoformat(),
                 'end_time': datetime.now().isoformat(),
                 'duration_seconds': (datetime.now() - self.context['start_time']).total_seconds(),
-                'mode': 'minimal-manual'
+                'mode': 'interactive'
             },
             'execution': {
-                'plugins_selected': list(self.active_plugins),
                 'plugins_executed': self.context['executed_plugins'],
                 'plugin_states': self.context['plugin_states'],
                 'errors': self.context['errors']
