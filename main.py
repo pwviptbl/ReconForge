@@ -1,76 +1,70 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-VarreduraIA - Versão Simplificada
-Sistema de pentest inteligente com plugins desacoplados e loop de decisão por IA.
+VarreduraIA
+Sistema de pentest com seleção manual de plugins via menu interativo.
 """
 
 import sys
-import argparse
 from pathlib import Path
 
 # Adicionar diretório atual ao path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.orchestrator import PentestOrchestrator
+from core.minimal_orchestrator import MinimalOrchestrator
 from utils.logger import setup_logger
 
 
 def main():
     """Função principal"""
-    parser = argparse.ArgumentParser(
-        description='VarreduraIA - Sistema de Pentest Inteligente Simplificado',
-    epilog="""
-Exemplos:
-  %(prog)s --target google.com
-  %(prog)s --target 192.168.1.0/24
-  %(prog)s --target https://example.com
-    """
-    )
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich import print as rprint
     
-    parser.add_argument('--target', required=True, 
-                       help='Alvo: IP, domínio, URL ou CIDR')
-    # O modo foi simplificado para foco em rede. O orquestrador usa 'network' por padrão.
-    parser.add_argument('--max-iterations', type=int, default=20,
-                       help='Número máximo de iterações do loop IA')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Output verboso')
-    parser.add_argument('--config', help='Arquivo de configuração personalizado')
-    parser.add_argument('--manual', action='store_true',
-                          help='Ativa o modo de decisão manual pelo usuário')
+    console = Console()
     
-    args = parser.parse_args()
+    # Banner
+    console.print(Panel.fit(
+        "[bold cyan]🔍 VarreduraIA[/bold cyan]\n"
+        "[dim]Sistema de Pentest com Seleção Manual de Plugins[/dim]",
+        border_style="cyan"
+    ))
     
-    # Setup logger
-    logger = setup_logger('VarreduraIA', verbose=args.verbose)
+    # Solicitar alvo
+    rprint("\n[bold yellow]🎯 Digite o alvo da varredura:[/bold yellow]")
+    rprint("[dim](IP, domínio, URL ou CIDR)[/dim]")
     
     try:
-        # Criar orquestrador
-        orchestrator = PentestOrchestrator(
-            config_file=args.config,
-            verbose=args.verbose,
-            manual_mode=args.manual
-        )
+        target = input("👉 Alvo: ").strip()
+        
+        if not target:
+            rprint("[red]❌ Alvo não pode ser vazio![/red]")
+            return 1
+        
+        # Setup logger
+        logger = setup_logger('VarreduraIA', verbose=True)
+        
+        # Criar orquestrador minimalista
+        orchestrator = MinimalOrchestrator(verbose=True)
         
         # Executar pentest
-        result = orchestrator.run_pentest(
-            target=args.target,
-            max_iterations=args.max_iterations
-        )
+        result = orchestrator.run_interactive(target=target)
         
         if result.get('success'):
-            logger.info("✅ Pentest concluído com sucesso!")
+            logger.info("✅ Varredura concluída com sucesso!")
             logger.info(f"📊 Relatório salvo em: {result.get('report_path', 'N/A')}")
             return 0
         else:
-            logger.error(f"❌ Pentest falhou: {result.get('error', 'Erro desconhecido')}")
+            logger.error(f"❌ Varredura falhou: {result.get('error', 'Erro desconhecido')}")
             return 1
             
     except KeyboardInterrupt:
-        logger.info("🛑 Operação cancelada pelo usuário")
+        rprint("\n[yellow]🛑 Operação cancelada pelo usuário[/yellow]")
         return 1
     except Exception as e:
-        logger.error(f"💥 Erro crítico: {e}")
+        rprint(f"[red]💥 Erro crítico: {e}[/red]")
+        import traceback
+        traceback.print_exc()
         return 1
 
 
