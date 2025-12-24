@@ -6,7 +6,12 @@ Sistema de pentest com **seleção manual de plugins** via menu interativo.
 
 ```bash
 # Ativar ambiente virtual
-source venv/bin/activate
+# Padrão: .venv (ou venv se já existir)
+if [ -d ".venv" ]; then
+	source .venv/bin/activate
+else
+	source venv/bin/activate
+fi
 
 # Executar
 python main.py
