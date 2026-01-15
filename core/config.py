@@ -1,5 +1,5 @@
 """
-Configuração do sistema VarreduraIA simplificado
+Configuração do sistema ReconForge simplificado
 """
 
 import os

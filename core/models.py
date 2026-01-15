@@ -1,5 +1,5 @@
 """
-Modelos de dados padronizados para o VarreduraIA.
+Modelos de dados padronizados para o ReconForge.
 
 Este módulo define estruturas de dados usando dataclasses para garantir
 a consistência das informações trocadas entre os plugins e o orquestrador.

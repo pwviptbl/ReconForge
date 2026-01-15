@@ -1,5 +1,5 @@
 """
-Orquestrador Minimalista do VarreduraIA
+Orquestrador Minimalista do ReconForge
 Versão sem IA, com seleção manual de plugins via menu interativo
 Permite ver resultados entre execuções para tomada de decisão
 """
@@ -35,7 +35,7 @@ class MinimalOrchestrator:
         self.context = {}
         self.results = {}
         
-        self.logger.info("🎯 VarreduraIA Orquestrador inicializado")
+        self.logger.info("🎯 ReconForge Orquestrador inicializado")
     
     def run_interactive(self, target: str) -> Dict[str, Any]:
         """
@@ -154,7 +154,7 @@ class MinimalOrchestrator:
         
         # Cabeçalho
         self.console.print(Panel.fit(
-            f"[bold cyan]🔍 VarreduraIA - Análise Interativa[/bold cyan]\n"
+            f"[bold cyan]🔍 ReconForge - Análise Interativa[/bold cyan]\n"
             f"[dim]Alvo: {self.context['target']}[/dim]",
             border_style="cyan"
         ))

@@ -1,8 +1,8 @@
-# 🔍 Plugin de Reconhecimento Avançado - VarreduraIA
+# 🔍 Plugin de Reconhecimento Avançado - ReconForge
 
 ## 🌟 Visão Geral
 
-O **ReconnaissancePlugin** é o plugin mais avançado do VarreduraIA, combinando múltiplas técnicas de reconhecimento em uma única ferramenta poderosa. Ele automatiza a coleta de inteligência sobre alvos, fornecendo uma base sólida para testes de segurança.
+O **ReconnaissancePlugin** é o plugin mais avançado do ReconForge, combinando múltiplas técnicas de reconhecimento em uma única ferramenta poderosa. Ele automatiza a coleta de inteligência sobre alvos, fornecendo uma base sólida para testes de segurança.
 
 ## 🚀 Funcionalidades Principais
 

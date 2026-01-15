@@ -123,7 +123,7 @@ class DirectoryScannerPlugin(WebPlugin):
                 timeout=self.timeout,
                 verify=False,
                 allow_redirects=True,
-                headers={'User-Agent': 'VarreduraIA/1.0'}
+                headers={'User-Agent': 'ReconForge/1.0'}
             )
             return response.status_code < 500
         except:

@@ -1,5 +1,5 @@
 """
-Interface base para plugins do VarreduraIA
+Interface base para plugins do ReconForge
 """
 
 from abc import ABC, abstractmethod
@@ -44,7 +44,7 @@ class BasePlugin(ABC):
         self.name = self.__class__.__name__
         self.description = ""
         self.version = "1.0.0"
-        self.author = "VarreduraIA"
+        self.author = "ReconForge"
         self.category = "general"
         self.requirements = []  # Lista de dependências
         self.supported_targets = ["ip", "domain", "url"]  # Tipos de alvo suportados

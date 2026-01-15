@@ -1,6 +1,6 @@
 # WebCrawlerPlugin - Navegação Web Avançada com Selenium
 
-O **WebCrawlerPlugin** é um plugin avançado para o VarreduraIA que utiliza Selenium para navegação web automatizada, análise de formulários, tentativas de login automático e mapeamento completo de aplicações web.
+O **WebCrawlerPlugin** é um plugin avançado para o ReconForge que utiliza Selenium para navegação web automatizada, análise de formulários, tentativas de login automático e mapeamento completo de aplicações web.
 
 ## 🚀 Funcionalidades Principais
 

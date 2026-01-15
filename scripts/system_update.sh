@@ -13,7 +13,7 @@ if [ "$EUID" -ne 0 ]; then
         exit 1
 fi
 
-echo -e "${YELLOW}=== VarreduraIA Setup (Ubuntu/Mint) ===${NC}"
+echo -e "${YELLOW}=== ReconForge Setup (Ubuntu/Mint) ===${NC}"
 echo ""
 
 # Atualizar e atualizar sistema

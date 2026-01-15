@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-VarreduraIA
+ReconForge
 Sistema de pentest com seleção manual de plugins via menu interativo.
 """
 
@@ -25,7 +25,7 @@ def main():
     
     # Banner
     console.print(Panel.fit(
-        "[bold cyan]🔍 VarreduraIA[/bold cyan]\n"
+        "[bold cyan]🔍 ReconForge[/bold cyan]\n"
         "[dim]Sistema de Pentest com Seleção Manual de Plugins[/dim]",
         border_style="cyan"
     ))
@@ -42,7 +42,7 @@ def main():
             return 1
         
         # Setup logger
-        logger = setup_logger('VarreduraIA', verbose=True)
+        logger = setup_logger('ReconForge', verbose=True)
         
         # Criar orquestrador minimalista
         orchestrator = MinimalOrchestrator(verbose=True)

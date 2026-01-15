@@ -119,7 +119,7 @@ plugins:
       follow_redirects: true
       max_depth: 3
       timeout: 30
-      user_agent: VarreduraIA/1.0
+      user_agent: ReconForge/1.0
     # Novos plugins de análise de rede
     NetworkMapperPlugin:
       max_hops: 30

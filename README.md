@@ -1,4 +1,4 @@
-# VarreduraIA
+# ReconForge
 
 **Framework de pentesting automatizado para operações Red Team** com orquestração inteligente de plugins nativos e ferramentas externas. Combine varredura de rede, enumeração, detecção de vulnerabilidades e análise de exploits em um único workflow interativo.
 

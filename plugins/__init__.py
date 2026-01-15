@@ -1,5 +1,5 @@
 """
-Módulo de Análise de Rede para VarreduraIA
+Módulo de Análise de Rede para ReconForge
 Fornece análise completa de infraestrutura e topologia de rede
 """
 

@@ -1,5 +1,5 @@
 """
-Gerenciador de plugins para VarreduraIA
+Gerenciador de plugins para ReconForge
 Carrega, gerencia e executa plugins de forma dinâmica
 """
 

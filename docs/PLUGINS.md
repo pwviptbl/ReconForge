@@ -1,6 +1,6 @@
-# 🔌 Gerenciamento de Plugins - VarreduraIA
+# 🔌 Gerenciamento de Plugins - ReconForge
 
-O VarreduraIA possui um sistema flexível de plugins que permite ativar/desativar funcionalidades específicas e configurar cada plugin individualmente.
+O ReconForge possui um sistema flexível de plugins que permite ativar/desativar funcionalidades específicas e configurar cada plugin individualmente.
 
 ## 📋 Visão Geral
 

@@ -1,8 +1,8 @@
-# 🌐 Módulo de Análise de Rede - VarreduraIA
+# 🌐 Módulo de Análise de Rede - ReconForge
 
 ## 📋 Visão Geral
 
-O **Módulo de Análise de Rede** adiciona capacidades avançadas de análise de infraestrutura e topologia de rede ao VarreduraIA. Este módulo complementa os scanners existentes com análises profundas de conectividade, protocolos e segurança de rede.
+O **Módulo de Análise de Rede** adiciona capacidades avançadas de análise de infraestrutura e topologia de rede ao ReconForge. Este módulo complementa os scanners existentes com análises profundas de conectividade, protocolos e segurança de rede.
 
 ## 🔧 Plugins Implementados
 
@@ -317,7 +317,7 @@ Para contribuir com o módulo de análise de rede:
 
 ## 📝 Licença
 
-Este módulo segue a mesma licença do projeto principal VarreduraIA.
+Este módulo segue a mesma licença do projeto principal ReconForge.
 
 ---
 

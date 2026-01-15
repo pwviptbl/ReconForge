@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Utilitário para gerenciar plugins do VarreduraIA
+Utilitário para gerenciar plugins do ReconForge
 Permite listar, habilitar, desabilitar e configurar plugins
 """
 
@@ -26,7 +26,7 @@ def list_plugins(plugin_manager: PluginManager, console: Console):
     """Lista todos os plugins e seus status"""
     
     # Criar tabela
-    table = Table(title="🔌 Plugins VarreduraIA")
+    table = Table(title="🔌 Plugins ReconForge")
     table.add_column("Plugin", style="cyan", no_wrap=True)
     table.add_column("Status", style="bold")
     table.add_column("Categoria", style="magenta")
@@ -171,7 +171,7 @@ def export_config(plugin_manager: PluginManager, output_file: str):
 def main():
     """Função principal"""
     parser = argparse.ArgumentParser(
-        description='Gerenciador de Plugins VarreduraIA',
+        description='Gerenciador de Plugins ReconForge',
         epilog="""
 Exemplos:
   %(prog)s list                                    # Listar todos os plugins
