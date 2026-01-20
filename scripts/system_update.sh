@@ -16,6 +16,11 @@ fi
 echo -e "${YELLOW}=== ReconForge Setup (Ubuntu/Mint) ===${NC}"
 echo ""
 
+# Garantir que estamos na raiz do projeto (onde fica requirements.txt)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR" || exit 1
+
 # Atualizar e atualizar sistema
 echo -e "${YELLOW}[1/7] Atualizando lista de pacotes...${NC}"
 apt update
