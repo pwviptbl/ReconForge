@@ -57,6 +57,7 @@ install_pkg sqlmap
 install_pkg nuclei      # pode não existir em todos os repositórios
 install_pkg subfinder   # pode não existir em todos os repositórios
 install_pkg whatweb
+install_pkg exploitdb
 install_pkg sslscan
 install_pkg dnsutils    # fornece "dig"
 install_pkg whois
