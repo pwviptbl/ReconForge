@@ -12,6 +12,8 @@ from typing import Dict, Any, List, Optional, Set
 
 from .config import get_config
 from .plugin_manager import PluginManager
+from .plugin_base import PluginResult
+from .storage import Storage
 from utils.logger import get_logger
 
 from rich.console import Console
@@ -30,6 +32,56 @@ class MinimalOrchestrator:
         
         # Inicializar componentes
         self.plugin_manager = PluginManager()
+        data_dir = Path(get_config('output.data_dir', 'dados'))
+        self.storage = Storage(data_dir / "reconforge.db")
+        self.run_id = None
+        self.loaded_session = False
+
+        # Agrupamento e pre-requisitos de plugins
+        self.plugin_groups = {
+            'PortScannerPlugin': ('Infra', 'Scanner'),
+            'NmapScannerPlugin': ('Infra', 'Scanner'),
+            'NetworkMapperPlugin': ('Infra', 'Scanner'),
+            'DNSResolverPlugin': ('Infra', 'Recon'),
+            'ReconnaissancePlugin': ('Infra', 'Recon'),
+            'ProtocolAnalyzer': ('Infra', 'Testes'),
+            'MisconfigurationAnalyzer': ('Infra', 'Testes'),
+            'FirewallDetectorPlugin': ('Infra', 'Testes'),
+            'SSLAnalyzerPlugin': ('Infra', 'Testes'),
+            'TrafficAnalyzerPlugin': ('Infra', 'Testes'),
+            'ExploitSearcherPlugin': ('Infra', 'Vulnerabilidades'),
+            'ExploitSuggester': ('Infra', 'Vulnerabilidades'),
+            'ReportGenerator': ('Infra', 'Testes'),
+            'DirectoryScannerPlugin': ('Web', 'Scanner'),
+            'WebScannerPlugin': ('Web', 'Scanner'),
+            'WebCrawlerPlugin': ('Web', 'Scanner'),
+            'TechnologyDetectorPlugin': ('Web', 'Recon'),
+            'WhatWebScannerPlugin': ('Web', 'Recon'),
+            'SubdomainEnumerator': ('Web', 'Recon'),
+            'SubfinderPlugin': ('Web', 'Recon'),
+            'WebVulnScannerPlugin': ('Web', 'Vulnerabilidades'),
+            'NucleiScannerPlugin': ('Web', 'Vulnerabilidades'),
+            'SQLMapPlugin': ('Web', 'Vulnerabilidades')
+        }
+        self.plugin_prereqs = {
+            'NmapScannerPlugin': ['PortScannerPlugin'],
+            'NetworkMapperPlugin': ['PortScannerPlugin'],
+            'ProtocolAnalyzer': ['PortScannerPlugin'],
+            'MisconfigurationAnalyzer': ['PortScannerPlugin'],
+            'FirewallDetectorPlugin': ['PortScannerPlugin'],
+            'SSLAnalyzerPlugin': ['PortScannerPlugin'],
+            'TrafficAnalyzerPlugin': ['PortScannerPlugin'],
+            'ExploitSearcherPlugin': ['NmapScannerPlugin'],
+            'ExploitSuggester': ['NmapScannerPlugin'],
+            'DirectoryScannerPlugin': ['PortScannerPlugin'],
+            'WebScannerPlugin': ['PortScannerPlugin'],
+            'WebCrawlerPlugin': ['PortScannerPlugin'],
+            'TechnologyDetectorPlugin': ['PortScannerPlugin'],
+            'WhatWebScannerPlugin': ['PortScannerPlugin'],
+            'WebVulnScannerPlugin': ['PortScannerPlugin'],
+            'NucleiScannerPlugin': ['PortScannerPlugin'],
+            'SQLMapPlugin': ['PortScannerPlugin']
+        }
         
         # Estado do pentest
         self.context = {}
@@ -44,21 +96,27 @@ class MinimalOrchestrator:
         """
         self.logger.info(f"🚀 Iniciando varredura: {target}")
         
-        # Inicializar contexto
-        self.context = {
-            'target': target,
-            'start_time': datetime.now(),
-            'executed_plugins': [],
-            'plugin_states': {},
-            'discoveries': {
-                'hosts': [],
-                'open_ports': [],
-                'services': [],
-                'technologies': []
-            },
-            'vulnerabilities': [],
-            'errors': []
-        }
+        if not (self.loaded_session and self.context.get('target') == target):
+            # Inicializar contexto
+            self.context = {
+                'target': target,
+                'start_time': datetime.now(),
+                'executed_plugins': [],
+                'plugin_states': {},
+                'discoveries': {
+                    'hosts': [],
+                    'open_ports': [],
+                    'services': [],
+                    'technologies': []
+                },
+                'vulnerabilities': [],
+                'errors': []
+            }
+            self.results = {}
+            self.run_id = self.storage.create_run(self.context['target'], self.context, {})
+        else:
+            self._ensure_context_defaults()
+            self.loaded_session = False
         
         try:
             # Loop principal interativo
@@ -96,6 +154,15 @@ class MinimalOrchestrator:
                 'target': target,
                 'context': self.context
             }
+
+    def load_session(self, target: str, context: Dict[str, Any], results: Dict[str, Any], run_id: int):
+        """Carrega uma sessao salva antes de iniciar a varredura"""
+        self.context = context
+        self.results = self._hydrate_results(results)
+        self.run_id = run_id
+        self.loaded_session = True
+        self.context['target'] = target
+        self._ensure_context_defaults()
     
     def _run_interactive_loop(self):
         """Loop principal: mostra resultados atuais e permite escolher próximo plugin"""
@@ -131,7 +198,7 @@ class MinimalOrchestrator:
             if choice in ['v', 'vulns', 'vulnerabilities']:
                 self._show_vulnerabilities()
                 continue
-            
+
             if choice in ['s', 'services', 'servicos']:
                 self._show_services()
                 continue
@@ -248,27 +315,42 @@ class MinimalOrchestrator:
         """Mostra menu de plugins disponíveis"""
         self.console.print("\n[bold]═══ Plugins Disponíveis ═══[/bold]")
         
-        # Agrupar por categoria
+        # Agrupar por categoria mae e subcategoria
         categories = {}
         for plugin in available:
-            cat = plugin.get('category', 'outros')
-            if cat not in categories:
-                categories[cat] = []
-            categories[cat].append(plugin)
+            parent = plugin.get('parent_category', 'Infra')
+            subgroup = plugin.get('subcategory', 'Scanner')
+            if parent not in categories:
+                categories[parent] = {}
+            if subgroup not in categories[parent]:
+                categories[parent][subgroup] = []
+            categories[parent][subgroup].append(plugin)
         
         # Contador global para numeração
         idx = 1
         plugin_map = {}
         
-        for category, plugins in sorted(categories.items()):
-            rprint(f"\n  [bold magenta]📂 {category.upper()}[/bold magenta]")
-            for plugin in plugins:
-                name = plugin['name']
-                desc = plugin.get('description', '')[:40]
-                rprint(f"    [cyan]{idx:2}[/cyan] - {name} [dim]({desc})[/dim]")
-                plugin_map[idx] = name
-                plugin_map[name.lower()] = name
-                idx += 1
+        executed = set(self.context['executed_plugins'])
+        for parent, subgroups in sorted(categories.items()):
+            rprint(f"\n  [bold magenta]📂 {parent.upper()}[/bold magenta]")
+            for subgroup, plugins in sorted(subgroups.items()):
+                rprint(f"    [bold]• {subgroup}[/bold]")
+                for plugin in plugins:
+                    name = plugin['name']
+                    desc = plugin.get('description', '')[:40]
+                    status = self.context['plugin_states'].get(name)
+                    if status == 'success':
+                        status_icon = "✅"
+                    elif status == 'failed':
+                        status_icon = "❌"
+                    elif name in executed:
+                        status_icon = "↻"
+                    else:
+                        status_icon = "•"
+                    rprint(f"      [cyan]{idx:2}[/cyan] {status_icon} {name} [dim]({desc})[/dim]")
+                    plugin_map[idx] = name
+                    plugin_map[name.lower()] = name
+                    idx += 1
         
         self._plugin_map = plugin_map
         
@@ -280,16 +362,21 @@ class MinimalOrchestrator:
         rprint("  [cyan]q[/cyan] - Encerrar varredura")
     
     def _get_available_plugins(self) -> List[Dict]:
-        """Retorna plugins ainda não executados"""
-        executed = set(self.context['executed_plugins'])
+        """Retorna plugins disponíveis para o alvo"""
         available = []
         
         for plugin_name, plugin in self.plugin_manager.plugins.items():
-            if plugin_name not in executed:
-                if plugin.validate_target(self.context['target']):
-                    available.append(plugin.get_info())
+            if plugin.validate_target(self.context['target']):
+                info = plugin.get_info()
+                parent, subgroup = self._classify_plugin(info)
+                info['parent_category'] = parent
+                info['subcategory'] = subgroup
+                available.append(info)
         
-        return sorted(available, key=lambda x: (x.get('category', 'z'), x['name']))
+        return sorted(
+            available,
+            key=lambda x: (x.get('parent_category', 'z'), x.get('subcategory', 'z'), x['name'])
+        )
     
     def _parse_plugin_choice(self, choice: str, available: List[Dict]) -> Optional[str]:
         """Converte escolha do usuário em nome de plugin"""
@@ -312,61 +399,6 @@ class MinimalOrchestrator:
             return self._plugin_map[choice_lower]
         
         return None
-    
-    def _execute_plugin(self, plugin_name: str):
-        """Executa um plugin e mostra resultados detalhados"""
-        self.console.print(f"\n[bold cyan]{'═' * 50}[/bold cyan]")
-        self.console.print(f"[bold cyan]🔌 Executando: {plugin_name}[/bold cyan]")
-        self.console.print(f"[bold cyan]{'═' * 50}[/bold cyan]")
-        
-        plugin = self.plugin_manager.get_plugin(plugin_name)
-        if not plugin:
-            rprint(f"[red]❌ Plugin não encontrado![/red]")
-            return
-        
-        # Executar plugin
-        start_time = time.time()
-        rprint(f"[dim]⏳ Executando {plugin_name}...[/dim]")
-        
-        try:
-            result = self.plugin_manager.execute_plugin(
-                plugin_name,
-                self.context['target'],
-                self.context
-            )
-            
-            execution_time = time.time() - start_time
-            
-            self.context['executed_plugins'].append(plugin_name)
-            
-            if result.success:
-                self.context['plugin_states'][plugin_name] = 'success'
-                rprint(f"\n[green]✅ Concluído em {execution_time:.1f}s[/green]")
-                
-                # Mostrar resultados DETALHADOS do plugin
-                self._show_plugin_result_details(result)
-                
-                # Atualizar contexto
-                self._update_context_with_result(result)
-                
-            else:
-                self.context['plugin_states'][plugin_name] = 'failed'
-                rprint(f"\n[red]❌ Falhou após {execution_time:.1f}s[/red]")
-                rprint(f"[red]Erro: {result.error}[/red]")
-                self.context['errors'].append({
-                    'plugin': plugin_name,
-                    'error': result.error,
-                    'timestamp': result.timestamp
-                })
-                
-        except Exception as e:
-            self.logger.error(f"💥 Erro ao executar {plugin_name}: {e}")
-            rprint(f"[red]💥 Erro: {e}[/red]")
-            self.context['errors'].append({
-                'plugin': plugin_name,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            })
     
     def _show_plugin_result_details(self, result):
         """Mostra resultados detalhados de um plugin executado"""
@@ -433,6 +465,50 @@ class MinimalOrchestrator:
                     rprint(f"    • [{severity}] {title}")
             if len(data['vulnerabilities']) > 10:
                 rprint(f"    [dim]... e mais {len(data['vulnerabilities']) - 10}[/dim]")
+
+        # ExploitSearcherPlugin - resumo especifico
+        if result.plugin_name == 'ExploitSearcherPlugin' or 'security_report' in data:
+            software_analyzed = data.get('software_analyzed')
+            total_exploits = data.get('total_exploits_found')
+            if software_analyzed is not None or total_exploits is not None:
+                rprint("\n  [bold]🧭 Resumo de Exploits:[/bold]")
+                if software_analyzed is not None:
+                    rprint(f"    • Softwares analisados: {software_analyzed}")
+                if total_exploits is not None:
+                    rprint(f"    • Exploits encontrados: {total_exploits}")
+
+            exploits_by_severity = data.get('exploits_by_severity', {})
+            if isinstance(exploits_by_severity, dict) and exploits_by_severity:
+                counts = []
+                for sev in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN', 'REPOSITORIES', 'ERRORS']:
+                    if sev in exploits_by_severity:
+                        counts.append(f"{sev}:{len(exploits_by_severity[sev])}")
+                if counts:
+                    rprint(f"    • Por severidade: {', '.join(counts)}")
+
+            security_report = data.get('security_report', {})
+            if isinstance(security_report, dict):
+                risk = security_report.get('risk_assessment', {})
+                if risk:
+                    overall = risk.get('overall_risk_level')
+                    score = risk.get('risk_score')
+                    if overall or score is not None:
+                        rprint("    • Risco geral: " + f"{overall or 'N/A'} (score {score})")
+
+                top_threats = security_report.get('top_threats', [])
+                if top_threats:
+                    rprint("    • Top threats:")
+                    for threat in top_threats[:5]:
+                        title = threat.get('title', threat.get('name', 'N/A'))
+                        rprint(f"      - {title}")
+
+            detailed_results = data.get('detailed_results', {})
+            if isinstance(detailed_results, dict) and detailed_results:
+                rprint("    • Alvos com exploits:")
+                for key, exploits in list(detailed_results.items())[:5]:
+                    rprint(f"      - {key}: {len(exploits)}")
+                if len(detailed_results) > 5:
+                    rprint(f"      [dim]... e mais {len(detailed_results) - 5}[/dim]")
         
         # Dados brutos (resumo)
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
@@ -474,30 +550,70 @@ class MinimalOrchestrator:
             f"[bold red]⚠️  Vulnerabilidades Encontradas ({len(vulns)})[/bold red]",
             border_style="red"
         ))
+
+        filter_value = Prompt.ask(
+            "[dim]Filtro por servico/porta (ex: ftp, http, 22). ENTER para todos[/dim]",
+            default=""
+        ).strip().lower()
+        severity_filter = Prompt.ask(
+            "[dim]Filtro por severidade (critical, high, medium, low, info). ENTER para todas[/dim]",
+            default=""
+        ).strip().upper()
+        valid_severities = {'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO', 'UNKNOWN'}
+        if severity_filter and severity_filter not in valid_severities:
+            rprint("[yellow]Severidade invalida, mostrando todas.[/yellow]")
+            severity_filter = ""
+        if filter_value or severity_filter:
+            filtered = []
+            for vuln in vulns:
+                service = str(vuln.get('service', '')).lower()
+                port = str(vuln.get('port', ''))
+                sev = str(vuln.get('severity', 'unknown')).upper()
+                matches_service = not filter_value or filter_value in service or filter_value == port
+                matches_severity = not severity_filter or sev == severity_filter
+                if matches_service and matches_severity:
+                    filtered.append(vuln)
+            vulns = filtered
+
+        if not vulns:
+            rprint("[yellow]Nenhuma vulnerabilidade corresponde ao filtro.[/yellow]")
+            input("\nPressione ENTER para voltar...")
+            return
         
-        # Agrupar por severidade
-        by_severity = {'CRITICAL': [], 'HIGH': [], 'MEDIUM': [], 'LOW': [], 'INFO': [], 'UNKNOWN': []}
+        # Agrupar por servico e severidade
+        by_service = {}
         for vuln in vulns:
-            sev = vuln.get('severity', 'unknown').upper()
-            if sev not in by_severity:
-                sev = 'UNKNOWN'
-            by_severity[sev].append(vuln)
-        
-        for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO', 'UNKNOWN']:
-            if by_severity[severity]:
-                if severity in ['CRITICAL', 'HIGH']:
-                    color = "red"
-                elif severity == 'MEDIUM':
-                    color = "yellow"
-                else:
-                    color = "dim"
-                
-                rprint(f"\n[{color}][bold]{severity} ({len(by_severity[severity])}):[/bold][/{color}]")
-                for vuln in by_severity[severity]:
-                    title = vuln.get('title', vuln.get('description', 'N/A'))
-                    rprint(f"  • {title}")
-                    if vuln.get('url'):
-                        rprint(f"    [dim]URL: {vuln['url']}[/dim]")
+            service = vuln.get('service') or 'unknown'
+            by_service.setdefault(service, []).append(vuln)
+
+        for service_name in sorted(by_service.keys()):
+            service_vulns = by_service[service_name]
+            self.console.print(f"\n[bold cyan]🔧 Serviço: {service_name} ({len(service_vulns)})[/bold cyan]")
+
+            by_severity = {'CRITICAL': [], 'HIGH': [], 'MEDIUM': [], 'LOW': [], 'INFO': [], 'UNKNOWN': []}
+            for vuln in service_vulns:
+                sev = vuln.get('severity', 'unknown').upper()
+                if sev not in by_severity:
+                    sev = 'UNKNOWN'
+                by_severity[sev].append(vuln)
+
+            for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO', 'UNKNOWN']:
+                if by_severity[severity]:
+                    if severity in ['CRITICAL', 'HIGH']:
+                        color = "red"
+                    elif severity == 'MEDIUM':
+                        color = "yellow"
+                    else:
+                        color = "dim"
+
+                    rprint(f"\n[{color}][bold]{severity} ({len(by_severity[severity])}):[/bold][/{color}]")
+                    for vuln in by_severity[severity]:
+                        title = vuln.get('title', vuln.get('description', 'N/A'))
+                        rprint(f"  • {title}")
+                        if vuln.get('url'):
+                            rprint(f"    [dim]URL: {vuln['url']}[/dim]")
+            for key in by_severity:
+                by_severity[key] = []
         
         input("\n[dim]Pressione ENTER para voltar...[/dim]")
     
@@ -545,6 +661,51 @@ class MinimalOrchestrator:
         self.console.print(table)
         
         input("\n[dim]Pressione ENTER para voltar...[/dim]")
+
+    def _ensure_context_defaults(self):
+        """Garante estrutura minima do contexto apos carregar"""
+        if not isinstance(self.context, dict):
+            self.context = {}
+        self.context.setdefault('target', '')
+        start_time = self.context.get('start_time')
+        if isinstance(start_time, str):
+            try:
+                start_time = datetime.fromisoformat(start_time)
+            except ValueError:
+                start_time = datetime.now()
+        elif start_time is None:
+            start_time = datetime.now()
+        self.context['start_time'] = start_time
+        self.context.setdefault('executed_plugins', [])
+        self.context.setdefault('plugin_states', {})
+        self.context.setdefault('discoveries', {})
+        self.context['discoveries'].setdefault('hosts', [])
+        self.context['discoveries'].setdefault('open_ports', [])
+        self.context['discoveries'].setdefault('services', [])
+        self.context['discoveries'].setdefault('technologies', [])
+        self.context.setdefault('vulnerabilities', [])
+        self.context.setdefault('errors', [])
+
+    def _hydrate_results(self, results: Dict[str, Any]) -> Dict[str, PluginResult]:
+        """Restaura resultados salvos do SQLite"""
+        hydrated = {}
+        for plugin_name, result_data in results.items():
+            if isinstance(result_data, dict):
+                try:
+                    hydrated[plugin_name] = PluginResult(**result_data)
+                except TypeError:
+                    continue
+        return hydrated
+
+    def _persist_state(self):
+        """Persiste contexto e resultados no SQLite"""
+        if not self.run_id:
+            return
+        serializable_results = {
+            name: result.to_dict() if isinstance(result, PluginResult) else result
+            for name, result in self.results.items()
+        }
+        self.storage.update_run(self.run_id, self.context, serializable_results)
     
     def _update_context_with_result(self, result):
         """Atualiza contexto com resultado do plugin"""
@@ -569,10 +730,141 @@ class MinimalOrchestrator:
         
         # Atualizar vulnerabilidades
         if 'vulnerabilities' in data:
-            self.context['vulnerabilities'].extend(data['vulnerabilities'])
+            existing_keys = {self._vuln_key(v) for v in self.context['vulnerabilities']}
+            for vuln in data['vulnerabilities']:
+                if self._vuln_key(vuln) not in existing_keys:
+                    self.context['vulnerabilities'].append(vuln)
+                    existing_keys.add(self._vuln_key(vuln))
         
         # Armazenar resultado completo
         self.results[result.plugin_name] = result
+        self._persist_state()
+
+    def _classify_plugin(self, plugin_info: Dict[str, Any]) -> tuple[str, str]:
+        """Determina categoria mae e subcategoria de um plugin"""
+        name = plugin_info.get('name', '')
+        if name in self.plugin_groups:
+            return self.plugin_groups[name]
+        category = plugin_info.get('category', 'infra').lower()
+        if category == 'web':
+            return ('Web', 'Scanner')
+        if category == 'vulnerability':
+            return ('Web', 'Vulnerabilidades')
+        return ('Infra', 'Scanner')
+
+    def _ensure_prerequisites(self, plugin_name: str) -> bool:
+        """Garante que pre-requisitos foram executados"""
+        prereqs = self.plugin_prereqs.get(plugin_name, [])
+        if not prereqs:
+            return True
+
+        executed = set(self.context['executed_plugins'])
+        missing = [p for p in prereqs if p not in executed]
+        if not missing:
+            return True
+
+        missing_str = ", ".join(missing)
+        if not Confirm.ask(
+            f"[yellow]Este plugin requer: {missing_str}. Executar agora?[/yellow]",
+            default=True
+        ):
+            rprint("[yellow]⏭️ Pre-requisitos nao executados. Plugin ignorado.[/yellow]")
+            return False
+
+        for prereq in missing:
+            if not self.plugin_manager.get_plugin(prereq):
+                rprint(f"[red]❌ Pre-requisito nao encontrado: {prereq}[/red]")
+                return False
+            self._execute_plugin(prereq, skip_prereq_check=True)
+
+        return True
+
+    def _execute_plugin(self, plugin_name: str, skip_prereq_check: bool = False):
+        """Executa um plugin e mostra resultados detalhados"""
+        self.console.print(f"\n[bold cyan]{'═' * 50}[/bold cyan]")
+        self.console.print(f"[bold cyan]🔌 Executando: {plugin_name}[/bold cyan]")
+        self.console.print(f"[bold cyan]{'═' * 50}[/bold cyan]")
+
+        plugin = self.plugin_manager.get_plugin(plugin_name)
+        if not plugin:
+            rprint(f"[red]❌ Plugin não encontrado![/red]")
+            return
+
+        # Checar pre-requisitos
+        if not skip_prereq_check and not self._ensure_prerequisites(plugin_name):
+            return
+
+        cached = self.storage.get_cached_result(self.context['target'], plugin_name)
+        if cached and not skip_prereq_check:
+            if Confirm.ask(
+                f"[yellow]Resultado salvo encontrado para {plugin_name}. Usar cache?[/yellow]",
+                default=True
+            ):
+                try:
+                    result = PluginResult(**cached)
+                except TypeError:
+                    result = None
+                if result:
+                    if plugin_name not in self.context['executed_plugins']:
+                        self.context['executed_plugins'].append(plugin_name)
+                    self.context['plugin_states'][plugin_name] = 'success' if result.success else 'failed'
+                    self._show_plugin_result_details(result)
+                    self._update_context_with_result(result)
+                    return
+
+        # Executar plugin
+        start_time = time.time()
+        rprint(f"[dim]⏳ Executando {plugin_name}...[/dim]")
+
+        try:
+            result = self.plugin_manager.execute_plugin(
+                plugin_name,
+                self.context['target'],
+                self.context
+            )
+
+            execution_time = time.time() - start_time
+
+            self.context['executed_plugins'].append(plugin_name)
+
+            if result.success:
+                self.context['plugin_states'][plugin_name] = 'success'
+                rprint(f"\n[green]✅ Concluído em {execution_time:.1f}s[/green]")
+
+                # Mostrar resultados DETALHADOS do plugin
+                self._show_plugin_result_details(result)
+
+                # Atualizar contexto
+                self._update_context_with_result(result)
+                self.storage.set_cached_result(self.context['target'], plugin_name, result.to_dict())
+                
+            else:
+                self.context['plugin_states'][plugin_name] = 'failed'
+                rprint(f"\n[red]❌ Falhou após {execution_time:.1f}s[/red]")
+                rprint(f"[red]Erro: {result.error}[/red]")
+                self.context['errors'].append({
+                    'plugin': plugin_name,
+                    'error': result.error,
+                    'timestamp': result.timestamp
+                })
+
+        except Exception as e:
+            rprint(f"[red]💥 Erro inesperado: {e}[/red]")
+            self.context['errors'].append({
+                'plugin': plugin_name,
+                'error': str(e),
+                'timestamp': time.time()
+            })
+
+    def _vuln_key(self, vuln: Dict[str, Any]) -> str:
+        """Gera uma chave consistente para deduplicar vulnerabilidades"""
+        return "|".join([
+            str(vuln.get('title', '')),
+            str(vuln.get('cve', '')),
+            str(vuln.get('host', '')),
+            str(vuln.get('port', '')),
+            str(vuln.get('url', ''))
+        ])
     
     def _show_final_summary(self, result: Dict):
         """Mostra resumo final da varredura"""
@@ -636,12 +928,21 @@ class MinimalOrchestrator:
         report_file = data_dir / f"scan_{timestamp}.json"
         
         # Preparar dados do relatório
+        start_time = self.context.get('start_time')
+        if isinstance(start_time, str):
+            try:
+                start_time = datetime.fromisoformat(start_time)
+            except ValueError:
+                start_time = datetime.now()
+        if start_time is None:
+            start_time = datetime.now()
+
         report_data = {
             'metadata': {
                 'target': self.context['target'],
-                'start_time': self.context['start_time'].isoformat(),
+                'start_time': start_time.isoformat(),
                 'end_time': datetime.now().isoformat(),
-                'duration_seconds': (datetime.now() - self.context['start_time']).total_seconds(),
+                'duration_seconds': (datetime.now() - start_time).total_seconds(),
                 'mode': 'interactive'
             },
             'execution': {

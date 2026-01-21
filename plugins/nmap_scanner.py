@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 import tempfile
 import time
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 import sys
@@ -188,6 +188,7 @@ class NmapScannerPlugin(NetworkPlugin):
             'raw_output': nmap_results.get('stdout', ''),
             'errors': nmap_results.get('stderr', '')
         }
+        seen_vulns = set()
         
         # Processar XML se disponível
         xml_content = nmap_results.get('xml_content')
@@ -219,16 +220,58 @@ class NmapScannerPlugin(NetworkPlugin):
                                     script_id = script.get('id', '')
                                     script_output = script.get('output', '')
 
+                                    if script_id == 'vulners':
+                                        for entry in self._parse_vulners_output(script_output):
+                                            vuln = self._build_vuln_entry(
+                                                host_info['ip'],
+                                                port_info['port'],
+                                                port_info.get('service', 'unknown'),
+                                                entry['id'],
+                                                entry.get('score'),
+                                                entry.get('url'),
+                                                script_id,
+                                                entry.get('exploit', False)
+                                            )
+                                            key = self._vuln_key(vuln)
+                                            if key not in seen_vulns:
+                                                processed['vulnerabilities'].append(vuln)
+                                                seen_vulns.add(key)
+                                        continue
+
                                     if 'vuln' in script_id or 'CVE-' in script_output.upper():
                                         extracted_cves = self._extract_cves_from_output(script_output)
                                         if extracted_cves:
-                                            processed['vulnerabilities'].append({
-                                                'host': host_info['ip'],
-                                                'port': port_info['port'],
-                                                'script_id': script_id,
-                                                'output': script_output,
-                                                'cves': extracted_cves
-                                            })
+                                            for cve_id in extracted_cves:
+                                                vuln = self._build_vuln_entry(
+                                                    host_info['ip'],
+                                                    port_info['port'],
+                                                    port_info.get('service', 'unknown'),
+                                                    cve_id,
+                                                    None,
+                                                    None,
+                                                    script_id,
+                                                    False
+                                                )
+                                                key = self._vuln_key(vuln)
+                                                if key not in seen_vulns:
+                                                    processed['vulnerabilities'].append(vuln)
+                                                    seen_vulns.add(key)
+                                        else:
+                                            vuln = self._build_vuln_entry(
+                                                host_info['ip'],
+                                                port_info['port'],
+                                                port_info.get('service', 'unknown'),
+                                                script_id,
+                                                None,
+                                                None,
+                                                script_id,
+                                                False,
+                                                script_output
+                                            )
+                                            key = self._vuln_key(vuln)
+                                            if key not in seen_vulns:
+                                                processed['vulnerabilities'].append(vuln)
+                                                seen_vulns.add(key)
                 
             except ET.ParseError as e:
                 processed['xml_parse_error'] = str(e)
@@ -238,7 +281,82 @@ class NmapScannerPlugin(NetworkPlugin):
     def _extract_cves_from_output(self, output: str) -> List[str]:
         """Extrai CVEs de uma string de output"""
         cve_pattern = r'CVE-\d{4}-\d{4,}'
-        return list(set(re.findall(cve_pattern, output)))
+        return sorted(set(re.findall(cve_pattern, output, re.IGNORECASE)))
+
+    def _parse_vulners_output(self, output: str) -> List[Dict[str, Any]]:
+        """Extrai entradas do script vulners com score/URL"""
+        entries = []
+        for line in output.splitlines():
+            line = line.strip()
+            if not line or line.startswith('cpe:/'):
+                continue
+            match = re.match(r'([A-Za-z0-9:._-]+)\s+([0-9.]+)\s+(https?://\S+)', line)
+            if not match:
+                continue
+            vuln_id, score_str, url = match.groups()
+            try:
+                score = float(score_str)
+            except ValueError:
+                score = None
+            entries.append({
+                'id': vuln_id,
+                'score': score,
+                'url': url,
+                'exploit': '*EXPLOIT*' in line
+            })
+        return entries
+
+    def _score_to_severity(self, score: Optional[float]) -> str:
+        """Converte score em severidade simples"""
+        if score is None:
+            return 'unknown'
+        if score >= 9.0:
+            return 'critical'
+        if score >= 7.0:
+            return 'high'
+        if score >= 4.0:
+            return 'medium'
+        if score > 0:
+            return 'low'
+        return 'unknown'
+
+    def _build_vuln_entry(
+        self,
+        host: str,
+        port: int,
+        service: str,
+        vuln_id: str,
+        score: Optional[float],
+        url: Optional[str],
+        source: str,
+        exploit: bool,
+        output: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Padroniza um item de vulnerabilidade"""
+        entry = {
+            'title': vuln_id,
+            'severity': self._score_to_severity(score),
+            'cvss': score,
+            'url': url,
+            'host': host,
+            'port': port,
+            'service': service,
+            'source': source,
+            'exploit': exploit
+        }
+        if vuln_id.upper().startswith('CVE-'):
+            entry['cve'] = vuln_id.upper()
+        if output:
+            entry['description'] = output[:300]
+        return entry
+
+    def _vuln_key(self, vuln: Dict[str, Any]) -> str:
+        """Gera chave para deduplicacao de vulnerabilidades"""
+        return "|".join([
+            str(vuln.get('title', '')),
+            str(vuln.get('host', '')),
+            str(vuln.get('port', ''))
+        ])
     
     def _process_host(self, host_element) -> Dict[str, Any]:
         """Processa elemento host do XML"""
