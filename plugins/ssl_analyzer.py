@@ -195,6 +195,8 @@ class SSLAnalyzerPlugin(NetworkPlugin):
         """Analisa o certificado SSL"""
         try:
             context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
             
             with socket.create_connection((hostname, port), timeout=self.timeout) as sock:
                 with context.wrap_socket(sock, server_hostname=hostname) as ssock:
@@ -485,27 +487,31 @@ class SSLAnalyzerPlugin(NetworkPlugin):
     def _get_supported_protocols(self, hostname: str, port: int) -> List[str]:
         """Obtém protocolos SSL/TLS suportados"""
         protocols = []
-        test_protocols = [
-            ('TLSv1.3', ssl.PROTOCOL_TLS),
-            ('TLSv1.2', ssl.PROTOCOL_TLS),
-            ('TLSv1.1', ssl.PROTOCOL_TLS),
-            ('TLSv1.0', ssl.PROTOCOL_TLS)
+        tls_version = getattr(ssl, "TLSVersion", None)
+        if not tls_version:
+            return protocols
+
+        test_versions = [
+            ('TLSv1.3', tls_version.TLSv1_3),
+            ('TLSv1.2', tls_version.TLSv1_2),
+            ('TLSv1.1', tls_version.TLSv1_1),
+            ('TLSv1.0', tls_version.TLSv1),
         ]
-        
-        for protocol_name, protocol_const in test_protocols:
+
+        for protocol_name, version in test_versions:
             try:
-                context = ssl.SSLContext(protocol_const)
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
-                
+                context.minimum_version = version
+                context.maximum_version = version
+
                 with socket.create_connection((hostname, port), timeout=5) as sock:
-                    with context.wrap_socket(sock) as ssock:
+                    with context.wrap_socket(sock, server_hostname=hostname):
                         protocols.append(protocol_name)
-                        break  # Se um protocolo funciona, assumir suporte
-                        
             except Exception:
                 continue
-        
+
         return protocols
     
     def _get_preferred_cipher(self, hostname: str, port: int) -> Optional[str]:

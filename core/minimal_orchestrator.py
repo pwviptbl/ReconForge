@@ -686,6 +686,72 @@ class MinimalOrchestrator:
                 if avg_time is not None:
                     rprint(f"    • Tempo medio: {avg_time:.2f}s")
 
+        # SSLAnalyzerPlugin - resultados
+        if result.plugin_name == 'SSLAnalyzerPlugin':
+            ssl_available = data.get('ssl_available')
+            ssl_enabled = data.get('ssl_enabled')
+            rprint("\n  [bold]🔐 SSL/TLS:[/bold]")
+            if ssl_available is not None:
+                rprint(f"    • Disponivel: {'sim' if ssl_available else 'nao'}")
+            if ssl_enabled is not None:
+                rprint(f"    • Habilitado: {'sim' if ssl_enabled else 'nao'}")
+
+            cert = data.get('certificate_analysis', {})
+            if isinstance(cert, dict) and cert:
+                subject = cert.get('subject', {})
+                issuer = cert.get('issuer', {})
+                cn = subject.get('commonName') if isinstance(subject, dict) else None
+                issuer_cn = issuer.get('commonName') if isinstance(issuer, dict) else None
+                rprint("\n  [bold]📜 Certificado:[/bold]")
+                if cn:
+                    rprint(f"    • CN: {cn}")
+                if issuer_cn:
+                    rprint(f"    • Emissor: {issuer_cn}")
+                rprint(f"    • Self-signed: {'sim' if cert.get('is_self_signed') else 'nao'}")
+                validity = cert.get('validity_analysis', {})
+                if isinstance(validity, dict):
+                    not_before = validity.get('not_before')
+                    not_after = validity.get('not_after')
+                    if not_before or not_after:
+                        rprint(f"    • Validade: {not_before or 'N/A'} -> {not_after or 'N/A'}")
+                    if validity.get('expired') is not None:
+                        rprint(f"    • Expirado: {'sim' if validity.get('expired') else 'nao'}")
+
+            ssl_config = data.get('ssl_configuration', {})
+            if isinstance(ssl_config, dict) and ssl_config:
+                protocols = ssl_config.get('supported_protocols', [])
+                preferred = ssl_config.get('preferred_cipher')
+                rprint("\n  [bold]🧩 Configuracao TLS:[/bold]")
+                if protocols:
+                    rprint(f"    • Protocolos: {', '.join(protocols)}")
+                if preferred:
+                    rprint(f"    • Cifra preferida: {preferred}")
+
+            cipher_analysis = data.get('cipher_analysis', {})
+            if isinstance(cipher_analysis, dict) and cipher_analysis:
+                weak = cipher_analysis.get('weak_ciphers', [])
+                insecure = cipher_analysis.get('insecure_ciphers', [])
+                total = cipher_analysis.get('total_ciphers')
+                rprint("\n  [bold]🔑 Cifras:[/bold]")
+                if total is not None:
+                    rprint(f"    • Total testadas: {total}")
+                if weak:
+                    rprint(f"    • Fracas: {len(weak)}")
+                if insecure:
+                    rprint(f"    • Inseguras: {len(insecure)}")
+
+            vuln_scan = data.get('vulnerability_scan', {})
+            if isinstance(vuln_scan, dict) and vuln_scan:
+                issues = vuln_scan.get('vulnerabilities', [])
+                if isinstance(issues, list) and issues:
+                    rprint("\n  [bold]⚠️  Vulnerabilidades SSL:[/bold]")
+                    for issue in issues[:5]:
+                        name = issue.get('name', 'N/A')
+                        severity = issue.get('severity', 'unknown')
+                        rprint(f"    • [{severity}] {name}")
+                    if len(issues) > 5:
+                        rprint(f"    [dim]... e mais {len(issues) - 5}[/dim]")
+
         # Dados brutos (resumo)
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
         if other_keys:
