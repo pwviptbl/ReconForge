@@ -37,9 +37,6 @@ Reconhecimento avançado e OSINT: DNS, ASN, subdomínios, emails, social media, 
 ### Reportgenerator (ReportGenerator)
 Gera um relatório consolidado em Markdown a partir dos resultados da varredura.
 
-### Rustscan (RustscanPlugin)
-Varredura rápida de portas usando Rustscan
-
 ### Sqlmap (SQLMapPlugin)
 Detecção de vulnerabilidades SQL Injection usando SQLMap
 
@@ -49,11 +46,17 @@ Análise completa de SSL/TLS e certificados digitais
 ### Subdomainenumerator (SubdomainEnumerator)
 Enumeração de subdomínios usando wordlist e APIs públicas
 
+### Subfinder (SubfinderPlugin)
+Enumeração de subdomínios usando Subfinder
+
 ### Technologydetector (TechnologyDetectorPlugin)
 Detecção de tecnologias e frameworks web
 
 ### Trafficanalyzer (TrafficAnalyzerPlugin)
 Análise de padrões de tráfego de rede e detecção de anomalias
+
+### Whatwebscanner (WhatWebScannerPlugin)
+Detecção de tecnologias web usando WhatWeb
 
 ### Webcrawler (WebCrawlerPlugin)
 Navegação web avançada: análise de formulários, login automático, mapeamento

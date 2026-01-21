@@ -55,7 +55,8 @@ echo -e "${YELLOW}[4/7] Instalando ferramentas externas (apt padrão)...${NC}"
 install_pkg nmap
 install_pkg sqlmap
 install_pkg nuclei      # pode não existir em todos os repositórios
-install_pkg rustscan    # pode não existir em todos os repositórios
+install_pkg subfinder   # pode não existir em todos os repositórios
+install_pkg whatweb
 install_pkg sslscan
 install_pkg dnsutils    # fornece "dig"
 install_pkg whois

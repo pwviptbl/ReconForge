@@ -85,13 +85,13 @@ plugins:
       check_data_breaches: false
       threat_intelligence: false
       advanced_email_harvesting: false
-    RustscanPlugin:
-      port_range: '1-65535'
-      scan_all_ports: true
-      timeout: 300
-      ulimit: 5000
-      batch_size: 10000
-      tries: 1
+    SubfinderPlugin:
+      timeout: 120
+      resolve_ips: true
+      silent: true
+    WhatWebScannerPlugin:
+      aggression: 1
+      timeout: 60
     WebCrawlerPlugin:
       headless: true
       timeout: 30
@@ -155,10 +155,11 @@ plugins:
     NucleiScannerPlugin: true
     PortScannerPlugin: true
     ReconnaissancePlugin: true
-    RustscanPlugin: true
     SQLMapPlugin: true
     SubdomainEnumeratorPlugin: true
+    SubfinderPlugin: true
     TechnologyDetectorPlugin: true
+    WhatWebScannerPlugin: true
     WebCrawlerPlugin: true
     WebScannerPlugin: true
     WebVulnScannerPlugin: true
