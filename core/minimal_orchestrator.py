@@ -505,6 +505,35 @@ class MinimalOrchestrator:
             if len(misconfigs) > 10:
                 rprint(f"    [dim]... e mais {len(misconfigs) - 10}[/dim]")
 
+        # ProtocolAnalyzer - resultados
+        if result.plugin_name == 'ProtocolAnalyzer':
+            port_details = data.get('port_details', {})
+            if isinstance(port_details, dict) and port_details:
+                total_ports = len(port_details)
+                total_vulns = sum(len(v.get('vulnerabilities', [])) for v in port_details.values())
+                total_info = sum(len(v.get('service_info', [])) for v in port_details.values())
+                rprint(f"\n  [blue][bold]🧪 Protocolos Analisados ({total_ports}):[/bold][/blue]")
+                rprint(f"    [dim]Vulnerabilidades: {total_vulns} | Informações: {total_info}[/dim]")
+
+                for port, details in list(port_details.items())[:5]:
+                    vulns = details.get('vulnerabilities', [])
+                    infos = details.get('service_info', [])
+                    rprint(f"    • Porta {port}: {len(vulns)} vulns, {len(infos)} infos")
+                    for vuln in vulns[:3]:
+                        script = vuln.get('script', 'N/A')
+                        detail = str(vuln.get('details', ''))[:120]
+                        rprint(f"      - [red]{script}[/red] {detail}")
+                    for info in infos[:3]:
+                        script = info.get('script', 'N/A')
+                        detail = str(info.get('details', ''))[:120]
+                        rprint(f"      - [cyan]{script}[/cyan] {detail}")
+                    if len(vulns) > 3 or len(infos) > 3:
+                        extra = (len(vulns) - 3 if len(vulns) > 3 else 0) + (len(infos) - 3 if len(infos) > 3 else 0)
+                        if extra > 0:
+                            rprint(f"      [dim]... e mais {extra}[/dim]")
+                if len(port_details) > 5:
+                    rprint(f"    [dim]... e mais {len(port_details) - 5} portas[/dim]")
+
         # ExploitSearcherPlugin - resumo especifico
         if result.plugin_name == 'ExploitSearcherPlugin' or 'security_report' in data:
             software_analyzed = data.get('software_analyzed')
