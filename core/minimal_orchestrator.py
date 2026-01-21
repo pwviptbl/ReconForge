@@ -575,7 +575,65 @@ class MinimalOrchestrator:
                                 rprint(f"      [dim]... e mais {len(items) - 5}[/dim]")
                     if total_entries > 10:
                         rprint(f"    [dim]... e mais {total_entries - 10} CVEs[/dim]")
-        
+
+        # FirewallDetectorPlugin - resumo especifico
+        if result.plugin_name == 'FirewallDetectorPlugin':
+            network_firewall = data.get('network_firewall', {})
+            if isinstance(network_firewall, dict) and network_firewall:
+                detected = network_firewall.get('firewall_detected')
+                likelihood = network_firewall.get('likelihood')
+                summary = network_firewall.get('summary')
+                rprint("\n  [bold]🧱 Firewall de Rede:[/bold]")
+                if detected is not None:
+                    rprint(f"    • Detectado: {'sim' if detected else 'nao'}")
+                if likelihood:
+                    rprint(f"    • Probabilidade: {str(likelihood).upper()}")
+                if summary:
+                    rprint(f"    • Resumo: {summary}")
+
+            waf_detection = data.get('waf_detection', {})
+            if isinstance(waf_detection, dict) and waf_detection:
+                detected = waf_detection.get('detected')
+                confidence = waf_detection.get('confidence')
+                identified = waf_detection.get('identified_wafs', [])
+                tests = waf_detection.get('test_results', [])
+                blocked = 0
+                if isinstance(tests, list):
+                    blocked = sum(1 for t in tests if t.get('blocked'))
+                rprint("\n  [bold]🛡️  WAF:[/bold]")
+                if detected is not None:
+                    rprint(f"    • Detectado: {'sim' if detected else 'nao'}")
+                if confidence:
+                    rprint(f"    • Confianca: {str(confidence).upper()}")
+                if identified:
+                    rprint(f"    • Identificados: {', '.join(identified)}")
+                if tests:
+                    rprint(f"    • Testes bloqueados: {blocked}/{len(tests)}")
+
+            port_filtering = data.get('port_filtering', {})
+            if isinstance(port_filtering, dict) and port_filtering:
+                summary = port_filtering.get('summary', {})
+                if isinstance(summary, dict) and summary:
+                    rprint("\n  [bold]🔒 Filtragem de Portas:[/bold]")
+                    rprint(
+                        "    • Abertas/Filtradas/Fechadas: "
+                        f"{summary.get('open_ports', 0)}/"
+                        f"{summary.get('filtered_ports', 0)}/"
+                        f"{summary.get('closed_ports', 0)}"
+                    )
+                    if summary.get('filtering_detected') is not None:
+                        rprint(f"    • Filtragem detectada: {'sim' if summary.get('filtering_detected') else 'nao'}")
+
+            rate_limiting = data.get('rate_limiting', {})
+            if isinstance(rate_limiting, dict) and rate_limiting:
+                detected = rate_limiting.get('rate_limiting_detected')
+                avg_time = rate_limiting.get('average_response_time')
+                rprint("\n  [bold]⏱️  Rate Limiting:[/bold]")
+                if detected is not None:
+                    rprint(f"    • Detectado: {'sim' if detected else 'nao'}")
+                if avg_time is not None:
+                    rprint(f"    • Tempo medio: {avg_time:.2f}s")
+
         # Dados brutos (resumo)
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
         if other_keys:
