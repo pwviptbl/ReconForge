@@ -9,12 +9,11 @@ O ReconForge possui um sistema flexível de plugins que permite ativar/desativar
 - **🔍 Plugins de Reconhecimento**: Reconnaissance (avançado)
 - **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, RustScan, Subdomain Enumerator
 - **🔗 Plugins Web**: Web Scanner, Technology Detector, Directory Scanner
-- **🛡️ Plugins de Análise de Vulnerabilidade**: Nuclei Scanner, SQLMap Scanner, Web Vuln Scanner, Misconfiguration Analyzer, Exploit Suggester
+- **🛡️ Plugins de Análise de Vulnerabilidade**: Nuclei Scanner, Web Vuln Scanner, Misconfiguration Analyzer, Exploit Suggester
 
 ### Status Padrão dos Plugins
 
 Por padrão, a maioria dos plugins está **habilitada**, exceto:
-- `SQLMapScannerPlugin` - Desabilitado por ser muito agressivo
 - `WebVulnScannerPlugin` - Desabilitado por ser potencialmente invasivo
 
 #### ✅ **Habilitados por padrão (seguros):**
@@ -49,8 +48,6 @@ python manage_plugins.py list
 # Habilitar plugin específico
 python manage_plugins.py enable NucleiScannerPlugin
 
-# Exemplo: habilitar SQLMap (USE COM CUIDADO!)
-python manage_plugins.py enable SQLMapScannerPlugin
 ```
 
 ### 3. Desabilitar um Plugin
@@ -59,8 +56,6 @@ python manage_plugins.py enable SQLMapScannerPlugin
 # Desabilitar plugin específico
 python manage_plugins.py disable PortScannerPlugin
 
-# Exemplo: desabilitar scanner agressivo
-python manage_plugins.py disable SQLMapScannerPlugin
 ```
 
 ### 4. Ver Configuração de um Plugin
@@ -112,8 +107,7 @@ python manage_plugins.py export backup_plugins.yaml
      enabled:
        DNSResolverPlugin: true
        NmapScannerPlugin: false  # Desabilitar Nmap
-       SQLMapScannerPlugin: false # Manter SQLMap desabilitado
-       MisconfigurationAnalyzerPlugin: true # Habilitar novo plugin
+      MisconfigurationAnalyzerPlugin: true # Habilitar novo plugin
      
      config:
        DNSResolverPlugin:
@@ -175,14 +169,6 @@ NucleiScannerPlugin:
   severity_filter: ["medium", "high", "critical"]
   timeout: 300
   exclude_tags: ["intrusive", "dos"]
-```
-
-#### ⚠️ SQLMapScannerPlugin (CUIDADO!)
-```yaml
-SQLMapScannerPlugin:
-  risk_level: 1          # 1=baixo, 2=médio, 3=alto
-  level: 1               # 1=básico, 5=agressivo
-  timeout: 300
 ```
 
 ## 🚨 Plugins Perigosos

@@ -6,14 +6,14 @@
 - **Reconnaissance**: DNS, subdomínios, tecnologias web, mapeamento de rede
 - **Network Attack Surface**: Port scanning (nativo), Nmap NSE, protocolos, SSL/TLS
 - **Web Attack Vectors**: Crawling, directory brute-force, detecção de vulnerabilidades web
-- **Vulnerability Assessment**: Nuclei templates, SQLMap, análise de misconfigurations
+- **Vulnerability Assessment**: Nuclei templates, análise de misconfigurations
 - **Exploit Intelligence**: Busca automática de exploits (Exploit-DB/CVE) baseada em serviços detectados
 - **Firewall/WAF Detection**: Identificação de proteções ativas
 
 ### 🔌 Arsenal
 **Plugins Nativos**: Port Scanner, DNS Resolver, Web Crawler, Technology Detector, Subdomain Enum, Exploit Suggester, Protocol Analyzer, SSL Analyzer, Firewall Detector, Misconfiguration Analyzer
 
-**Integração Externa**: Nmap, Nuclei, SQLMap, Subfinder, WhatWeb
+**Integração Externa**: Nmap, Nuclei, Subfinder, WhatWeb
 
 ## 🚀 Início Rápido
 

@@ -60,8 +60,7 @@ class MinimalOrchestrator:
             'SubdomainEnumerator': ('Web', 'Recon'),
             'SubfinderPlugin': ('Web', 'Recon'),
             'WebVulnScannerPlugin': ('Web', 'Vulnerabilidades'),
-            'NucleiScannerPlugin': ('Web', 'Vulnerabilidades'),
-            'SQLMapPlugin': ('Web', 'Vulnerabilidades')
+            'NucleiScannerPlugin': ('Web', 'Vulnerabilidades')
         }
         self.plugin_prereqs = {
             'NmapScannerPlugin': ['PortScannerPlugin'],
@@ -79,8 +78,7 @@ class MinimalOrchestrator:
             'TechnologyDetectorPlugin': ['PortScannerPlugin'],
             'WhatWebScannerPlugin': ['PortScannerPlugin'],
             'WebVulnScannerPlugin': ['PortScannerPlugin'],
-            'NucleiScannerPlugin': ['PortScannerPlugin'],
-            'SQLMapPlugin': ['PortScannerPlugin']
+            'NucleiScannerPlugin': ['PortScannerPlugin']
         }
         
         # Estado do pentest

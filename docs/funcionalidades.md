@@ -37,9 +37,6 @@ Reconhecimento avançado e OSINT: DNS, ASN, subdomínios, emails, social media, 
 ### Reportgenerator (ReportGenerator)
 Gera um relatório consolidado em Markdown a partir dos resultados da varredura.
 
-### Sqlmap (SQLMapPlugin)
-Detecção de vulnerabilidades SQL Injection usando SQLMap
-
 ### Sslanalyzer (SSLAnalyzerPlugin)
 Análise completa de SSL/TLS e certificados digitais
 

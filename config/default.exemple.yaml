@@ -111,10 +111,6 @@ plugins:
       analyze_cookies: true
       check_security_headers: true
       detect_frameworks: true
-    SQLMapPlugin:
-      level: 1
-      risk_level: 1
-      timeout: 600
     WebScannerPlugin:
       follow_redirects: true
       max_depth: 3
@@ -155,7 +151,6 @@ plugins:
     NucleiScannerPlugin: true
     PortScannerPlugin: true
     ReconnaissancePlugin: true
-    SQLMapPlugin: true
     SubdomainEnumeratorPlugin: true
     SubfinderPlugin: true
     TechnologyDetectorPlugin: true

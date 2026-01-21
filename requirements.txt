@@ -121,12 +121,6 @@ pytest-cov>=4.0.0
 # Ubuntu/Debian: sudo apt-get install exploitdb
 # Manual: git clone https://github.com/offensive-security/exploitdb.git && ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit
 
-# SQLMap Integration
-# Nota: SQLMap deve ser instalado separadamente do sistema
-# Ubuntu/Debian: sudo apt-get install sqlmap
-# Pip: pip install sqlmap
-# Manual: git clone https://github.com/sqlmapproject/sqlmap.git
-
 # Subfinder Integration
 # Nota: Subfinder deve ser instalado separadamente do sistema
 # Go: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
