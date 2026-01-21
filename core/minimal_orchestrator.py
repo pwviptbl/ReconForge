@@ -582,6 +582,10 @@ class MinimalOrchestrator:
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
         if other_keys:
             rprint(f"\n  [dim][bold]📋 Outros dados:[/bold] {', '.join(other_keys)}[/dim]")
+
+        if data.get('report_path'):
+            report_path = Path(str(data['report_path'])).resolve()
+            rprint(f"\n  [bold green]📄 Relatório:[/bold green] {report_path}")
     
     def _show_detailed_results(self):
         """Mostra um resumo geral e permite ver detalhes por plugin"""

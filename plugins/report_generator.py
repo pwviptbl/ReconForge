@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from core.config import get_config
 
 class ReportGeneratorPlugin(NetworkPlugin):
     """Plugin para gerar relatórios de pentest em formato Markdown."""
@@ -31,7 +32,10 @@ class ReportGeneratorPlugin(NetworkPlugin):
 
             # Salvar o relatório num ficheiro
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_filename = f"relatorio_{target.replace('/', '_')}_{timestamp}.md"
+            data_dir = Path(get_config('output.data_dir', 'dados'))
+            report_dir = data_dir / "relatorios"
+            report_dir.mkdir(parents=True, exist_ok=True)
+            report_filename = report_dir / f"relatorio_{target.replace('/', '_')}_{timestamp}.md"
 
             with open(report_filename, "w", encoding="utf-8") as f:
                 f.write(report_content)
@@ -43,7 +47,7 @@ class ReportGeneratorPlugin(NetworkPlugin):
                 execution_time=execution_time,
                 data={
                     'message': f"Relatório gerado com sucesso: {report_filename}",
-                    'report_path': report_filename
+                    'report_path': str(report_filename)
                 }
             )
 
@@ -66,94 +70,112 @@ class ReportGeneratorPlugin(NetworkPlugin):
 
         # Extrair descobertas do contexto
         discoveries = context.get('discoveries', {})
+        vulns = context.get('vulnerabilities', [])
+        executed_plugins = context.get('executed_plugins', [])
+        errors = context.get('errors', [])
 
         # Adicionar secções ao relatório
-        report.append(self._format_nmap_results(discoveries))
-        report.append(self._format_firewall_results(discoveries))
-        report.append(self._format_protocol_analysis(discoveries))
+        report.append(self._format_summary(discoveries, vulns, executed_plugins, errors))
+        report.append(self._format_discoveries(discoveries))
+        report.append(self._format_technologies(discoveries))
+        report.append(self._format_vulnerabilities(vulns))
+        report.append(self._format_errors(errors))
 
         return "\n".join(report)
 
-    def _format_nmap_results(self, discoveries: Dict[str, Any]) -> str:
-        """Formata os resultados do Nmap para Markdown."""
-        nmap_results = discoveries.get('NmapScannerPlugin', {})
-        if not nmap_results:
-            return ""
-
-        report = ["## Resultados do Nmap Scanner\n"]
-        for host_info in nmap_results.get('hosts', []):
-            ip = host_info.get('ip', 'N/A')
-            report.append(f"### Host: {ip}\n")
-
-            # Detalhes do SO
-            os_info = host_info.get('os_detection', {})
-            if os_info and os_info.get('name'):
-                report.append(f"- **Sistema Operacional:** {os_info['name']} (Acurácia: {os_info['accuracy']}%)")
-
-            # Portas e Serviços
-            report.append("\n**Portas Abertas:**\n")
-            report.append("| Porta | Protocolo | Serviço | Versão |")
-            report.append("|-------|-----------|---------|--------|")
-            for port_info in host_info.get('ports', []):
-                if port_info.get('state') == 'open':
-                    report.append(f"| {port_info.get('port')} | {port_info.get('protocol')} | {port_info.get('service')} | {port_info.get('version', '')} |")
-
-            report.append("\n")
-
-        # Vulnerabilidades
-        vulns = nmap_results.get('vulnerabilities', [])
-        if vulns:
-            report.append("**Vulnerabilidades Encontradas:**\n")
-            for vuln in vulns:
-                report.append(f"- **Host:** {vuln['host']}:{vuln['port']}")
-                report.append(f"  - **Script:** `{vuln['script_id']}`")
-                report.append(f"  - **Detalhes:**\n```\n{vuln['output']}\n```")
-
+    def _format_summary(
+        self,
+        discoveries: Dict[str, Any],
+        vulns: List[Dict[str, Any]],
+        executed_plugins: List[str],
+        errors: List[Any]
+    ) -> str:
+        report = ["## Resumo Executivo\n"]
+        report.append(f"- **Plugins executados:** {len(executed_plugins)}")
+        report.append(f"- **Hosts descobertos:** {len(discoveries.get('hosts', []))}")
+        report.append(f"- **Portas abertas:** {len(discoveries.get('open_ports', []))}")
+        report.append(f"- **Serviços:** {len(discoveries.get('services', []))}")
+        report.append(f"- **Tecnologias:** {len(discoveries.get('technologies', []))}")
+        report.append(f"- **Vulnerabilidades:** {len(vulns)}")
+        report.append(f"- **Erros:** {len(errors)}\n")
         return "\n".join(report)
 
-    def _format_firewall_results(self, discoveries: Dict[str, Any]) -> str:
-        """Formata os resultados do Firewall Detector para Markdown."""
-        firewall_results = discoveries.get('FirewallDetectorPlugin', {})
-        if not firewall_results:
+    def _format_discoveries(self, discoveries: Dict[str, Any]) -> str:
+        hosts = discoveries.get('hosts', [])
+        ports = discoveries.get('open_ports', [])
+        services = discoveries.get('services', [])
+
+        if not (hosts or ports or services):
             return ""
 
-        report = ["## Análise de Firewall\n"]
-        network_firewall = firewall_results.get('network_firewall', {})
-        if network_firewall:
-            report.append(f"- **Detecção de Firewall de Rede:** {network_firewall.get('likelihood', 'N/A').upper()}")
-            report.append(f"- **Resumo:** {network_firewall.get('summary', 'Nenhum detalhe disponível.')}\n")
+        report = ["## Descobertas\n"]
 
-        waf_detection = firewall_results.get('waf_detection', {})
-        if waf_detection and waf_detection.get('detected'):
-            report.append("**Detecção de WAF (Web Application Firewall):**\n")
-            report.append(f"- **WAFs Identificados:** {', '.join(waf_detection.get('identified_wafs', ['Nenhum']))}")
-            report.append(f"- **Confiança:** {waf_detection.get('confidence', 'N/A').upper()}")
+        if hosts:
+            report.append("**Hosts:** " + ", ".join(str(h) for h in hosts))
 
+        if ports:
+            report.append("\n**Portas Abertas:** " + ", ".join(str(p) for p in sorted(set(ports))))
+
+        if services:
+            report.append("\n**Serviços Identificados:**\n")
+            report.append("| Porta | Serviço | Versão | Produto |")
+            report.append("|-------|---------|--------|---------|")
+            for svc in services:
+                if not isinstance(svc, dict):
+                    report.append(f"| N/A | {svc} |  |  |")
+                    continue
+                port = svc.get('port', 'N/A')
+                name = svc.get('service', 'unknown')
+                version = svc.get('version', '')
+                product = svc.get('product', '')
+                report.append(f"| {port} | {name} | {version} | {product} |")
+
+        report.append("")
         return "\n".join(report)
 
-    def _format_protocol_analysis(self, discoveries: Dict[str, Any]) -> str:
-        """Formata os resultados do Protocol Analyzer para Markdown."""
-        protocol_results = discoveries.get('ProtocolAnalyzer', {})
-        if not protocol_results:
+    def _format_technologies(self, discoveries: Dict[str, Any]) -> str:
+        techs = discoveries.get('technologies', [])
+        if not techs:
             return ""
 
-        report = ["## Análise de Protocolos\n"]
-        port_details = protocol_results.get('port_details', {})
-        for port, details in port_details.items():
-            report.append(f"### Análise da Porta {port}\n")
+        unique = []
+        for t in techs:
+            value = t.get('name') if isinstance(t, dict) else str(t)
+            if value and value not in unique:
+                unique.append(value)
 
-            # Informações do Serviço
-            if details.get('service_info'):
-                report.append("**Informações do Serviço:**\n")
-                for info in details['service_info']:
-                    report.append(f"- **Script:** `{info['script']}`")
-                    report.append(f"  - **Detalhes:**\n```\n{info['details']}\n```")
+        return "## Tecnologias Detectadas\n\n" + ", ".join(unique) + "\n"
 
-            # Vulnerabilidades
-            if details.get('vulnerabilities'):
-                report.append("\n**Vulnerabilidades Encontradas:**\n")
-                for vuln in details['vulnerabilities']:
-                    report.append(f"- **Script:** `{vuln['script']}`")
-                    report.append(f"  - **Detalhes:**\n```\n{vuln['details']}\n```")
+    def _format_vulnerabilities(self, vulns: List[Dict[str, Any]]) -> str:
+        if not vulns:
+            return ""
 
+        report = ["## Vulnerabilidades\n"]
+
+        by_service = {}
+        for vuln in vulns:
+            service = vuln.get('service') or 'unknown'
+            by_service.setdefault(service, []).append(vuln)
+
+        for service, items in sorted(by_service.items()):
+            report.append(f"\n### Serviço: {service}\n")
+            report.append("| Severidade | Título | Porta | Referência |")
+            report.append("|------------|--------|-------|------------|")
+            for vuln in items:
+                severity = str(vuln.get('severity', 'UNKNOWN')).upper()
+                title = vuln.get('title') or vuln.get('description') or 'N/A'
+                port = vuln.get('port', 'N/A')
+                ref = vuln.get('url') or vuln.get('cve') or vuln.get('id') or ''
+                report.append(f"| {severity} | {title} | {port} | {ref} |")
+
+        report.append("")
+        return "\n".join(report)
+
+    def _format_errors(self, errors: List[Any]) -> str:
+        if not errors:
+            return ""
+        report = ["## Erros e Avisos\n"]
+        for err in errors:
+            report.append(f"- {err}")
+        report.append("")
         return "\n".join(report)
