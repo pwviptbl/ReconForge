@@ -194,6 +194,10 @@ class MinimalOrchestrator:
             if choice in ['r', 'results', 'resultados']:
                 self._show_detailed_results()
                 continue
+
+            if choice in ['d', 'discoveries', 'descobertas']:
+                self._show_discoveries()
+                continue
             
             if choice in ['v', 'vulns', 'vulnerabilities']:
                 self._show_vulnerabilities()
@@ -238,29 +242,6 @@ class MinimalOrchestrator:
         stats.add_row("⚠️  Vulnerabilidades:", f"[red]{len(vulns)}[/red]")
         self.console.print(stats)
         
-        # Mostrar descobertas detalhadas se houver
-        if discoveries['hosts'] or discoveries['open_ports'] or discoveries['services']:
-            self.console.print("\n[bold]═══ Descobertas Atuais ═══[/bold]")
-            
-            # Hosts
-            if discoveries['hosts']:
-                hosts_str = ", ".join(str(h) for h in discoveries['hosts'][:10])
-                if len(discoveries['hosts']) > 10:
-                    hosts_str += f" (+{len(discoveries['hosts']) - 10})"
-                rprint(f"  [green]Hosts:[/green] {hosts_str}")
-            
-            # Portas com serviços
-            if discoveries['open_ports'] or discoveries['services']:
-                self._show_ports_services_summary()
-            
-            # Tecnologias
-            if discoveries['technologies']:
-                techs = list(set(discoveries['technologies']))[:10]
-                techs_str = ", ".join(str(t) for t in techs)
-                if len(discoveries['technologies']) > 10:
-                    techs_str += f" (+{len(discoveries['technologies']) - 10})"
-                rprint(f"  [magenta]Tecnologias:[/magenta] {techs_str}")
-        
         # Mostrar vulnerabilidades resumidas se houver
         if vulns:
             self.console.print("\n[bold red]═══ Vulnerabilidades Encontradas ═══[/bold red]")
@@ -273,8 +254,44 @@ class MinimalOrchestrator:
                     rprint(f"  [yellow]• [{severity}][/yellow] {title}")
                 else:
                     rprint(f"  [dim]• [{severity}][/dim] {title}")
-            if len(vulns) > 5:
-                rprint(f"  [dim]... e mais {len(vulns) - 5} vulnerabilidades (digite 'v' para ver todas)[/dim]")
+        if len(vulns) > 5:
+            rprint(f"  [dim]... e mais {len(vulns) - 5} vulnerabilidades (digite 'v' para ver todas)[/dim]")
+
+    def _show_discoveries(self):
+        """Mostra descobertas atuais sob demanda"""
+        self.console.clear()
+        discoveries = self.context['discoveries']
+
+        if not (discoveries['hosts'] or discoveries['open_ports'] or discoveries['services'] or discoveries['technologies']):
+            rprint("[yellow]Nenhuma descoberta disponível ainda.[/yellow]")
+            input("\nPressione ENTER para voltar...")
+            return
+
+        self.console.print(Panel.fit(
+            "[bold]🔎 Descobertas Atuais[/bold]",
+            border_style="cyan"
+        ))
+
+        # Hosts
+        if discoveries['hosts']:
+            hosts_str = ", ".join(str(h) for h in discoveries['hosts'][:10])
+            if len(discoveries['hosts']) > 10:
+                hosts_str += f" (+{len(discoveries['hosts']) - 10})"
+            rprint(f"\n  [green][bold]Hosts:[/bold][/green] {hosts_str}")
+
+        # Portas com serviços
+        if discoveries['open_ports'] or discoveries['services']:
+            self._show_ports_services_summary()
+
+        # Tecnologias
+        if discoveries['technologies']:
+            techs = list(set(discoveries['technologies']))[:10]
+            techs_str = ", ".join(str(t) for t in techs)
+            if len(discoveries['technologies']) > 10:
+                techs_str += f" (+{len(discoveries['technologies']) - 10})"
+            rprint(f"\n  [magenta][bold]Tecnologias:[/bold][/magenta] {techs_str}")
+
+        input("\n[dim]Pressione ENTER para voltar...[/dim]")
     
     def _show_ports_services_summary(self):
         """Mostra resumo de portas e serviços"""
@@ -357,6 +374,7 @@ class MinimalOrchestrator:
         # Opções adicionais
         rprint("\n[bold yellow]Outras opções:[/bold yellow]")
         rprint("  [cyan]r[/cyan] - Ver resultados detalhados de plugins executados")
+        rprint("  [cyan]d[/cyan] - Ver descobertas atuais")
         rprint("  [cyan]s[/cyan] - Ver lista completa de serviços")
         rprint("  [cyan]v[/cyan] - Ver todas as vulnerabilidades")
         rprint("  [cyan]q[/cyan] - Encerrar varredura")
@@ -509,6 +527,20 @@ class MinimalOrchestrator:
                     rprint(f"      - {key}: {len(exploits)}")
                 if len(detailed_results) > 5:
                     rprint(f"      [dim]... e mais {len(detailed_results) - 5}[/dim]")
+
+        # ExploitSuggester - resumo especifico
+        if result.plugin_name == 'ExploitSuggester':
+            exploits = data.get('exploits', [])
+            if isinstance(exploits, list):
+                total_entries = len(exploits)
+                total_exploits = 0
+                for entry in exploits:
+                    items = entry.get('exploits', [])
+                    if isinstance(items, list):
+                        total_exploits += len(items)
+                rprint("\n  [bold]🧭 Resumo de Exploits:[/bold]")
+                rprint(f"    • CVEs com resultados: {total_entries}")
+                rprint(f"    • Exploits encontrados: {total_exploits}")
         
         # Dados brutos (resumo)
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
@@ -516,24 +548,69 @@ class MinimalOrchestrator:
             rprint(f"\n  [dim][bold]📋 Outros dados:[/bold] {', '.join(other_keys)}[/dim]")
     
     def _show_detailed_results(self):
-        """Mostra resultados detalhados de todos os plugins executados"""
+        """Mostra um resumo geral e permite ver detalhes por plugin"""
         self.console.clear()
-        
+
         if not self.results:
             rprint("[yellow]Nenhum plugin foi executado ainda.[/yellow]")
             input("\nPressione ENTER para voltar...")
             return
-        
-        self.console.print(Panel.fit(
-            "[bold]📋 Resultados Detalhados dos Plugins[/bold]",
-            border_style="cyan"
-        ))
-        
-        for plugin_name, result in self.results.items():
-            self.console.print(f"\n[bold cyan]═══ {plugin_name} ═══[/bold cyan]")
-            self._show_plugin_result_details(result)
-        
-        input("\n[dim]Pressione ENTER para voltar...[/dim]")
+
+        while True:
+            self.console.clear()
+            self.console.print(Panel.fit(
+                "[bold]📋 Resultados dos Plugins (Resumo)[/bold]",
+                border_style="cyan"
+            ))
+
+            plugin_names = list(self.results.keys())
+            for idx, plugin_name in enumerate(plugin_names, 1):
+                result = self.results[plugin_name]
+                data = result.data or {}
+                parts = []
+
+                if data.get('hosts'):
+                    parts.append(f"hosts:{len(data['hosts'])}")
+                if data.get('open_ports'):
+                    parts.append(f"ports:{len(data['open_ports'])}")
+                if data.get('services'):
+                    parts.append(f"services:{len(data['services'])}")
+                if data.get('technologies'):
+                    parts.append(f"techs:{len(data['technologies'])}")
+                if data.get('vulnerabilities'):
+                    parts.append(f"vulns:{len(data['vulnerabilities'])}")
+
+                if plugin_name == 'ExploitSearcherPlugin':
+                    total_exploits = data.get('total_exploits_found')
+                    if total_exploits is not None:
+                        parts.append(f"exploits:{total_exploits}")
+
+                if plugin_name == 'ExploitSuggester':
+                    exploits = data.get('exploits', [])
+                    if isinstance(exploits, list):
+                        total_exploits = 0
+                        for entry in exploits:
+                            items = entry.get('exploits', [])
+                            if isinstance(items, list):
+                                total_exploits += len(items)
+                        parts.append(f"exploits:{total_exploits}")
+
+                summary = ", ".join(parts) if parts else "sem dados resumidos"
+                self.console.print(f"[cyan]{idx}[/cyan] - {plugin_name} [dim]({summary})[/dim]")
+
+            choice = input("\n👉 ID para ver detalhes (ENTER para voltar): ").strip()
+            if not choice:
+                return
+            if not choice.isdigit() or int(choice) < 1 or int(choice) > len(plugin_names):
+                rprint("[red]❌ ID inválido![/red]")
+                input("\nPressione ENTER para continuar...")
+                continue
+
+            selected = plugin_names[int(choice) - 1]
+            self.console.clear()
+            self.console.print(f"\n[bold cyan]═══ {selected} ═══[/bold cyan]")
+            self._show_plugin_result_details(self.results[selected])
+            input("\n[dim]Pressione ENTER para voltar...[/dim]")
     
     def _show_vulnerabilities(self):
         """Mostra todas as vulnerabilidades encontradas"""
