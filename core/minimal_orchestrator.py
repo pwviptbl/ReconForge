@@ -752,6 +752,83 @@ class MinimalOrchestrator:
                     if len(issues) > 5:
                         rprint(f"    [dim]... e mais {len(issues) - 5}[/dim]")
 
+        # TrafficAnalyzerPlugin - resultados
+        if result.plugin_name == 'TrafficAnalyzerPlugin':
+            rprint("\n  [bold]📡 Tráfego e Conectividade:[/bold]")
+
+            connectivity = data.get('connectivity_analysis', {})
+            if isinstance(connectivity, dict) and connectivity:
+                success_rate = connectivity.get('success_rate')
+                avg_conn = connectivity.get('average_connect_time')
+                rprint(f"    • Sucesso conexoes: {int(success_rate * 100)}%" if success_rate is not None else "    • Sucesso conexoes: N/A")
+                if avg_conn is not None:
+                    rprint(f"    • Tempo medio conexao: {avg_conn:.3f}s")
+
+            protocol_analysis = data.get('protocol_analysis', {})
+            if isinstance(protocol_analysis, dict) and protocol_analysis:
+                detected = protocol_analysis.get('detected_protocols', [])
+                service = protocol_analysis.get('service_detection', {})
+                if detected:
+                    rprint(f"    • Protocolos: {', '.join(detected)}")
+                if isinstance(service, dict) and service:
+                    svc_name = service.get('service')
+                    svc_ver = service.get('version')
+                    if svc_name:
+                        rprint(f"    • Servico: {svc_name} {svc_ver or ''}".strip())
+
+            bandwidth = data.get('bandwidth_analysis', {})
+            if isinstance(bandwidth, dict) and bandwidth:
+                tests = bandwidth.get('bandwidth_tests', [])
+                if tests:
+                    rprint("\n  [bold]📶 Bandwidth:[/bold]")
+                    for test in tests[:3]:
+                        test_type = test.get('test_type', 'N/A')
+                        speed = test.get('speed_kbps')
+                        if speed is not None:
+                            rprint(f"    • {test_type}: {speed:.1f} kbps")
+
+            response_patterns = data.get('response_patterns', {})
+            if isinstance(response_patterns, dict) and response_patterns:
+                avg_rt = response_patterns.get('average_response_time')
+                consistent = response_patterns.get('consistent_responses')
+                if avg_rt is not None:
+                    rprint("\n  [bold]⏱️  Respostas:[/bold]")
+                    rprint(f"    • Tempo medio resposta: {avg_rt:.3f}s")
+                if consistent is not None:
+                    rprint(f"    • Consistentes: {'sim' if consistent else 'nao'}")
+
+            anomalies = data.get('anomaly_detection', {})
+            if isinstance(anomalies, dict) and anomalies:
+                risk = anomalies.get('risk_level')
+                score = anomalies.get('anomaly_score')
+                if risk or score is not None:
+                    rprint("\n  [bold]⚠️  Anomalias:[/bold]")
+                    if risk:
+                        rprint(f"    • Risco: {str(risk).upper()}")
+                    if score is not None:
+                        rprint(f"    • Score: {score}")
+
+            latency = data.get('latency_analysis', {})
+            if isinstance(latency, dict) and latency:
+                avg_latency = latency.get('average_latency_ms')
+                jitter = latency.get('jitter_ms')
+                if avg_latency is not None:
+                    rprint("\n  [bold]📈 Latencia:[/bold]")
+                    rprint(f"    • Media: {avg_latency:.1f} ms")
+                if jitter is not None:
+                    rprint(f"    • Jitter: {jitter:.1f} ms")
+
+            monitoring = data.get('connection_monitoring', {})
+            if isinstance(monitoring, dict) and monitoring:
+                success_rate = monitoring.get('success_rate')
+                stability = monitoring.get('stability')
+                if success_rate is not None or stability:
+                    rprint("\n  [bold]🔭 Monitoramento:[/bold]")
+                    if success_rate is not None:
+                        rprint(f"    • Sucesso: {int(success_rate * 100)}%")
+                    if stability:
+                        rprint(f"    • Estabilidade: {stability}")
+
         # Dados brutos (resumo)
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
         if other_keys:
