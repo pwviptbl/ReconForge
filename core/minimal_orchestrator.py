@@ -50,6 +50,7 @@ class MinimalOrchestrator:
             'SSLAnalyzerPlugin': ('Infra', 'Testes'),
             'TrafficAnalyzerPlugin': ('Infra', 'Testes'),
             'SSHPolicyCheck': ('Infra', 'Testes'),
+            'PortExposureAudit': ('Infra', 'Testes'),
             'ExploitSearcherPlugin': ('Infra', 'Vulnerabilidades'),
             'ExploitSuggester': ('Infra', 'Vulnerabilidades'),
             'ReportGenerator': ('Infra', 'Testes'),
@@ -73,6 +74,7 @@ class MinimalOrchestrator:
             'SSLAnalyzerPlugin': ['PortScannerPlugin'],
             'TrafficAnalyzerPlugin': ['PortScannerPlugin'],
             'SSHPolicyCheck': ['PortScannerPlugin'],
+            'PortExposureAudit': ['PortScannerPlugin'],
             'ExploitSearcherPlugin': ['NmapScannerPlugin'],
             'ExploitSuggester': ['NmapScannerPlugin'],
             'DirectoryScannerPlugin': ['PortScannerPlugin'],
@@ -863,6 +865,31 @@ class MinimalOrchestrator:
                 if len(results) > 5:
                     rprint(f"    [dim]... e mais {len(results) - 5}[/dim]")
 
+        # PortExposureAudit - resultados
+        if result.plugin_name == 'PortExposureAudit':
+            summary = data.get('summary', {})
+            exposures = data.get('exposures', [])
+            rprint("\n  [bold]🚦 Exposicao de Portas:[/bold]")
+            total = summary.get('total', len(exposures))
+            rprint(f"    • Exposicoes: {total}")
+            by_sev = summary.get('by_severity', {})
+            if isinstance(by_sev, dict) and by_sev:
+                counts = ", ".join(f"{k}:{v}" for k, v in by_sev.items())
+                rprint(f"    • Por severidade: {counts}")
+
+            if exposures:
+                rprint("\n  [bold]🧾 Detalhes (Exposicao):[/bold]")
+                for entry in exposures[:10]:
+                    port = entry.get('port')
+                    service = entry.get('service', 'unknown')
+                    severity = entry.get('severity', 'Info')
+                    reason = entry.get('reason', '')
+                    rprint(f"    • [{severity}] Porta {port} ({service})")
+                    if reason:
+                        rprint(f"      - {reason}")
+                if len(exposures) > 10:
+                    rprint(f"    [dim]... e mais {len(exposures) - 10}[/dim]")
+
         # HeaderAnalyzerPlugin - resultados
         if result.plugin_name == 'HeaderAnalyzerPlugin':
             targets = data.get('targets', [])
@@ -922,6 +949,8 @@ class MinimalOrchestrator:
                 'technologies',
                 'vulnerabilities',
                 'raw_output',
+                'exposures',
+                'summary',
                 'targets',
                 'analyzed',
                 'findings'
@@ -990,6 +1019,12 @@ class MinimalOrchestrator:
                         parts.append(f"ports:{ports_checked}")
                     if ports_with_weak is not None:
                         parts.append(f"weak:{ports_with_weak}")
+
+                if plugin_name == 'PortExposureAudit':
+                    summary = data.get('summary', {})
+                    total = summary.get('total')
+                    if total is not None:
+                        parts.append(f"exposures:{total}")
 
                 if plugin_name == 'HeaderAnalyzerPlugin':
                     targets = data.get('targets', [])

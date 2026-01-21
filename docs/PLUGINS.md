@@ -7,7 +7,7 @@ O ReconForge possui um sistema flexível de plugins que permite ativar/desativar
 ### Tipos de Plugins Disponíveis
 
 - **🔍 Plugins de Reconhecimento**: Reconnaissance (avançado)
-- **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, Network Mapper, SSH Policy Check
+- **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, Network Mapper, SSH Policy Check, Port Exposure Audit
 - **🔗 Plugins Web**: Web Scanner, Technology Detector, Directory Scanner
 - **🛡️ Plugins de Análise de Vulnerabilidade**: Nuclei Scanner, Web Vuln Scanner, Misconfiguration Analyzer, Exploit Suggester
 
@@ -23,6 +23,7 @@ Por padrão, a maioria dos plugins está **habilitada**, exceto:
 - PortScannerPlugin - Scanner de portas básico
 - NetworkMapperPlugin - Mapeamento de topologia e infraestrutura
 - SSHPolicyCheck - Avalia algoritmos e politica SSH
+- PortExposureAudit - Audita exposicao de portas sensiveis
 - SubdomainEnumeratorPlugin - Enumeração de subdomínios
 - WebScannerPlugin - Scanner web básico
 - TechnologyDetectorPlugin - Detector de tecnologias

@@ -28,6 +28,9 @@ Scanner de vulnerabilidades Nuclei com templates atualizados
 ### Portscanner (PortScannerPlugin)
 Scanner de portas TCP eficiente
 
+### Portexposureaudit (PortExposureAudit)
+Audita exposição de portas e serviços sensíveis com severidade.
+
 ### Protocolanalyzer (ProtocolAnalyzer)
 Analisa protocolos em portas abertas (ex: SMB, SSH) para vulnerabilidades.
 

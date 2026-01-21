@@ -145,6 +145,9 @@ plugins:
     SSHPolicyCheck:
       nmap_timeout: 180
       timing: T3
+    PortExposureAudit:
+      allow_ports: []
+      allow_services: []
   default_timeout: 300
   directory: plugins
   enabled:
@@ -166,4 +169,5 @@ plugins:
     FirewallDetectorPlugin: true
     TrafficAnalyzerPlugin: true
     SSHPolicyCheck: true
+    PortExposureAudit: true
   max_parallel: 3
