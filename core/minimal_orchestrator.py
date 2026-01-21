@@ -49,6 +49,7 @@ class MinimalOrchestrator:
             'FirewallDetectorPlugin': ('Infra', 'Testes'),
             'SSLAnalyzerPlugin': ('Infra', 'Testes'),
             'TrafficAnalyzerPlugin': ('Infra', 'Testes'),
+            'SSHPolicyCheck': ('Infra', 'Testes'),
             'ExploitSearcherPlugin': ('Infra', 'Vulnerabilidades'),
             'ExploitSuggester': ('Infra', 'Vulnerabilidades'),
             'ReportGenerator': ('Infra', 'Testes'),
@@ -59,6 +60,7 @@ class MinimalOrchestrator:
             'WhatWebScannerPlugin': ('Web', 'Recon'),
             'SubdomainEnumerator': ('Web', 'Recon'),
             'SubfinderPlugin': ('Web', 'Recon'),
+            'HeaderAnalyzerPlugin': ('Web', 'Recon'),
             'WebVulnScannerPlugin': ('Web', 'Vulnerabilidades'),
             'NucleiScannerPlugin': ('Web', 'Vulnerabilidades')
         }
@@ -70,6 +72,7 @@ class MinimalOrchestrator:
             'FirewallDetectorPlugin': ['PortScannerPlugin'],
             'SSLAnalyzerPlugin': ['PortScannerPlugin'],
             'TrafficAnalyzerPlugin': ['PortScannerPlugin'],
+            'SSHPolicyCheck': ['PortScannerPlugin'],
             'ExploitSearcherPlugin': ['NmapScannerPlugin'],
             'ExploitSuggester': ['NmapScannerPlugin'],
             'DirectoryScannerPlugin': ['PortScannerPlugin'],
@@ -78,7 +81,8 @@ class MinimalOrchestrator:
             'TechnologyDetectorPlugin': ['PortScannerPlugin'],
             'WhatWebScannerPlugin': ['PortScannerPlugin'],
             'WebVulnScannerPlugin': ['PortScannerPlugin'],
-            'NucleiScannerPlugin': ['PortScannerPlugin']
+            'NucleiScannerPlugin': ['PortScannerPlugin'],
+            'HeaderAnalyzerPlugin': ['PortScannerPlugin']
         }
         
         # Estado do pentest
@@ -826,11 +830,103 @@ class MinimalOrchestrator:
                     rprint("\n  [bold]🔭 Monitoramento:[/bold]")
                     if success_rate is not None:
                         rprint(f"    • Sucesso: {int(success_rate * 100)}%")
-                    if stability:
-                        rprint(f"    • Estabilidade: {stability}")
+                if stability:
+                    rprint(f"    • Estabilidade: {stability}")
+
+        # SSHPolicyCheck - resultados
+        if result.plugin_name == 'SSHPolicyCheck':
+            summary = data.get('summary', {})
+            ports_checked = summary.get('ports_checked', 0)
+            ports_with_weak = summary.get('ports_with_weak', 0)
+            weak_counts = summary.get('weak_counts', {})
+
+            rprint("\n  [bold]🔐 Politicas SSH:[/bold]")
+            rprint(f"    • Portas analisadas: {ports_checked}")
+            rprint(f"    • Portas com algoritmos fracos: {ports_with_weak}")
+            if isinstance(weak_counts, dict) and weak_counts:
+                counts = ", ".join(f"{k}:{v}" for k, v in weak_counts.items())
+                rprint(f"    • Fracos por categoria: {counts}")
+
+            results = data.get('results', [])
+            if results:
+                rprint("\n  [bold]🧾 Detalhes (SSH):[/bold]")
+                for entry in results[:5]:
+                    port = entry.get('port')
+                    product = entry.get('product') or ''
+                    version = entry.get('version') or ''
+                    rprint(f"    • Porta {port}: {product} {version}".strip())
+                    weak = entry.get('weak_algorithms', {})
+                    for key in ['host_keys', 'ciphers', 'kex', 'macs']:
+                        items = weak.get(key, [])
+                        if items:
+                            rprint(f"      - {key}: {', '.join(items)}")
+                if len(results) > 5:
+                    rprint(f"    [dim]... e mais {len(results) - 5}[/dim]")
+
+        # HeaderAnalyzerPlugin - resultados
+        if result.plugin_name == 'HeaderAnalyzerPlugin':
+            targets = data.get('targets', [])
+            analyzed = data.get('analyzed', [])
+            findings = data.get('findings', [])
+            rprint("\n  [bold]🧪 Headers HTTP/HTTPS:[/bold]")
+            if targets:
+                rprint(f"    • Endpoints encontrados: {len(targets)}")
+            if analyzed:
+                rprint(f"    • Endpoints analisados: {len(analyzed)}")
+            if findings is not None:
+                rprint(f"    • Achados: {len(findings)}")
+
+            status_map = {}
+            for entry in analyzed:
+                endpoint = f"{entry.get('scheme')}://{entry.get('host')}:{entry.get('port')}"
+                status_map[endpoint] = entry.get('status_code')
+
+            grouped = {}
+            for finding in findings or []:
+                endpoint = finding.get('endpoint', 'N/A')
+                entry = grouped.setdefault(endpoint, {'missing': set(), 'disclosure': {}})
+                missing = finding.get('missing_headers') or []
+                for header in missing:
+                    entry['missing'].add(header)
+                disclosure = finding.get('disclosure') or {}
+                if isinstance(disclosure, dict) and disclosure:
+                    entry['disclosure'].update({k: v for k, v in disclosure.items() if v})
+
+            if grouped:
+                rprint("\n  [bold]🧾 Detalhes (Headers):[/bold]")
+                for endpoint, details in list(grouped.items())[:10]:
+                    status = status_map.get(endpoint)
+                    status_text = f" [dim](HTTP {status})[/dim]" if status else ""
+                    rprint(f"    • {endpoint}{status_text}")
+                    missing = sorted(details['missing'])
+                    if missing:
+                        rprint(f"      - Faltando: {', '.join(missing)}")
+                    disclosure = details.get('disclosure', {})
+                    if disclosure:
+                        server = disclosure.get('server')
+                        powered = disclosure.get('x_powered_by')
+                        if server:
+                            rprint(f"      - Server: {server}")
+                        if powered:
+                            rprint(f"      - X-Powered-By: {powered}")
+                if len(grouped) > 10:
+                    rprint(f"    [dim]... e mais {len(grouped) - 10}[/dim]")
 
         # Dados brutos (resumo)
-        other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
+        other_keys = [
+            k for k in data.keys()
+            if k not in [
+                'hosts',
+                'open_ports',
+                'services',
+                'technologies',
+                'vulnerabilities',
+                'raw_output',
+                'targets',
+                'analyzed',
+                'findings'
+            ]
+        ]
         if other_keys:
             rprint(f"\n  [dim][bold]📋 Outros dados:[/bold] {', '.join(other_keys)}[/dim]")
 
@@ -885,6 +981,23 @@ class MinimalOrchestrator:
                             if isinstance(items, list):
                                 total_exploits += len(items)
                         parts.append(f"exploits:{total_exploits}")
+
+                if plugin_name == 'SSHPolicyCheck':
+                    summary = data.get('summary', {})
+                    ports_checked = summary.get('ports_checked')
+                    ports_with_weak = summary.get('ports_with_weak')
+                    if ports_checked is not None:
+                        parts.append(f"ports:{ports_checked}")
+                    if ports_with_weak is not None:
+                        parts.append(f"weak:{ports_with_weak}")
+
+                if plugin_name == 'HeaderAnalyzerPlugin':
+                    targets = data.get('targets', [])
+                    findings = data.get('findings', [])
+                    if targets:
+                        parts.append(f"endpoints:{len(targets)}")
+                    if findings is not None:
+                        parts.append(f"findings:{len(findings)}")
 
                 summary = ", ".join(parts) if parts else "sem dados resumidos"
                 self.console.print(f"[cyan]{idx}[/cyan] - {plugin_name} [dim]({summary})[/dim]")

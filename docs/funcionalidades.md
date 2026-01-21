@@ -40,6 +40,9 @@ Gera um relatório consolidado em Markdown a partir dos resultados da varredura.
 ### Sslanalyzer (SSLAnalyzerPlugin)
 Análise completa de SSL/TLS e certificados digitais
 
+### Sshpolicycheck (SSHPolicyCheck)
+Avalia políticas SSH e identifica algoritmos fracos (KEX, cifragem, MAC e chaves).
+
 ### Subdomainenumerator (SubdomainEnumerator)
 Enumeração de subdomínios usando wordlist e APIs públicas
 

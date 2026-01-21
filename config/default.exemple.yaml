@@ -142,6 +142,9 @@ plugins:
       anomaly_threshold: 2.5
       protocol_analysis: true
       bandwidth_measurement: true
+    SSHPolicyCheck:
+      nmap_timeout: 180
+      timing: T3
   default_timeout: 300
   directory: plugins
   enabled:
@@ -162,4 +165,5 @@ plugins:
     SSLAnalyzerPlugin: true
     FirewallDetectorPlugin: true
     TrafficAnalyzerPlugin: true
+    SSHPolicyCheck: true
   max_parallel: 3

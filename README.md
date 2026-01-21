@@ -11,7 +11,7 @@
 - **Firewall/WAF Detection**: Identificação de proteções ativas
 
 ### 🔌 Arsenal
-**Plugins Nativos**: Port Scanner, DNS Resolver, Web Crawler, Technology Detector, Subdomain Enum, Exploit Suggester, Protocol Analyzer, SSL Analyzer, Firewall Detector, Misconfiguration Analyzer
+**Plugins Nativos**: Port Scanner, DNS Resolver, Web Crawler, Technology Detector, Subdomain Enum, Exploit Suggester, Protocol Analyzer, SSL Analyzer, Firewall Detector, Misconfiguration Analyzer, SSH Policy Check, Header Analyzer
 
 **Integração Externa**: Nmap, Nuclei, Subfinder, WhatWeb
 
@@ -101,6 +101,5 @@ pip install -r requirements.txt
 
 - `nmap` - Scanner de rede
 - `nuclei` - Scanner de vulnerabilidades
-- `sqlmap` - Detecção de SQL injection
 - `subfinder` - Enumeração rápida de subdomínios
 - `whatweb` - Detecção de tecnologias web

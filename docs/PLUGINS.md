@@ -7,7 +7,7 @@ O ReconForge possui um sistema flexível de plugins que permite ativar/desativar
 ### Tipos de Plugins Disponíveis
 
 - **🔍 Plugins de Reconhecimento**: Reconnaissance (avançado)
-- **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, RustScan, Subdomain Enumerator
+- **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, Network Mapper, SSH Policy Check
 - **🔗 Plugins Web**: Web Scanner, Technology Detector, Directory Scanner
 - **🛡️ Plugins de Análise de Vulnerabilidade**: Nuclei Scanner, Web Vuln Scanner, Misconfiguration Analyzer, Exploit Suggester
 
@@ -21,11 +21,13 @@ Por padrão, a maioria dos plugins está **habilitada**, exceto:
 - DNSResolverPlugin - Resolução DNS básica
 - NmapScannerPlugin - Scanner Nmap completo (Agora com extração de CVEs!)
 - PortScannerPlugin - Scanner de portas básico
-- RustScanPlugin - Scanner de portas rápido
+- NetworkMapperPlugin - Mapeamento de topologia e infraestrutura
+- SSHPolicyCheck - Avalia algoritmos e politica SSH
 - SubdomainEnumeratorPlugin - Enumeração de subdomínios
 - WebScannerPlugin - Scanner web básico
 - TechnologyDetectorPlugin - Detector de tecnologias
 - DirectoryScannerPlugin - Scanner de diretórios
+- HeaderAnalyzerPlugin - Analisa headers HTTP/HTTPS
 - NucleiScannerPlugin - Scanner de vulnerabilidades
 - **MisconfigurationAnalyzerPlugin (NOVO!)** - 🕵️ Analisa falhas de configuração em serviços de rede.
 - **ExploitSuggesterPlugin (NOVO!)** - 💥 Sugere exploits públicos para as CVEs encontradas.
