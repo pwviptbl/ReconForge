@@ -4,6 +4,7 @@ Detecta presença e tipo de firewalls e WAFs
 """
 
 import socket
+import errno
 import subprocess
 import time
 import random
@@ -144,6 +145,23 @@ class FirewallDetectorPlugin(NetworkPlugin):
             
             # Análise de filtros de porta
             results['port_filtering'] = self._analyze_port_filtering(hostname)
+
+            # Ajuste de sinal para firewall de rede com base em filtragem direta
+            port_filtering_summary = results.get('port_filtering', {}).get('summary', {})
+            if port_filtering_summary.get('filtering_detected'):
+                network_firewall = results.get('network_firewall', {})
+                if isinstance(network_firewall, dict):
+                    network_firewall['firewall_detected'] = True
+                    if network_firewall.get('likelihood') in (None, 'low'):
+                        network_firewall['likelihood'] = 'medium'
+                    filtered = port_filtering_summary.get('filtered_ports', 0)
+                    open_ports = port_filtering_summary.get('open_ports', 0)
+                    closed_ports = port_filtering_summary.get('closed_ports', 0)
+                    network_firewall['summary'] = (
+                        "Detecção de firewall: MEDIUM. "
+                        f"Filtragem direta detectada (abertas {open_ports}, filtradas {filtered}, fechadas {closed_ports})."
+                    )
+                    results['network_firewall'] = network_firewall
             
             # Detecção de rate limiting
             results['rate_limiting'] = self._detect_rate_limiting(hostname, port, is_https)
@@ -722,8 +740,11 @@ class FirewallDetectorPlugin(NetworkPlugin):
             
             if result == 0:
                 return 'open'
-            else:
+            if result == errno.ECONNREFUSED:
                 return 'closed'
+            if result in (errno.ETIMEDOUT, errno.EHOSTUNREACH, errno.ENETUNREACH):
+                return 'filtered'
+            return 'filtered'
                 
         except socket.timeout:
             return 'filtered'
