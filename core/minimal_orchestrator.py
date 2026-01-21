@@ -482,6 +482,29 @@ class MinimalOrchestrator:
             if len(data['vulnerabilities']) > 10:
                 rprint(f"    [dim]... e mais {len(data['vulnerabilities']) - 10}[/dim]")
 
+        # MisconfigurationAnalyzer - resultados
+        if data.get('misconfigurations'):
+            misconfigs = data.get('misconfigurations', [])
+            rprint(f"\n  [yellow][bold]🛠️  Más Configurações ({len(misconfigs)}):[/bold][/yellow]")
+            severity_counts = {}
+            for item in misconfigs:
+                sev = str(item.get('severity', 'Info')).upper()
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            if severity_counts:
+                counts = ", ".join(f"{k}:{v}" for k, v in sorted(severity_counts.items()))
+                rprint(f"    [dim]Severidades: {counts}[/dim]")
+            for finding in misconfigs[:10]:
+                sev = str(finding.get('severity', 'Info')).upper()
+                host = finding.get('host', 'N/A')
+                port = finding.get('port', 'N/A')
+                script = finding.get('script', 'N/A')
+                details = str(finding.get('details', ''))[:120]
+                rprint(f"    • [{sev}] {host}:{port} {script}")
+                if details:
+                    rprint(f"      [dim]{details}[/dim]")
+            if len(misconfigs) > 10:
+                rprint(f"    [dim]... e mais {len(misconfigs) - 10}[/dim]")
+
         # ExploitSearcherPlugin - resumo especifico
         if result.plugin_name == 'ExploitSearcherPlugin' or 'security_report' in data:
             software_analyzed = data.get('software_analyzed')
