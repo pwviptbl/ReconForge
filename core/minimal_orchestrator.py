@@ -527,6 +527,24 @@ class MinimalOrchestrator:
                     rprint(f"      - {key}: {len(exploits)}")
                 if len(detailed_results) > 5:
                     rprint(f"      [dim]... e mais {len(detailed_results) - 5}[/dim]")
+                rprint("\n  [bold]🧾 Detalhes (ExploitSearcher):[/bold]")
+                for key, exploits in list(detailed_results.items())[:5]:
+                    rprint(f"    • {key} ({len(exploits)} exploits)")
+                    for exploit in exploits[:5]:
+                        title = exploit.get('title') or exploit.get('name') or 'N/A'
+                        source = exploit.get('source', 'unknown')
+                        cve_id = exploit.get('cve_id') or exploit.get('cve')
+                        url = exploit.get('url') or exploit.get('path')
+                        line = f"      - {title} [dim]({source})[/dim]"
+                        if cve_id:
+                            line += f" [dim]{cve_id}[/dim]"
+                        rprint(line)
+                        if url:
+                            rprint(f"        [dim]{url}[/dim]")
+                    if len(exploits) > 5:
+                        rprint(f"      [dim]... e mais {len(exploits) - 5}[/dim]")
+                if len(detailed_results) > 5:
+                    rprint(f"    [dim]... e mais {len(detailed_results) - 5} alvos[/dim]")
 
         # ExploitSuggester - resumo especifico
         if result.plugin_name == 'ExploitSuggester':
@@ -541,6 +559,24 @@ class MinimalOrchestrator:
                 rprint("\n  [bold]🧭 Resumo de Exploits:[/bold]")
                 rprint(f"    • CVEs com resultados: {total_entries}")
                 rprint(f"    • Exploits encontrados: {total_exploits}")
+                if total_entries:
+                    rprint("\n  [bold]🧾 Detalhes (ExploitSuggester):[/bold]")
+                    for entry in exploits[:10]:
+                        cve = entry.get('cve', 'N/A')
+                        items = entry.get('exploits', [])
+                        rprint(f"    • {cve} ({len(items)} exploits)")
+                        if isinstance(items, list):
+                            for exploit in items[:5]:
+                                title = exploit.get('title', 'N/A')
+                                path = exploit.get('path', '')
+                                if path:
+                                    rprint(f"      - {title} [dim]({path})[/dim]")
+                                else:
+                                    rprint(f"      - {title}")
+                            if len(items) > 5:
+                                rprint(f"      [dim]... e mais {len(items) - 5}[/dim]")
+                    if total_entries > 10:
+                        rprint(f"    [dim]... e mais {total_entries - 10} CVEs[/dim]")
         
         # Dados brutos (resumo)
         other_keys = [k for k in data.keys() if k not in ['hosts', 'open_ports', 'services', 'technologies', 'vulnerabilities', 'raw_output']]
