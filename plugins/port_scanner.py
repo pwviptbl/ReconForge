@@ -56,6 +56,8 @@ class PortScannerPlugin(NetworkPlugin):
             common_ports_only = get_config('plugins.config.PortScannerPlugin.common_ports_only', False)
             max_ports = get_config('plugins.config.PortScannerPlugin.max_ports', 1024)
             default_scan_type = get_config('plugins.config.PortScannerPlugin.scan_type', 'full')
+            self.timeout = float(get_config('plugins.config.PortScannerPlugin.timeout', self.timeout))
+            self.max_workers = int(get_config('plugins.config.PortScannerPlugin.max_threads', self.max_workers))
             
             # Determinar tipo de scan baseado na configuração
             if common_ports_only:
@@ -73,9 +75,9 @@ class PortScannerPlugin(NetworkPlugin):
             else:
                 ports = kwargs.get('ports', self.common_ports)
             
-            # Resolver target para IP
-            target_ip = self._resolve_target(target)
-            if not target_ip:
+            # Resolver target para IP(s)
+            target_ips = self._resolve_targets(target)
+            if not target_ips:
                 return PluginResult(
                     success=False,
                     plugin_name=self.name,
@@ -84,18 +86,23 @@ class PortScannerPlugin(NetworkPlugin):
                     error=f"Não foi possível resolver: {target}"
                 )
             
-            # Executar scan
-            open_ports = self._scan_ports(target_ip, ports)
-            
-            # Identificar serviços
+            # Executar scan por IP
+            open_ports = []
             services = []
-            for port in open_ports:
-                service_name = self.known_services.get(port, 'unknown')
-                services.append({
-                    'port': port,
-                    'service': service_name,
-                    'host': target_ip
-                })
+            hosts_with_open_ports = set()
+            for ip in target_ips:
+                ip_open_ports = self._scan_ports(ip, ports)
+                if ip_open_ports:
+                    hosts_with_open_ports.add(ip)
+                open_ports.extend(ip_open_ports)
+                for port in ip_open_ports:
+                    service_name = self.known_services.get(port, 'unknown')
+                    services.append({
+                        'port': port,
+                        'service': service_name,
+                        'host': ip
+                    })
+            open_ports = sorted(set(open_ports))
             
             execution_time = time.time() - start_time
             
@@ -105,12 +112,13 @@ class PortScannerPlugin(NetworkPlugin):
                 execution_time=execution_time,
                 data={
                     'target': target,
-                    'target_ip': target_ip,
+                    'target_ip': target_ips[0],
+                    'target_ips': target_ips,
                     'scan_type': scan_type,
                     'total_ports_scanned': len(ports),
                     'open_ports': open_ports,
                     'services': services,
-                    'hosts': [target_ip] if open_ports else []
+                    'hosts': sorted(hosts_with_open_ports)
                 }
             )
             
@@ -142,18 +150,19 @@ class PortScannerPlugin(NetworkPlugin):
                 except:
                     return False
     
-    def _resolve_target(self, target: str) -> str:
-        """Resolve target para IP"""
+    def _resolve_targets(self, target: str) -> List[str]:
+        """Resolve target para um ou mais IPs"""
         try:
             # Se já é IP, retornar
             socket.inet_aton(target)
-            return target
+            return [target]
         except socket.error:
             try:
-                # Tentar resolver hostname
-                return socket.gethostbyname(target)
+                # Resolver hostname para todos os IPs
+                _, _, ips = socket.gethostbyname_ex(target)
+                return sorted(set(ips))
             except socket.error:
-                return None
+                return []
     
     def _scan_ports(self, ip: str, ports: List[int]) -> List[int]:
         """Escaneia portas usando múltiplas threads"""
