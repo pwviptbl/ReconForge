@@ -20,7 +20,12 @@ class PluginManager:
     
     def __init__(self, plugins_dir: Optional[str] = None):
         self.logger = get_logger('PluginManager')
-        self.plugins_dir = Path(plugins_dir or get_config('plugins.directory', 'plugins'))
+        raw_dir = Path(plugins_dir or get_config('plugins.directory', 'plugins'))
+        if raw_dir.is_absolute():
+            self.plugins_dir = raw_dir
+        else:
+            base_dir = Path(__file__).resolve().parent.parent
+            self.plugins_dir = base_dir / raw_dir
         self.plugins: Dict[str, BasePlugin] = {}
         self.plugin_classes: Dict[str, Type[BasePlugin]] = {}
         
