@@ -22,13 +22,66 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich import print as rprint
 
+REPORT_PLUGIN_NAME = "ReportGenerator"
+
+PLUGIN_GROUPS = {
+    'PortScannerPlugin': ('Infra', 'Scanner'),
+    'NmapScannerPlugin': ('Infra', 'Scanner'),
+    'NetworkMapperPlugin': ('Infra', 'Scanner'),
+    'DNSResolverPlugin': ('Infra', 'Recon'),
+    'ReconnaissancePlugin': ('Infra', 'Recon'),
+    'ProtocolAnalyzer': ('Infra', 'Testes'),
+    'MisconfigurationAnalyzer': ('Infra', 'Testes'),
+    'FirewallDetectorPlugin': ('Infra', 'Testes'),
+    'SSLAnalyzerPlugin': ('Infra', 'Testes'),
+    'TrafficAnalyzerPlugin': ('Infra', 'Testes'),
+    'SSHPolicyCheck': ('Infra', 'Testes'),
+    'PortExposureAudit': ('Infra', 'Testes'),
+    'ExploitSearcherPlugin': ('Infra', 'Vulnerabilidades'),
+    'ExploitSuggester': ('Infra', 'Vulnerabilidades'),
+    REPORT_PLUGIN_NAME: ('Infra', 'Testes'),
+    'DirectoryScannerPlugin': ('Web', 'Scanner'),
+    'WebScannerPlugin': ('Web', 'Scanner'),
+    'WebCrawlerPlugin': ('Web', 'Scanner'),
+    'TechnologyDetectorPlugin': ('Web', 'Recon'),
+    'WhatWebScannerPlugin': ('Web', 'Recon'),
+    'SubdomainEnumerator': ('Web', 'Recon'),
+    'SubfinderPlugin': ('Web', 'Recon'),
+    'HeaderAnalyzerPlugin': ('Web', 'Recon'),
+    'WebVulnScannerPlugin': ('Web', 'Vulnerabilidades'),
+    'NucleiScannerPlugin': ('Web', 'Vulnerabilidades')
+}
+
+PLUGIN_PREREQS = {
+    'NmapScannerPlugin': ['PortScannerPlugin'],
+    'NetworkMapperPlugin': ['PortScannerPlugin'],
+    'ProtocolAnalyzer': ['PortScannerPlugin'],
+    'MisconfigurationAnalyzer': ['PortScannerPlugin'],
+    'FirewallDetectorPlugin': ['PortScannerPlugin'],
+    'SSLAnalyzerPlugin': ['PortScannerPlugin'],
+    'TrafficAnalyzerPlugin': ['PortScannerPlugin'],
+    'SSHPolicyCheck': ['PortScannerPlugin'],
+    'PortExposureAudit': ['PortScannerPlugin'],
+    'ExploitSearcherPlugin': ['NmapScannerPlugin'],
+    'ExploitSuggester': ['NmapScannerPlugin'],
+    'DirectoryScannerPlugin': ['PortScannerPlugin'],
+    'WebScannerPlugin': ['PortScannerPlugin'],
+    'WebCrawlerPlugin': ['PortScannerPlugin'],
+    'TechnologyDetectorPlugin': ['PortScannerPlugin'],
+    'WhatWebScannerPlugin': ['PortScannerPlugin'],
+    'WebVulnScannerPlugin': ['PortScannerPlugin'],
+    'NucleiScannerPlugin': ['PortScannerPlugin'],
+    'HeaderAnalyzerPlugin': ['PortScannerPlugin']
+}
+
 
 class MinimalOrchestrator:
     """Orquestrador minimalista com menu interativo para seleção de plugins"""
     
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, quiet: bool = False):
         self.logger = get_logger('MinimalOrchestrator')
         self.console = Console()
+        self.quiet = quiet
         
         # Inicializar componentes
         self.plugin_manager = PluginManager()
@@ -38,60 +91,15 @@ class MinimalOrchestrator:
         self.loaded_session = False
 
         # Agrupamento e pre-requisitos de plugins
-        self.plugin_groups = {
-            'PortScannerPlugin': ('Infra', 'Scanner'),
-            'NmapScannerPlugin': ('Infra', 'Scanner'),
-            'NetworkMapperPlugin': ('Infra', 'Scanner'),
-            'DNSResolverPlugin': ('Infra', 'Recon'),
-            'ReconnaissancePlugin': ('Infra', 'Recon'),
-            'ProtocolAnalyzer': ('Infra', 'Testes'),
-            'MisconfigurationAnalyzer': ('Infra', 'Testes'),
-            'FirewallDetectorPlugin': ('Infra', 'Testes'),
-            'SSLAnalyzerPlugin': ('Infra', 'Testes'),
-            'TrafficAnalyzerPlugin': ('Infra', 'Testes'),
-            'SSHPolicyCheck': ('Infra', 'Testes'),
-            'PortExposureAudit': ('Infra', 'Testes'),
-            'ExploitSearcherPlugin': ('Infra', 'Vulnerabilidades'),
-            'ExploitSuggester': ('Infra', 'Vulnerabilidades'),
-            'ReportGenerator': ('Infra', 'Testes'),
-            'DirectoryScannerPlugin': ('Web', 'Scanner'),
-            'WebScannerPlugin': ('Web', 'Scanner'),
-            'WebCrawlerPlugin': ('Web', 'Scanner'),
-            'TechnologyDetectorPlugin': ('Web', 'Recon'),
-            'WhatWebScannerPlugin': ('Web', 'Recon'),
-            'SubdomainEnumerator': ('Web', 'Recon'),
-            'SubfinderPlugin': ('Web', 'Recon'),
-            'HeaderAnalyzerPlugin': ('Web', 'Recon'),
-            'WebVulnScannerPlugin': ('Web', 'Vulnerabilidades'),
-            'NucleiScannerPlugin': ('Web', 'Vulnerabilidades')
-        }
-        self.plugin_prereqs = {
-            'NmapScannerPlugin': ['PortScannerPlugin'],
-            'NetworkMapperPlugin': ['PortScannerPlugin'],
-            'ProtocolAnalyzer': ['PortScannerPlugin'],
-            'MisconfigurationAnalyzer': ['PortScannerPlugin'],
-            'FirewallDetectorPlugin': ['PortScannerPlugin'],
-            'SSLAnalyzerPlugin': ['PortScannerPlugin'],
-            'TrafficAnalyzerPlugin': ['PortScannerPlugin'],
-            'SSHPolicyCheck': ['PortScannerPlugin'],
-            'PortExposureAudit': ['PortScannerPlugin'],
-            'ExploitSearcherPlugin': ['NmapScannerPlugin'],
-            'ExploitSuggester': ['NmapScannerPlugin'],
-            'DirectoryScannerPlugin': ['PortScannerPlugin'],
-            'WebScannerPlugin': ['PortScannerPlugin'],
-            'WebCrawlerPlugin': ['PortScannerPlugin'],
-            'TechnologyDetectorPlugin': ['PortScannerPlugin'],
-            'WhatWebScannerPlugin': ['PortScannerPlugin'],
-            'WebVulnScannerPlugin': ['PortScannerPlugin'],
-            'NucleiScannerPlugin': ['PortScannerPlugin'],
-            'HeaderAnalyzerPlugin': ['PortScannerPlugin']
-        }
+        self.plugin_groups = PLUGIN_GROUPS
+        self.plugin_prereqs = PLUGIN_PREREQS
         
         # Estado do pentest
         self.context = {}
         self.results = {}
         
-        self.logger.info("🎯 ReconForge Orquestrador inicializado")
+        if not self.quiet:
+            self.logger.info("🎯 ReconForge Orquestrador inicializado")
     
     def run_interactive(self, target: str) -> Dict[str, Any]:
         """
@@ -148,6 +156,96 @@ class MinimalOrchestrator:
             
             return result
             
+        except Exception as e:
+            self.logger.error(f"💥 Erro na varredura: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': str(e),
+                'target': target,
+                'context': self.context
+            }
+
+    def run_non_interactive(
+        self,
+        target: str,
+        selected_plugins: Optional[List[str]] = None,
+        use_cache: bool = True
+    ) -> Dict[str, Any]:
+        """Executa todos os plugins (ou seleção) em sequência sem prompts"""
+        self.logger.info(f"🚀 Iniciando varredura automatizada: {target}")
+
+        if not (self.loaded_session and self.context.get('target') == target):
+            self.context = {
+                'target': target,
+                'start_time': datetime.now(),
+                'executed_plugins': [],
+                'plugin_states': {},
+                'discoveries': {
+                    'hosts': [],
+                    'open_ports': [],
+                    'services': [],
+                    'technologies': []
+                },
+                'vulnerabilities': [],
+                'errors': []
+            }
+            self.results = {}
+            self.run_id = self.storage.create_run(self.context['target'], self.context, {})
+        else:
+            self._ensure_context_defaults()
+            self.loaded_session = False
+
+        try:
+            order, info = self._resolve_execution_order(target=target, selected_plugins=selected_plugins)
+
+            if info.get('unknown'):
+                rprint(f"[yellow]⚠️ Plugins desconhecidos ignorados: {', '.join(info['unknown'])}[/yellow]")
+            if info.get('invalid_target'):
+                rprint(
+                    "[yellow]⚠️ Plugins incompatíveis com o alvo ignorados: "
+                    f"{', '.join(info['invalid_target'])}[/yellow]"
+                )
+            if info.get('blocked'):
+                rprint(f"[yellow]⚠️ Plugins bloqueados por pré-requisitos: {', '.join(info['blocked'])}[/yellow]")
+
+            if not order:
+                return {
+                    'success': False,
+                    'error': 'Nenhum plugin válido para executar',
+                    'target': target,
+                    'context': self.context
+                }
+
+            for plugin_name in order:
+                self._execute_plugin(
+                    plugin_name,
+                    skip_prereq_check=True,
+                    non_interactive=True,
+                    use_cache=use_cache
+                )
+
+            report_path = self._generate_report()
+
+            end_time = datetime.now()
+            duration = (end_time - self.context['start_time']).total_seconds()
+
+            result = {
+                'success': True,
+                'target': target,
+                'duration_seconds': duration,
+                'plugins_executed': len(self.context['executed_plugins']),
+                'vulnerabilities_found': len(self.context['vulnerabilities']),
+                'discoveries': self.context['discoveries'],
+                'report_path': report_path,
+                'context': self.context
+            }
+
+            self._show_final_summary(result)
+
+            return result
+
         except Exception as e:
             self.logger.error(f"💥 Erro na varredura: {e}")
             import traceback
@@ -385,20 +483,132 @@ class MinimalOrchestrator:
     
     def _get_available_plugins(self) -> List[Dict]:
         """Retorna plugins disponíveis para o alvo"""
+        return self.get_plugin_catalog(target=self.context.get('target'), include_unvalidated=False)
+
+    def get_plugin_catalog(self, target: Optional[str] = None, include_unvalidated: bool = False) -> List[Dict]:
+        """Lista plugins com metadados, opcionalmente filtrando por alvo"""
         available = []
-        
-        for plugin_name, plugin in self.plugin_manager.plugins.items():
-            if plugin.validate_target(self.context['target']):
-                info = plugin.get_info()
-                parent, subgroup = self._classify_plugin(info)
-                info['parent_category'] = parent
-                info['subcategory'] = subgroup
-                available.append(info)
-        
+
+        for _, plugin in self.plugin_manager.plugins.items():
+            if target and not plugin.validate_target(target):
+                if not include_unvalidated:
+                    continue
+            info = plugin.get_info()
+            parent, subgroup = self._classify_plugin(info)
+            info['parent_category'] = parent
+            info['subcategory'] = subgroup
+            available.append(info)
+
         return sorted(
             available,
             key=lambda x: (x.get('parent_category', 'z'), x.get('subcategory', 'z'), x['name'])
         )
+
+    def get_ordered_plugins(self, target: Optional[str] = None) -> List[str]:
+        """Retorna plugins ordenados respeitando pré-requisitos"""
+        order, _ = self._resolve_execution_order(target=target, selected_plugins=None)
+        return order
+
+    def _resolve_execution_order(
+        self,
+        target: Optional[str],
+        selected_plugins: Optional[List[str]] = None
+    ) -> tuple[List[str], Dict[str, Any]]:
+        """Resolve ordem final de execução, incluindo pré-requisitos"""
+        available = {
+            name: plugin
+            for name, plugin in self.plugin_manager.plugins.items()
+            if target is None or plugin.validate_target(target)
+        }
+        all_plugins = set(self.plugin_manager.plugins.keys())
+
+        invalid_target = []
+        unknown = []
+        selected_set: Set[str] = set()
+
+        if selected_plugins is None:
+            selected_set = set(available.keys())
+        else:
+            for name in selected_plugins:
+                if name in available:
+                    selected_set.add(name)
+                elif name in all_plugins:
+                    invalid_target.append(name)
+                else:
+                    unknown.append(name)
+
+        missing_prereqs: Dict[str, Set[str]] = {}
+
+        def add_prereqs(name: str):
+            for prereq in self.plugin_prereqs.get(name, []):
+                if prereq in available:
+                    if prereq not in selected_set:
+                        selected_set.add(prereq)
+                        add_prereqs(prereq)
+                else:
+                    missing_prereqs.setdefault(name, set()).add(prereq)
+
+        for name in list(selected_set):
+            add_prereqs(name)
+
+        blocked = set()
+        changed = True
+        while changed:
+            changed = False
+            for name in list(selected_set):
+                prereqs = self.plugin_prereqs.get(name, [])
+                if any(prereq not in selected_set for prereq in prereqs):
+                    blocked.add(name)
+                    selected_set.remove(name)
+                    changed = True
+
+        base_infos = self.get_plugin_catalog(target=target, include_unvalidated=False)
+        base_order = [info['name'] for info in base_infos]
+        for name in selected_set:
+            if name not in base_order:
+                base_order.append(name)
+
+        order = self._topological_sort(selected_set, base_order)
+        if REPORT_PLUGIN_NAME in order:
+            order = [name for name in order if name != REPORT_PLUGIN_NAME] + [REPORT_PLUGIN_NAME]
+
+        return order, {
+            'invalid_target': invalid_target,
+            'unknown': unknown,
+            'blocked': sorted(blocked),
+            'missing_prereqs': {k: sorted(v) for k, v in missing_prereqs.items()}
+        }
+
+    def _topological_sort(self, selected_set: Set[str], base_order: List[str]) -> List[str]:
+        """Topological sort estável baseado na ordem base"""
+        order_index = {name: idx for idx, name in enumerate(base_order)}
+        in_degree = {name: 0 for name in selected_set}
+        edges = {name: [] for name in selected_set}
+
+        for name in selected_set:
+            for prereq in self.plugin_prereqs.get(name, []):
+                if prereq in selected_set:
+                    edges[prereq].append(name)
+                    in_degree[name] += 1
+
+        queue = [name for name, deg in in_degree.items() if deg == 0]
+        queue.sort(key=lambda n: order_index.get(n, 10**6))
+        result = []
+
+        while queue:
+            name = queue.pop(0)
+            result.append(name)
+            for nxt in edges.get(name, []):
+                in_degree[nxt] -= 1
+                if in_degree[nxt] == 0:
+                    queue.append(nxt)
+            queue.sort(key=lambda n: order_index.get(n, 10**6))
+
+        if len(result) != len(selected_set):
+            remaining = [n for n in base_order if n in selected_set and n not in result]
+            result.extend(remaining)
+
+        return result
     
     def _parse_plugin_choice(self, choice: str, available: List[Dict]) -> Optional[str]:
         """Converte escolha do usuário em nome de plugin"""
@@ -1295,7 +1505,32 @@ class MinimalOrchestrator:
 
         return True
 
-    def _execute_plugin(self, plugin_name: str, skip_prereq_check: bool = False):
+    def _ensure_prerequisites_auto(self, plugin_name: str) -> bool:
+        """Executa pré-requisitos automaticamente (sem prompts)"""
+        prereqs = self.plugin_prereqs.get(plugin_name, [])
+        if not prereqs:
+            return True
+
+        executed = set(self.context['executed_plugins'])
+        missing = [p for p in prereqs if p not in executed]
+        if not missing:
+            return True
+
+        for prereq in missing:
+            if not self.plugin_manager.get_plugin(prereq):
+                rprint(f"[red]❌ Pre-requisito nao encontrado: {prereq}[/red]")
+                return False
+            self._execute_plugin(prereq, skip_prereq_check=True, non_interactive=True)
+
+        return True
+
+    def _execute_plugin(
+        self,
+        plugin_name: str,
+        skip_prereq_check: bool = False,
+        non_interactive: bool = False,
+        use_cache: bool = True
+    ):
         """Executa um plugin e mostra resultados detalhados"""
         self.console.print(f"\n[bold cyan]{'═' * 50}[/bold cyan]")
         self.console.print(f"[bold cyan]🔌 Executando: {plugin_name}[/bold cyan]")
@@ -1307,12 +1542,17 @@ class MinimalOrchestrator:
             return
 
         # Checar pre-requisitos
-        if not skip_prereq_check and not self._ensure_prerequisites(plugin_name):
-            return
+        if not skip_prereq_check:
+            if non_interactive:
+                if not self._ensure_prerequisites_auto(plugin_name):
+                    return
+            else:
+                if not self._ensure_prerequisites(plugin_name):
+                    return
 
         cached = self.storage.get_cached_result(self.context['target'], plugin_name)
-        if cached and not skip_prereq_check:
-            if Confirm.ask(
+        if cached and not skip_prereq_check and use_cache:
+            if non_interactive or Confirm.ask(
                 f"[yellow]Resultado salvo encontrado para {plugin_name}. Usar cache?[/yellow]",
                 default=True
             ):

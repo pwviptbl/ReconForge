@@ -30,6 +30,19 @@ fi
 python main.py
 ```
 
+### 🧪 Execução automática (CLI)
+
+```bash
+# Executa todos os plugins em sequência (respeitando pré-requisitos)
+python main.py example.com
+
+# Executa plugins específicos pela numeração do --help
+python main.py example.com --plugins 1,2,4,5
+
+# Lista plugins e numeração
+python main.py --list-plugins
+```
+
 ## 📋 Como Funciona
 
 1. **Digite o alvo** (IP, domínio, URL ou CIDR)
