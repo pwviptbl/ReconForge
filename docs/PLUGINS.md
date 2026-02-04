@@ -42,14 +42,14 @@ Por padrão, a maioria dos plugins está **habilitada**, exceto:
 source venv/bin/activate
 
 # Listar plugins e status
-python manage_plugins.py list
+python scripts/manage_plugins.py list
 ```
 
 ### 2. Habilitar um Plugin
 
 ```bash
 # Habilitar plugin específico
-python manage_plugins.py enable NucleiScannerPlugin
+python scripts/manage_plugins.py enable NucleiScannerPlugin
 
 ```
 
@@ -57,7 +57,7 @@ python manage_plugins.py enable NucleiScannerPlugin
 
 ```bash
 # Desabilitar plugin específico
-python manage_plugins.py disable PortScannerPlugin
+python scripts/manage_plugins.py disable PortScannerPlugin
 
 ```
 
@@ -65,7 +65,7 @@ python manage_plugins.py disable PortScannerPlugin
 
 ```bash
 # Mostrar configuração atual
-python manage_plugins.py config DNSResolverPlugin
+python scripts/manage_plugins.py config DNSResolverPlugin
 ```
 
 ### 5. Configurar um Plugin
@@ -78,21 +78,21 @@ cp config/plugins_example.yaml config/my_plugins.yaml
 nano config/my_plugins.yaml
 
 # Aplicar configuração personalizada
-python manage_plugins.py config DNSResolverPlugin config/my_plugins.yaml
+python scripts/manage_plugins.py config DNSResolverPlugin config/my_plugins.yaml
 ```
 
 ### 6. Ver Categorias de Plugins
 
 ```bash
 # Listar categorias disponíveis
-python manage_plugins.py categories
+python scripts/manage_plugins.py categories
 ```
 
 ### 7. Exportar Configuração Atual
 
 ```bash
 # Exportar configuração para backup
-python manage_plugins.py export backup_plugins.yaml
+python scripts/manage_plugins.py export backup_plugins.yaml
 ```
 
 ## ⚙️ Configuração via Arquivo
@@ -120,7 +120,7 @@ python manage_plugins.py export backup_plugins.yaml
 
 3. **Use no programa principal**:
    ```bash
-   python main.py --target example.com --config config/custom_plugins.yaml
+   python scripts/main.py --target example.com --config config/custom_plugins.yaml
    ```
 
 ### Configurações Importantes por Plugin

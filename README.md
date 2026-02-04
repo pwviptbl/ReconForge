@@ -18,6 +18,9 @@
 ## 🚀 Início Rápido
 
 ```bash
+# (Opcional) Instalar dependências do sistema (Debian/Ubuntu/Kali)
+./scripts/system_update.sh
+
 # Ativar ambiente virtual
 # Padrão: .venv (ou venv se já existir)
 if [ -d ".venv" ]; then
@@ -27,20 +30,26 @@ else
 fi
 
 # Executar
-python main.py
+python scripts/main.py
+```
+
+Ou simplesmente:
+
+```bash
+./run.sh
 ```
 
 ### 🧪 Execução automática (CLI)
 
 ```bash
 # Executa todos os plugins em sequência (respeitando pré-requisitos)
-python main.py example.com
+python scripts/main.py example.com
 
 # Executa plugins específicos pela numeração do --help
-python main.py example.com --plugins 1,2,4,5
+python scripts/main.py example.com --plugins 1,2,4,5
 
 # Lista plugins e numeração
-python main.py --list-plugins
+python scripts/main.py --list-plugins
 ```
 
 ## 📋 Como Funciona
@@ -82,7 +91,7 @@ Os relatórios são salvos em `dados/scan_YYYYMMDD_HHMMSS.json` contendo:
 ## 🛠️ Arquivos Principais
 
 ```
-├── main.py                      # Ponto de entrada
+├── scripts/main.py                      # Ponto de entrada
 ├── core/
 │   ├── minimal_orchestrator.py  # Orquestrador com menu interativo
 │   ├── plugin_manager.py        # Gerenciador de plugins
@@ -97,14 +106,22 @@ Os relatórios são salvos em `dados/scan_YYYYMMDD_HHMMSS.json` contendo:
 
 ```bash
 # Listar plugins
-python manage_plugins.py list
+python scripts/manage_plugins.py list
 
 # Habilitar/Desabilitar
-python manage_plugins.py enable NomePlguin
-python manage_plugins.py disable NomePlugin
+python scripts/manage_plugins.py enable NomePlguin
+python scripts/manage_plugins.py disable NomePlugin
 ```
 
 ## 📦 Requisitos
+
+### Sistema (Debian/Ubuntu/Kali)
+
+```bash
+./scripts/system_update.sh
+```
+
+### Python
 
 ```bash
 pip install -r requirements.txt

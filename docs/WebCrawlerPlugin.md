@@ -74,7 +74,7 @@ WebCrawlerPlugin:
 ### Via Sistema Principal
 ```bash
 # Executar varredura completa
-python main.py https://exemplo.com
+python scripts/main.py https://exemplo.com
 
 # O WebCrawlerPlugin será executado automaticamente se habilitado
 ```
@@ -82,14 +82,14 @@ python main.py https://exemplo.com
 ### Via Plugin Manager
 ```bash
 # Verificar status do plugin
-python manage_plugins.py list
+python scripts/manage_plugins.py list
 
 # Ver configuração atual
-python manage_plugins.py config WebCrawlerPlugin
+python scripts/manage_plugins.py config WebCrawlerPlugin
 
 # Habilitar/desabilitar
-python manage_plugins.py enable WebCrawlerPlugin
-python manage_plugins.py disable WebCrawlerPlugin
+python scripts/manage_plugins.py enable WebCrawlerPlugin
+python scripts/manage_plugins.py disable WebCrawlerPlugin
 ```
 
 ### Via Código Python

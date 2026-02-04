@@ -6,13 +6,16 @@ Permite listar, habilitar, desabilitar e configurar plugins
 """
 
 import sys
+import os
 import argparse
 from pathlib import Path
 import json
 import yaml
 
-# Adicionar diretório atual ao path
-sys.path.insert(0, str(Path(__file__).parent))
+# Garantir execução a partir da raiz do projeto
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.plugin_manager import PluginManager
 from core.config import get_config

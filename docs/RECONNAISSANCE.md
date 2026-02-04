@@ -208,19 +208,19 @@ ReconnaissancePlugin:
 ### 🔍 **Reconhecimento Inicial**
 ```bash
 # Descoberta básica de um domínio
-python main.py --target example.com
+python scripts/main.py --target example.com
 ```
 
 ### 🌐 **Mapeamento de Infraestrutura**
 ```bash
 # Análise completa de subdomínios e IPs
-python main.py --target corporation.com --config config/reconnaissance_full.yaml
+python scripts/main.py --target corporation.com --config config/reconnaissance_full.yaml
 ```
 
 ### 🎯 **Inteligência Competitiva**
 ```bash
 # Análise passiva (apenas APIs públicas)
-python main.py --target competitor.com --config config/reconnaissance_passive.yaml
+python scripts/main.py --target competitor.com --config config/reconnaissance_passive.yaml
 ```
 
 ## 🚀 **Desenvolvimento Futuro**

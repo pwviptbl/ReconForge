@@ -7,6 +7,8 @@ import json
 import subprocess
 import tempfile
 import time
+import shutil
+import os
 from typing import Dict, Any, List
 from urllib.parse import urlparse
 
@@ -111,8 +113,16 @@ class WhatWebScannerPlugin(WebPlugin):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
             output_file = temp_file.name
 
+        whatweb_cmd = shutil.which('whatweb')
+        if not whatweb_cmd:
+            fallback = "/usr/share/whatweb/whatweb"
+            if Path(fallback).is_file() and os.access(fallback, os.X_OK):
+                whatweb_cmd = fallback
+            else:
+                whatweb_cmd = "whatweb"
+
         cmd = [
-            'whatweb',
+            whatweb_cmd,
             '-a', str(aggression),
             '--log-json', output_file,
             url

@@ -196,13 +196,13 @@ TrafficAnalyzerPlugin:
 ### 1. **Execução Individual**
 ```bash
 # Análise completa de rede
-python main.py --target example.com --plugins NetworkMapperPlugin,SSLAnalyzerPlugin,FirewallDetectorPlugin
+python scripts/main.py --target example.com --plugins NetworkMapperPlugin,SSLAnalyzerPlugin,FirewallDetectorPlugin
 
 # Apenas análise SSL
-python main.py --target https://example.com --plugins SSLAnalyzerPlugin
+python scripts/main.py --target https://example.com --plugins SSLAnalyzerPlugin
 
 # Detecção de firewall/WAF
-python main.py --target example.com --plugins FirewallDetectorPlugin
+python scripts/main.py --target example.com --plugins FirewallDetectorPlugin
 ```
 
 ### 2. **Integração no Workflow**
@@ -222,7 +222,7 @@ plugins:
 
 ### **Pentesting Externo**
 ```bash
-python main.py --target company.com --plugins NetworkMapperPlugin,SSLAnalyzerPlugin,FirewallDetectorPlugin
+python scripts/main.py --target company.com --plugins NetworkMapperPlugin,SSLAnalyzerPlugin,FirewallDetectorPlugin
 ```
 - Mapeia rota até o alvo
 - Analisa certificados SSL
@@ -231,7 +231,7 @@ python main.py --target company.com --plugins NetworkMapperPlugin,SSLAnalyzerPlu
 
 ### **Auditoria SSL/TLS**
 ```bash
-python main.py --target https://api.company.com --plugins SSLAnalyzerPlugin
+python scripts/main.py --target https://api.company.com --plugins SSLAnalyzerPlugin
 ```
 - Verifica configuração SSL
 - Identifica vulnerabilidades
@@ -240,7 +240,7 @@ python main.py --target https://api.company.com --plugins SSLAnalyzerPlugin
 
 ### **Análise de Infraestrutura**
 ```bash
-python main.py --target 192.168.1.0/24 --plugins NetworkMapperPlugin
+python scripts/main.py --target 192.168.1.0/24 --plugins NetworkMapperPlugin
 ```
 - Descobre hosts ativos
 - Mapeia topologia interna
@@ -249,7 +249,7 @@ python main.py --target 192.168.1.0/24 --plugins NetworkMapperPlugin
 
 ### **Bypass de WAF**
 ```bash
-python main.py --target protected-site.com --plugins FirewallDetectorPlugin
+python scripts/main.py --target protected-site.com --plugins FirewallDetectorPlugin
 ```
 - Identifica tipo de WAF
 - Testa payloads maliciosos

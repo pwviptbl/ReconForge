@@ -112,7 +112,7 @@
 ```bash
 # 1. Ativar funcionalidades OSINT no config/default.yaml
 # 2. Executar reconhecimento completo
-python main.py --target example.com
+python scripts/main.py --target example.com
 
 # 3. Verificar resultados OSINT na seção osint_intelligence
 ```

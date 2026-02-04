@@ -110,10 +110,27 @@ class PluginManager:
             return True
 
         import shutil
+
+        def _find_executable(name: str) -> Optional[str]:
+            found = shutil.which(name)
+            if found:
+                return found
+            candidates = [
+                f"/usr/bin/{name}",
+                f"/usr/local/bin/{name}",
+                f"/usr/sbin/{name}",
+                f"/usr/local/sbin/{name}",
+            ]
+            if name == "whatweb":
+                candidates.append("/usr/share/whatweb/whatweb")
+            for path in candidates:
+                if path and os.path.isfile(path) and os.access(path, os.X_OK):
+                    return path
+            return None
         
         for requirement in plugin.requirements:
             # Verificar se é um executável do sistema
-            if shutil.which(requirement):
+            if _find_executable(requirement):
                 continue  # Executável encontrado
             
             # Verificar se é um módulo Python
