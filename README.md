@@ -29,7 +29,7 @@ else
 	source venv/bin/activate
 fi
 
-# Executar
+# Executar (URLs serão normalizadas para domínio/IP)
 python scripts/main.py
 ```
 
@@ -42,7 +42,7 @@ Ou simplesmente:
 ### 🧪 Execução automática (CLI)
 
 ```bash
-# Executa todos os plugins em sequência (respeitando pré-requisitos)
+# Executa todos os plugins em sequência (URLs serão normalizadas para domínio/IP)
 python scripts/main.py example.com
 
 # Executa plugins específicos pela numeração do --help

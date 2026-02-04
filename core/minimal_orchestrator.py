@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Set
+from urllib.parse import urlparse
 
 from .config import get_config
 from .plugin_manager import PluginManager
@@ -100,12 +101,28 @@ class MinimalOrchestrator:
         
         if not self.quiet:
             self.logger.info("🎯 ReconForge Orquestrador inicializado")
+
+    def _normalize_target(self, target: Optional[str]) -> Optional[str]:
+        """Normaliza alvo para host/IP quando for URL."""
+        if not target:
+            return target
+        target = target.strip()
+        if target.startswith(("http://", "https://")):
+            parsed = urlparse(target)
+            host = parsed.hostname or parsed.netloc
+            return host or target
+        if "/" in target:
+            target = target.split("/", 1)[0]
+        if target.count(":") == 1:
+            target = target.split(":", 1)[0]
+        return target
     
     def run_interactive(self, target: str) -> Dict[str, Any]:
         """
         Executa pentest com seleção interativa de plugins
         O usuário escolhe um plugin por vez, vê os resultados e decide o próximo
         """
+        target = self._normalize_target(target)
         self.logger.info(f"🚀 Iniciando varredura: {target}")
         
         if not (self.loaded_session and self.context.get('target') == target):
@@ -174,6 +191,7 @@ class MinimalOrchestrator:
         use_cache: bool = True
     ) -> Dict[str, Any]:
         """Executa todos os plugins (ou seleção) em sequência sem prompts"""
+        target = self._normalize_target(target)
         self.logger.info(f"🚀 Iniciando varredura automatizada: {target}")
 
         if not (self.loaded_session and self.context.get('target') == target):
