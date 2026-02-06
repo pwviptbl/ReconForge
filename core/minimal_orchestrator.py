@@ -122,6 +122,7 @@ class MinimalOrchestrator:
         Executa pentest com seleção interativa de plugins
         O usuário escolhe um plugin por vez, vê os resultados e decide o próximo
         """
+        original_target = target  # Preservar URL original para plugins web
         target = self._normalize_target(target)
         self.logger.info(f"🚀 Iniciando varredura: {target}")
         
@@ -129,6 +130,7 @@ class MinimalOrchestrator:
             # Inicializar contexto
             self.context = {
                 'target': target,
+                'original_target': original_target,  # URL original para plugins web
                 'start_time': datetime.now(),
                 'executed_plugins': [],
                 'plugin_states': {},
@@ -191,12 +193,14 @@ class MinimalOrchestrator:
         use_cache: bool = True
     ) -> Dict[str, Any]:
         """Executa todos os plugins (ou seleção) em sequência sem prompts"""
+        original_target = target  # Preservar URL original para plugins web
         target = self._normalize_target(target)
         self.logger.info(f"🚀 Iniciando varredura automatizada: {target}")
 
         if not (self.loaded_session and self.context.get('target') == target):
             self.context = {
                 'target': target,
+                'original_target': original_target,  # URL original para plugins web
                 'start_time': datetime.now(),
                 'executed_plugins': [],
                 'plugin_states': {},
