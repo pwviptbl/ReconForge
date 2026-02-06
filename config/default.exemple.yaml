@@ -1,9 +1,9 @@
 ai:
   gemini:
-    api_key: AIzaSyDvgL5ssyTOQk5x-9Fl7tLV3hy1H62Q2UQ
+    api_key: KEY_API_GEMINI
     enabled: true
     max_retries: 3
-    model: gemini-2.5-flash-lite
+    model: gemini-2.0-flash
     temperature: 0.3
     timeout: 30
   security:
@@ -21,9 +21,9 @@ loop:
   max_iterations: 30
   min_interval: 2
 network:
-  delay: 0.1
-  max_threads: 100
-  timeout: 10
+  delay: 0.05                    # Menor delay = mais rápido
+  max_threads: 300               # Mais threads = mais agressivo
+  timeout: 5                     # Timeout menor
 output:
   data_dir: data
   max_results: 50
@@ -46,7 +46,7 @@ plugins:
       max_ports: 1000
       scan_type: syn
       script_scan: true
-      timing: T4
+      timing: T5                   # T5 = insane (mais rápido/agressivo)
     NucleiScannerPlugin:
       max_templates: 1000
       severity_filter:
@@ -58,8 +58,8 @@ plugins:
       timeout: 300
     PortScannerPlugin:
       common_ports_only: false
-      max_threads: 200
-      timeout: 3
+      max_threads: 500             # Muitas threads para scan rápido
+      timeout: 2                   # Timeout agressivo
       scan_type: extended
       max_ports: 65535
     ReconnaissancePlugin:
@@ -68,30 +68,30 @@ plugins:
       - 8.8.4.4
       - 1.1.1.1
       subdomain_wordlist: wordlists/subdomains.txt
-      max_subdomains: 200
-      max_threads: 50
-      timeout: 15
+      max_subdomains: 500          # Mais subdomínios
+      max_threads: 100             # Mais threads
+      timeout: 10                  # Timeout menor
       use_apis: true
-      api_delay: 1.0
+      api_delay: 0.5               # Menos delay entre APIs
       brute_force_subdomains: true
       check_email_patterns: true
       geoip_enabled: true
       whois_enabled: true
       asn_lookup: true
       crt_sh_api: true
-      securitytrails_api: false
-      virustotal_api: false
-      social_media_scan: false
-      check_data_breaches: false
-      threat_intelligence: false
-      advanced_email_harvesting: false
+      securitytrails_api: false      # Requer API Key
+      virustotal_api: false          # Requer API Key
+      social_media_scan: true        # Verifica LinkedIn, Twitter, GitHub, Facebook
+      check_data_breaches: true      # Consulta vazamentos (HaveIBeenPwned)
+      threat_intelligence: true      # Fontes de threat intel
+      advanced_email_harvesting: true # Coleta de emails via Google Dorking e padrões
     SubfinderPlugin:
       timeout: 120
       resolve_ips: true
       silent: true
     WhatWebScannerPlugin:
-      aggression: 1
-      timeout: 60
+      aggression: 3                # 3 = mais agressivo (heavy)
+      timeout: 30
     WebCrawlerPlugin:
       headless: true
       timeout: 30
@@ -131,9 +131,9 @@ plugins:
       analyze_ciphers: true
       check_hsts: true
     FirewallDetectorPlugin:
-      stealth_mode: true
-      timing_template: T3
-      max_retries: 3
+      stealth_mode: false          # Desativar stealth = mais agressivo
+      timing_template: T5          # Timing insano
+      max_retries: 5               # Mais tentativas
       detect_waf: true
       suggest_bypasses: true
     TrafficAnalyzerPlugin:
@@ -143,8 +143,8 @@ plugins:
       protocol_analysis: true
       bandwidth_measurement: true
     SSHPolicyCheck:
-      nmap_timeout: 180
-      timing: T3
+      nmap_timeout: 120
+      timing: T5                   # Timing agressivo
     PortExposureAudit:
       allow_ports: []
       allow_services: []

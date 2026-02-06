@@ -106,16 +106,62 @@ python scripts/main.py
 ./run.sh example.com --no-cache
 ```
 
-### Modo com IA (Em Desenvolvimento)
+### Modo com IA
 
-> O modo com IA utilizará um orquestrador inteligente que seleciona automaticamente os plugins baseado no tipo de alvo e descobertas anteriores.
+O modo com IA seleciona automaticamente os plugins baseado no objetivo informado.
+
+#### Argumentos de IA
+
+| Argumento | Descrição |
+|-----------|-----------|
+| `--ai` | Habilita o modo com IA |
+| `-o`, `--orientacao` | Define o objetivo/orientação para a IA selecionar plugins |
+| `--model` | Especifica o modelo de IA (padrão: gemini-2.0-flash) |
+| `--config` | Arquivo YAML de configuração customizado |
+
+#### Exemplos
 
 ```bash
-# Futuro: Modo com IA habilitado
+# Modo IA básico (executa plugins recomendados)
 ./run.sh example.com --ai
 
-# Futuro: IA com objetivo específico
-./run.sh example.com --ai --goal "encontrar vulnerabilidades web"
+# IA com orientação específica
+./run.sh example.com --ai -o "encontrar vulnerabilidades web"
+./run.sh example.com --ai -o "scan de portas e serviços"
+./run.sh example.com --ai -o "reconhecimento completo"
+
+# Especificar modelo de IA
+./run.sh example.com --ai -o "análise ssl" --model gemini-2.0-flash
+
+# Usar configuração customizada
+./run.sh example.com --ai --config minha_config.yaml
+```
+
+#### Palavras-chave para Orientação
+
+A IA interpreta estas palavras para selecionar plugins:
+
+| Palavra-chave | Plugins Selecionados |
+|---------------|---------------------|
+| `web`, `diretório`, `crawl` | DirectoryScanner, WebCrawler, WebVuln |
+| `vuln`, `vulnerabilidade`, `cve` | Nuclei, WebVuln, Exploits |
+| `rede`, `porta`, `scan`, `nmap` | PortScanner, Nmap, NetworkMapper |
+| `ssl`, `https`, `certificado` | SSLAnalyzer |
+| `dns`, `subdomínio` | DNSResolver, SubdomainEnumerator |
+| `firewall`, `waf` | FirewallDetector |
+| `completo`, `tudo`, `full` | Todos os plugins |
+
+#### Configuração de API Key
+
+Edite `config/default.yaml`:
+
+```yaml
+ai:
+  gemini:
+    api_key: SUA_API_KEY_GEMINI
+    enabled: true
+    model: gemini-2.0-flash
+    temperature: 0.3
 ```
 
 ---

@@ -72,6 +72,97 @@ def _parse_plugins_arg(raw: str, ordered_plugins: list[str]) -> tuple[list[str],
     return selected, invalid
 
 
+def _select_plugins_for_goal(goal: str, available_plugins: list[str]) -> list[str]:
+    """
+    Seleciona plugins relevantes baseado no objetivo/orientação informado
+    
+    Args:
+        goal: Objetivo descrito pelo usuário (ex: "encontrar vulnerabilidades web")
+        available_plugins: Lista de plugins disponíveis
+        
+    Returns:
+        Lista de plugins selecionados para o objetivo
+    """
+    goal_lower = goal.lower()
+    selected = set()
+    
+    # Mapeamento de palavras-chave para plugins
+    keyword_mapping = {
+        # Web/HTTP
+        'web': ['DirectoryScannerPlugin', 'WebCrawlerPlugin', 'WebVulnScannerPlugin', 
+                'TechnologyDetectorPlugin', 'HeaderAnalyzerPlugin'],
+        'diretório': ['DirectoryScannerPlugin'],
+        'directory': ['DirectoryScannerPlugin'],
+        'crawl': ['WebCrawlerPlugin'],
+        'spider': ['WebCrawlerPlugin'],
+        
+        # Vulnerabilidades
+        'vuln': ['NucleiScannerPlugin', 'WebVulnScannerPlugin', 'MisconfigurationAnalyzerPlugin'],
+        'vulnerabilidade': ['NucleiScannerPlugin', 'WebVulnScannerPlugin', 'MisconfigurationAnalyzerPlugin'],
+        'cve': ['ExploitSearcherPlugin', 'ExploitSuggesterPlugin'],
+        'exploit': ['ExploitSearcherPlugin', 'ExploitSuggesterPlugin'],
+        
+        # Rede
+        'rede': ['PortScannerPlugin', 'NetworkMapperPlugin', 'NmapScannerPlugin'],
+        'network': ['PortScannerPlugin', 'NetworkMapperPlugin', 'NmapScannerPlugin'],
+        'porta': ['PortScannerPlugin', 'NmapScannerPlugin', 'PortExposureAuditPlugin'],
+        'port': ['PortScannerPlugin', 'NmapScannerPlugin', 'PortExposureAuditPlugin'],
+        'scan': ['PortScannerPlugin', 'NmapScannerPlugin'],
+        'nmap': ['NmapScannerPlugin'],
+        
+        # DNS e subdomínios
+        'dns': ['DNSResolverPlugin', 'SubdomainEnumeratorPlugin'],
+        'subdomain': ['SubdomainEnumeratorPlugin', 'SubfinderPlugin'],
+        'subdomínio': ['SubdomainEnumeratorPlugin', 'SubfinderPlugin'],
+        
+        # SSL/TLS
+        'ssl': ['SSLAnalyzerPlugin'],
+        'tls': ['SSLAnalyzerPlugin'],
+        'certificado': ['SSLAnalyzerPlugin'],
+        'https': ['SSLAnalyzerPlugin'],
+        
+        # Firewall/WAF
+        'firewall': ['FirewallDetectorPlugin'],
+        'waf': ['FirewallDetectorPlugin'],
+        'bypass': ['FirewallDetectorPlugin'],
+        
+        # SSH
+        'ssh': ['SSHPolicyCheckPlugin'],
+        
+        # Reconhecimento
+        'recon': ['ReconnaissancePlugin', 'TechnologyDetectorPlugin', 'WhatWebScannerPlugin'],
+        'reconhecimento': ['ReconnaissancePlugin', 'TechnologyDetectorPlugin'],
+        'tecnologia': ['TechnologyDetectorPlugin', 'WhatWebScannerPlugin'],
+        'technology': ['TechnologyDetectorPlugin', 'WhatWebScannerPlugin'],
+        
+        # Completo
+        'completo': available_plugins,
+        'full': available_plugins,
+        'tudo': available_plugins,
+        'all': available_plugins,
+    }
+    
+    # Buscar plugins baseado nas palavras-chave
+    for keyword, plugins in keyword_mapping.items():
+        if keyword in goal_lower:
+            for plugin in plugins:
+                if plugin in available_plugins:
+                    selected.add(plugin)
+    
+    # Se nenhum plugin foi selecionado, usar conjunto padrão
+    if not selected:
+        default_plugins = ['PortScannerPlugin', 'TechnologyDetectorPlugin']
+        for plugin in default_plugins:
+            if plugin in available_plugins:
+                selected.add(plugin)
+    
+    # Sempre incluir PortScanner como base (se disponível)
+    if 'PortScannerPlugin' in available_plugins:
+        selected.add('PortScannerPlugin')
+    
+    return list(selected)
+
+
 def run_interactive_menu() -> int:
     """Executa o menu interativo atual"""
     from rich.console import Console
@@ -210,6 +301,16 @@ def main():
         parser.add_argument('--plugins', help='Lista de plugins por número ou nome (ex: 1,2,4)')
         parser.add_argument('--list-plugins', action='store_true', help='Lista plugins disponíveis e sai')
         parser.add_argument('--no-cache', action='store_true', help='Ignora resultados em cache (modo não interativo)')
+        
+        # Argumentos de IA
+        parser.add_argument('--ai', action='store_true', 
+                          help='Habilita modo com IA para seleção inteligente de plugins')
+        parser.add_argument('-o', '--orientacao', type=str, metavar='OBJETIVO',
+                          help='Orientação/objetivo para a IA (ex: "encontrar vulnerabilidades web")')
+        parser.add_argument('--model', type=str, 
+                          help='Modelo de IA a usar (ex: gemini-2.0-flash, gpt-4)')
+        parser.add_argument('--config', type=str, 
+                          help='Arquivo de configuração YAML customizado')
 
         args = parser.parse_args()
 
@@ -217,8 +318,17 @@ def main():
             print(plugin_help)
             return 0
 
+        # Validação de argumentos
         if args.plugins and not args.target:
             print("❌ Você deve informar um alvo ao usar --plugins.")
+            return 2
+        
+        if args.orientacao and not args.ai:
+            print("⚠️  Argumento -o/--orientacao requer --ai. Habilitando modo IA automaticamente.")
+            args.ai = True
+        
+        if args.ai and not args.target:
+            print("❌ Você deve informar um alvo ao usar --ai.")
             return 2
 
         if not args.target:
@@ -226,19 +336,69 @@ def main():
 
         setup_logger('ReconForge', verbose=True)
 
-        selected_plugins = None
-        if args.plugins:
-            selected_plugins, invalid = _parse_plugins_arg(args.plugins, plugin_order)
-            if invalid:
-                print(f"❌ Plugins inválidos: {', '.join(invalid)}")
+        # Modo com IA
+        if args.ai:
+            from core.config import get_config, Config
+            
+            # Carregar configuração
+            if args.config:
+                config = Config(args.config)
+            else:
+                config = Config()
+            
+            # Verificar se IA está habilitada na config
+            ai_enabled = config.get('ai.gemini.enabled', False)
+            api_key = config.get('ai.gemini.api_key', '')
+            
+            if not ai_enabled:
+                print("❌ IA não está habilitada na configuração. Edite config/default.yaml")
+                print("   e defina: ai.gemini.enabled: true")
                 return 2
+            
+            if not api_key:
+                print("❌ API Key não configurada. Edite config/default.yaml")
+                print("   e defina: ai.gemini.api_key: SUA_API_KEY")
+                return 2
+            
+            # Override do modelo se especificado
+            model = args.model or config.get('ai.gemini.model', 'gemini-2.0-flash')
+            
+            print(f"🤖 Modo IA habilitado")
+            print(f"   Modelo: {model}")
+            if args.orientacao:
+                print(f"   Orientação: {args.orientacao}")
+            
+            # TODO: Implementar AIOrchestrator
+            # Por agora, usar MinimalOrchestrator com seleção inteligente baseada na orientação
+            orchestrator = MinimalOrchestrator(verbose=True)
+            
+            # Se tem orientação, selecionar plugins relevantes
+            selected_plugins = None
+            if args.orientacao:
+                selected_plugins = _select_plugins_for_goal(args.orientacao, plugin_order)
+                if selected_plugins:
+                    print(f"   Plugins selecionados: {', '.join(selected_plugins)}")
+            
+            result = orchestrator.run_non_interactive(
+                target=args.target,
+                selected_plugins=selected_plugins,
+                use_cache=not args.no_cache
+            )
+        else:
+            # Modo padrão (sem IA)
+            selected_plugins = None
+            if args.plugins:
+                selected_plugins, invalid = _parse_plugins_arg(args.plugins, plugin_order)
+                if invalid:
+                    print(f"❌ Plugins inválidos: {', '.join(invalid)}")
+                    return 2
 
-        orchestrator = MinimalOrchestrator(verbose=True)
-        result = orchestrator.run_non_interactive(
-            target=args.target,
-            selected_plugins=selected_plugins,
-            use_cache=not args.no_cache
-        )
+            orchestrator = MinimalOrchestrator(verbose=True)
+            result = orchestrator.run_non_interactive(
+                target=args.target,
+                selected_plugins=selected_plugins,
+                use_cache=not args.no_cache
+            )
 
         return 0 if result.get('success') else 1
 
