@@ -36,9 +36,9 @@
 - Web Crawler, Technology Detector, Header Analyzer
 - SSL Analyzer, Firewall Detector
 - Exploit Searcher, Exploit Suggester
-- Nuclei Scanner, Web Vuln Scanner
+- Nuclei Scanner, Misconfiguration Analyzer
+- **Web Scanners Avançados**: XSS, LFI, SSRF, SSTI, IDOR, Open Redirect, Header Injection
 - SSH Policy Check, Port Exposure Audit
-- Misconfiguration Analyzer
 
 **Integrações Externas**:
 - `nmap` - Scanner de rede avançado
@@ -98,6 +98,9 @@ python scripts/main.py
 
 # Executar plugins específicos por número
 ./run.sh example.com --plugins 1,2,4,5
+
+# Excluir plugins específicos (ex: pular brute-force demorado)
+./run.sh example.com --exclude-plugins DirectoryScanner,20
 
 # Listar todos os plugins disponíveis
 ./run.sh --list-plugins
@@ -162,6 +165,66 @@ ai:
     enabled: true
     model: gemini-2.0-flash
     temperature: 0.3
+```
+
+#### Opcional: Usar Tor (Plugins Mais "Barulhentos")
+
+Você pode rotear requests via Tor (proxy SOCKS5) quando estiver usando plugins com bruteforce/fuzzing (ex: `DirectoryScannerPlugin`) para reduzir risco de bloqueio do seu IP.
+
+Config global em `config/default.yaml`:
+
+```yaml
+network:
+  tor:
+    enabled: false
+    proxy_url: socks5h://127.0.0.1:9050
+```
+
+Ou habilitar por-plugin (recomendado para aplicar só onde faz sentido):
+
+```yaml
+plugins:
+  config:
+    DirectoryScannerPlugin:
+      use_tor: true
+```
+
+Notas:
+- O Tor precisa estar rodando localmente (porta SOCKS padrão `9050`).
+- Para SOCKS funcionar com `requests`, a dependência `pysocks` precisa estar instalada (já incluída em `requirements.txt`).
+- Você pode manter alguns plugins fora do Tor mesmo com `network.tor.enabled: true` definindo `use_tor: false` no plugin (ex: `ExploitSearcherPlugin`, `ReconnaissancePlugin`).
+
+Ativar o serviço Tor (Debian/Kali):
+
+```bash
+sudo apt update
+sudo apt install -y tor
+
+# subir e iniciar no boot
+sudo systemctl enable --now tor
+
+# verificar se o SOCKS está ouvindo (padrão 9050)
+ss -lntp | rg ':9050\\b' || netstat -lntp | rg ':9050\\b'
+```
+
+Se a porta `9050` não estiver aberta, confira `/etc/tor/torrc` e garanta:
+
+```text
+SocksPort 9050
+```
+
+Opcional (Tor): tentar trocar circuito aproximadamente a cada 1 minuto.
+Isso pode ajudar em alguns cenários, mas não garante IP novo a cada request e pode degradar performance/estabilidade.
+Edite `/etc/tor/torrc`:
+
+```text
+MaxCircuitDirtiness 60
+```
+
+E reinicie o serviço:
+
+```bash
+sudo systemctl restart tor
 ```
 
 ---

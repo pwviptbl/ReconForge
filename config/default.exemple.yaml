@@ -24,6 +24,9 @@ network:
   delay: 0.05                    # Menor delay = mais rápido
   max_threads: 300               # Mais threads = mais agressivo
   timeout: 5                     # Timeout menor
+  tor:
+    enabled: false               # Se true, algumas requests podem ser roteadas via Tor (SOCKS5)
+    proxy_url: socks5h://127.0.0.1:9050  # Tor local padrão (porta SOCKS)
 output:
   data_dir: data
   max_results: 50
@@ -42,6 +45,11 @@ plugins:
       max_subdomains: 50
       timeout: 30
       use_custom_dns: false
+    ExploitSearcherPlugin:
+      use_tor: false               # Normalmente não precisa (APIs e buscas públicas); deixe Tor só se estiver bloqueando/rate-limit
+    # Plugins "barulhentos" (bruteforce/fuzzing): você pode habilitar Tor só neles via `use_tor: true`
+    DirectoryScannerPlugin:
+      use_tor: false
     NmapScannerPlugin:
       max_ports: 1000
       scan_type: syn
@@ -63,6 +71,7 @@ plugins:
       scan_type: extended
       max_ports: 65535
     ReconnaissancePlugin:
+      use_tor: false               # Útil quando brute_force_subdomains / OSINT começam a bloquear o IP
       dns_servers:
       - 8.8.8.8
       - 8.8.4.4
@@ -89,6 +98,8 @@ plugins:
       timeout: 120
       resolve_ips: true
       silent: true
+    SubdomainEnumeratorPlugin:
+      use_tor: false
     WhatWebScannerPlugin:
       aggression: 3                # 3 = mais agressivo (heavy)
       timeout: 30
@@ -116,6 +127,8 @@ plugins:
       max_depth: 3
       timeout: 30
       user_agent: ReconForge/1.0
+    WebVulnScannerPlugin:
+      use_tor: false
     # Novos plugins de análise de rede
     NetworkMapperPlugin:
       max_hops: 30

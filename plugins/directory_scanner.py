@@ -19,6 +19,7 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import WebPlugin, PluginResult
+from utils.http_session import resolve_use_tor, get_requests_proxies
 
 # Desabilitar warnings SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -64,6 +65,7 @@ class DirectoryScannerPlugin(WebPlugin):
             'filtered': 0
         }
         self._stats_lock = threading.Lock()
+        self._proxies = None
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """
@@ -92,6 +94,8 @@ class DirectoryScannerPlugin(WebPlugin):
         self._stats = {'requests_made': 0, 'successful': 0, 'errors': 0, 'filtered': 0}
         
         try:
+            self._proxies = get_requests_proxies(use_tor=resolve_use_tor(self.config))
+
             # Extrair opções
             options = self._parse_options(kwargs)
             
@@ -336,7 +340,8 @@ class DirectoryScannerPlugin(WebPlugin):
                 timeout=self.timeout,
                 verify=False,
                 allow_redirects=True,
-                headers={'User-Agent': 'ReconForge/2.0'}
+                headers={'User-Agent': 'ReconForge/2.0'},
+                proxies=self._proxies
             )
             return response.status_code < 500
         except:
@@ -494,7 +499,8 @@ class DirectoryScannerPlugin(WebPlugin):
                     verify=False,
                     allow_redirects=options.get('follow_redirects', False),
                     headers=headers,
-                    cookies=options.get('cookies', {})
+                    cookies=options.get('cookies', {}),
+                    proxies=self._proxies
                 )
                 
                 content = response.content

@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import VulnerabilityPlugin, PluginResult
+from utils.http_session import create_requests_session
 
 
 class WebVulnScannerPlugin(VulnerabilityPlugin):
@@ -52,12 +53,15 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
             "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
             "php://filter/read=convert.base64-encode/resource=index.php"
         ]
+        self._session = None
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """Executa scanning de vulnerabilidades web"""
         start_time = time.time()
         
         try:
+            self._session = create_requests_session(plugin_config=self.config, headers=self.headers)
+
             # Buscar URLs acessíveis baseadas no contexto
             accessible_urls = self._find_accessible_urls(target, context)
             
@@ -199,9 +203,10 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
     
     def _is_accessible(self, url: str) -> bool:
         """Verifica se URL é acessível"""
+        session = self._session
         try:
             # Primeiro tenta HEAD
-            response = requests.head(
+            response = session.head(
                 url, 
                 headers=self.headers, 
                 timeout=5, 
@@ -215,7 +220,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
         
         try:
             # Se HEAD falhar, tenta GET
-            response = requests.get(
+            response = session.get(
                 url, 
                 headers=self.headers, 
                 timeout=5, 
@@ -229,9 +234,10 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
     def _test_security_headers(self, url: str) -> List[Dict[str, Any]]:
         """Testa headers de segurança"""
         vulnerabilities = []
+        session = self._session
         
         try:
-            response = requests.get(url, headers=self.headers, timeout=self.timeout, verify=False)
+            response = session.get(url, headers=self.headers, timeout=self.timeout, verify=False)
             headers = response.headers
             
             # Headers de segurança importantes
@@ -272,6 +278,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
     def _test_directory_traversal(self, url: str) -> List[Dict[str, Any]]:
         """Testa vulnerabilidades de directory traversal"""
         vulnerabilities = []
+        session = self._session
         
         # URLs comuns que podem ter parâmetros de arquivo
         test_params = ['file', 'page', 'include', 'template', 'path', 'doc']
@@ -280,7 +287,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
             for payload in self.lfi_payloads:
                 try:
                     test_url = f"{url}?{param}={payload}"
-                    response = requests.get(
+                    response = session.get(
                         test_url, 
                         headers=self.headers, 
                         timeout=5, 
@@ -311,6 +318,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
     def _test_sql_injection(self, url: str) -> List[Dict[str, Any]]:
         """Testa vulnerabilidades de SQL injection"""
         vulnerabilities = []
+        session = self._session
         
         # Parâmetros comuns para testar
         test_params = ['id', 'user', 'search', 'query', 'cat', 'category']
@@ -319,7 +327,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
             for payload in self.sqli_payloads:
                 try:
                     test_url = f"{url}?{param}={payload}"
-                    response = requests.get(
+                    response = session.get(
                         test_url,
                         headers=self.headers,
                         timeout=10,
@@ -353,6 +361,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
     def _test_xss_reflection(self, url: str) -> List[Dict[str, Any]]:
         """Testa XSS por reflexão"""
         vulnerabilities = []
+        session = self._session
         
         test_params = ['q', 'search', 'query', 'name', 'message']
         
@@ -360,7 +369,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
             for payload in self.xss_payloads:
                 try:
                     test_url = f"{url}?{param}={payload}"
-                    response = requests.get(
+                    response = session.get(
                         test_url,
                         headers=self.headers,
                         timeout=10,
@@ -387,6 +396,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
     def _test_sensitive_files(self, url: str) -> List[Dict[str, Any]]:
         """Testa acesso a arquivos sensíveis"""
         vulnerabilities = []
+        session = self._session
         
         sensitive_files = [
             '.env', '.git/config', 'config.php', 'wp-config.php',
@@ -397,7 +407,7 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
         for file_path in sensitive_files:
             try:
                 test_url = urljoin(url, file_path)
-                response = requests.get(
+                response = session.get(
                     test_url,
                     headers=self.headers,
                     timeout=5,

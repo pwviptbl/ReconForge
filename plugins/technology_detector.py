@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import WebPlugin, PluginResult
+from utils.http_session import create_requests_session
 
 
 class TechnologyDetectorPlugin(WebPlugin):
@@ -122,12 +123,15 @@ class TechnologyDetectorPlugin(WebPlugin):
                 'content': [r'mongodb', r'mongo']
             }
         }
+        self._session = None
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """Executa detecção de tecnologias"""
         start_time = time.time()
         
         try:
+            self._session = create_requests_session(plugin_config=self.config, headers=self.headers)
+
             # Tentar URLs baseadas no contexto
             urls_to_try = self._get_urls_to_try(target, context)
             
@@ -228,7 +232,7 @@ class TechnologyDetectorPlugin(WebPlugin):
     def _is_accessible(self, url: str) -> bool:
         """Verifica se URL é acessível"""
         try:
-            response = requests.head(url, headers=self.headers, timeout=5, verify=False)
+            response = self._session.head(url, headers=self.headers, timeout=5, verify=False)
             return response.status_code < 500
         except:
             return False
@@ -243,7 +247,7 @@ class TechnologyDetectorPlugin(WebPlugin):
         }
         
         try:
-            response = requests.get(
+            response = self._session.get(
                 url,
                 headers=self.headers,
                 timeout=self.timeout,

@@ -81,8 +81,12 @@ class Vulnerability:
     severity: str  # e.g., 'critical', 'high', 'medium', 'low', 'info'
     cve: Optional[str] = None
     cvss_score: Optional[float] = None
-    host: Optional[Host] = None
+    host: Optional[str] = None # Mudado para str para simplificar ou manter Host? Manter Host se possível, mas aqui está Optional[Host].
     port: Optional[Port] = None
+    url: Optional[str] = None
+    evidence: Optional[str] = None
+    remediation: Optional[str] = None
+    reference: Optional[str] = None
     plugin_source: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -92,7 +96,11 @@ class Vulnerability:
             "severity": self.severity,
             "cve": self.cve,
             "cvss_score": self.cvss_score,
-            "host": self.host.ip if self.host else None,
-            "port": self.port.port_number if self.port else None,
+            "host": self.host.ip if self.host and hasattr(self.host, 'ip') else str(self.host) if self.host else None,
+            "port": self.port.port_number if self.port and hasattr(self.port, 'port_number') else str(self.port) if self.port else None,
+            "url": self.url,
+            "evidence": self.evidence,
+            "remediation": self.remediation,
+            "reference": self.reference,
             "plugin_source": self.plugin_source,
         }

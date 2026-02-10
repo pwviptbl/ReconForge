@@ -67,7 +67,7 @@ PLUGIN_PREREQS = {
     'ExploitSuggester': ['NmapScannerPlugin'],
     'DirectoryScannerPlugin': ['PortScannerPlugin'],
     'WebScannerPlugin': ['PortScannerPlugin'],
-    'WebCrawlerPlugin': ['PortScannerPlugin'],
+    # 'WebCrawlerPlugin': ['PortScannerPlugin'],  # Removido para permitir execução direta
     'TechnologyDetectorPlugin': ['PortScannerPlugin'],
     'WhatWebScannerPlugin': ['PortScannerPlugin'],
     'WebVulnScannerPlugin': ['PortScannerPlugin'],
@@ -116,6 +116,33 @@ class MinimalOrchestrator:
         if target.count(":") == 1:
             target = target.split(":", 1)[0]
         return target
+
+    def _init_context(self, target: str, original_target: str):
+        """Inicializa ou restaura o contexto da varredura, evitando duplicação."""
+        if not (self.loaded_session and self.context.get('target') == target):
+            self.context = {
+                'target': target,
+                'original_target': original_target,
+                'start_time': datetime.now(),
+                'executed_plugins': [],
+                'plugin_states': {},
+                'discoveries': {
+                    'hosts': [],
+                    'open_ports': [],
+                    'services': [],
+                    'technologies': [],
+                    'forms': [],
+                    'endpoints': [],
+                    'parameters': []
+                },
+                'vulnerabilities': [],
+                'errors': []
+            }
+            self.results = {}
+            self.run_id = self.storage.create_run(self.context['target'], self.context, {})
+        else:
+            self._ensure_context_defaults()
+            self.loaded_session = False
     
     def run_interactive(self, target: str) -> Dict[str, Any]:
         """
@@ -126,28 +153,7 @@ class MinimalOrchestrator:
         target = self._normalize_target(target)
         self.logger.info(f"🚀 Iniciando varredura: {target}")
         
-        if not (self.loaded_session and self.context.get('target') == target):
-            # Inicializar contexto
-            self.context = {
-                'target': target,
-                'original_target': original_target,  # URL original para plugins web
-                'start_time': datetime.now(),
-                'executed_plugins': [],
-                'plugin_states': {},
-                'discoveries': {
-                    'hosts': [],
-                    'open_ports': [],
-                    'services': [],
-                    'technologies': []
-                },
-                'vulnerabilities': [],
-                'errors': []
-            }
-            self.results = {}
-            self.run_id = self.storage.create_run(self.context['target'], self.context, {})
-        else:
-            self._ensure_context_defaults()
-            self.loaded_session = False
+        self._init_context(target, original_target)
         
         try:
             # Loop principal interativo
@@ -197,30 +203,10 @@ class MinimalOrchestrator:
         target = self._normalize_target(target)
         self.logger.info(f"🚀 Iniciando varredura automatizada: {target}")
 
-        if not (self.loaded_session and self.context.get('target') == target):
-            self.context = {
-                'target': target,
-                'original_target': original_target,  # URL original para plugins web
-                'start_time': datetime.now(),
-                'executed_plugins': [],
-                'plugin_states': {},
-                'discoveries': {
-                    'hosts': [],
-                    'open_ports': [],
-                    'services': [],
-                    'technologies': []
-                },
-                'vulnerabilities': [],
-                'errors': []
-            }
-            self.results = {}
-            self.run_id = self.storage.create_run(self.context['target'], self.context, {})
-        else:
-            self._ensure_context_defaults()
-            self.loaded_session = False
+        self._init_context(target, original_target)
 
         try:
-            order, info = self._resolve_execution_order(target=target, selected_plugins=selected_plugins)
+            order, info = self._resolve_execution_order(target=original_target, selected_plugins=selected_plugins)
 
             if info.get('unknown'):
                 rprint(f"[yellow]⚠️ Plugins desconhecidos ignorados: {', '.join(info['unknown'])}[/yellow]")
@@ -1475,6 +1461,17 @@ class MinimalOrchestrator:
         if 'technologies' in data:
             new_techs = [t for t in data['technologies'] if t not in self.context['discoveries']['technologies']]
             self.context['discoveries']['technologies'].extend(new_techs)
+
+        if 'forms' in data:
+            # Formulários são dicionários, não hashable, então verificação simples ou por URL+Action
+            self.context['discoveries']['forms'].extend(data['forms'])
+        
+        if 'endpoints' in data:
+            self.context['discoveries']['endpoints'].extend(data['endpoints'])
+
+        if 'web_crawling' in data and 'parameters_discovered' in data['web_crawling']:
+            # parameters_discovered é um dict, vamos armazenar como está ou simplificar
+            self.context['discoveries']['parameters'] = data['web_crawling']['parameters_discovered']
         
         # Atualizar vulnerabilidades
         if 'vulnerabilities' in data:

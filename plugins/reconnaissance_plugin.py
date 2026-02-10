@@ -54,6 +54,8 @@ except ImportError:
     WHOIS_AVAILABLE = False
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from utils.logger import get_logger
+from utils.http_session import resolve_use_tor, get_requests_proxies, create_requests_session
 
 
 class ReconnaissancePlugin(NetworkPlugin):
@@ -61,12 +63,13 @@ class ReconnaissancePlugin(NetworkPlugin):
     
     def __init__(self):
         super().__init__()
+        self.logger = get_logger("ReconnaissancePlugin")
         self.description = "Reconhecimento avançado e OSINT: DNS, ASN, subdomínios, emails, social media, threat intel"
         self.version = "2.0.0"
         self.supported_targets = ["domain", "ip", "url"]
         
         # Configurações padrão
-        self.config = {
+        self.config.update({
             'dns_servers': ['8.8.8.8', '8.8.4.4', '1.1.1.1'],
             'subdomain_wordlist': 'wordlists/subdomains.txt',
             'max_subdomains': 100,
@@ -87,7 +90,7 @@ class ReconnaissancePlugin(NetworkPlugin):
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
                 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
             ]
-        }
+        })
         
         # Wordlists comuns para subdomínios
         self.common_subdomains = [
@@ -107,12 +110,15 @@ class ReconnaissancePlugin(NetworkPlugin):
             'sharepoint', 'teams', 'skype', 'zoom', 'meet', 'conference', 'demo',
             'sandbox', 'lab', 'research', 'beta', 'alpha', 'preview', 'canary'
         ]
+        self._proxies = None
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """Executa reconhecimento completo"""
         start_time = time.time()
         
         try:
+            self._proxies = get_requests_proxies(use_tor=resolve_use_tor(self.config))
+
             # Processar target
             domain, ip = self._parse_target(target)
             
@@ -407,7 +413,8 @@ class ReconnaissancePlugin(NetworkPlugin):
                     try:
                         response = requests.get(
                             f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,asname,reverse,mobile,proxy,hosting,query",
-                            timeout=self.config.get('timeout', 10)
+                            timeout=self.config.get('timeout', 10),
+                            proxies=self._proxies,
                         )
                         
                         if response.status_code == 200:
@@ -533,7 +540,7 @@ class ReconnaissancePlugin(NetworkPlugin):
         try:
             # Usar API crt.sh
             url = f"https://crt.sh/?q=%.{domain}&output=json"
-            response = requests.get(url, timeout=self.config.get('timeout', 10))
+            response = requests.get(url, timeout=self.config.get('timeout', 10), proxies=self._proxies)
             
             if response.status_code == 200:
                 certificates = response.json()
@@ -628,7 +635,8 @@ class ReconnaissancePlugin(NetworkPlugin):
                 # Usar API ip-api.com (grátis, sem necessidade de key)
                 response = requests.get(
                     f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,reverse,mobile,proxy,hosting",
-                    timeout=self.config.get('timeout', 10)
+                    timeout=self.config.get('timeout', 10),
+                    proxies=self._proxies,
                 )
                 
                 if response.status_code == 200:
@@ -766,11 +774,10 @@ class ReconnaissancePlugin(NetworkPlugin):
         }
         
         try:
-            import requests
-            session = requests.Session()
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            })
+            session = create_requests_session(
+                plugin_config=self.config,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+            )
             
             # Extrair nome da empresa do domínio
             company_name = domain.split('.')[0].replace('-', ' ').replace('_', ' ')
@@ -840,8 +847,7 @@ class ReconnaissancePlugin(NetworkPlugin):
         }
         
         try:
-            import requests
-            session = requests.Session()
+            session = create_requests_session(plugin_config=self.config)
             
             # HaveIBeenPwned API (versão pública limitada)
             try:
@@ -892,8 +898,7 @@ class ReconnaissancePlugin(NetworkPlugin):
         }
         
         try:
-            import requests
-            session = requests.Session()
+            session = create_requests_session(plugin_config=self.config)
             
             # VirusTotal API (versão pública limitada)
             if domain:
@@ -959,12 +964,11 @@ class ReconnaissancePlugin(NetworkPlugin):
         }
         
         try:
-            import requests
             import re
-            session = requests.Session()
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            })
+            session = create_requests_session(
+                plugin_config=self.config,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+            )
             
             email_pattern = re.compile(r'\b[A-Za-z0-9._%+-]+@' + re.escape(domain) + r'\b')
             

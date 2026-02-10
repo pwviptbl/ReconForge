@@ -299,6 +299,7 @@ def main():
         )
         parser.add_argument('target', nargs='?', help='Alvo (IP, domínio, URL ou CIDR)')
         parser.add_argument('--plugins', help='Lista de plugins por número ou nome (ex: 1,2,4)')
+        parser.add_argument('-e', '--exclude-plugins', help='Lista de plugins a EXCLUIR por número ou nome (ex: 15,DirectoryScanner)')
         parser.add_argument('--list-plugins', action='store_true', help='Lista plugins disponíveis e sai')
         parser.add_argument('--no-cache', action='store_true', help='Ignora resultados em cache (modo não interativo)')
         
@@ -319,8 +320,8 @@ def main():
             return 0
 
         # Validação de argumentos
-        if args.plugins and not args.target:
-            print("❌ Você deve informar um alvo ao usar --plugins.")
+        if (args.plugins or args.exclude_plugins) and not args.target:
+            print("❌ Você deve informar um alvo ao usar --plugins ou --exclude-plugins.")
             return 2
         
         if args.orientacao and not args.ai:
@@ -336,7 +337,15 @@ def main():
 
         setup_logger('ReconForge', verbose=True)
 
-        # Modo com IA
+        # Processar exclusões (se houver)
+        excluded_plugins = []
+        if args.exclude_plugins:
+            excluded_plugins, invalid_excluded = _parse_plugins_arg(args.exclude_plugins, plugin_order)
+            if invalid_excluded:
+                print(f"❌ Plugins para exclusão inválidos: {', '.join(invalid_excluded)}")
+                return 2
+            print(f"🚫 Plugins excluídos: {', '.join(excluded_plugins)}")
+
         if args.ai:
             from core.config import get_config, Config
             
@@ -377,8 +386,18 @@ def main():
             if args.orientacao:
                 selected_plugins = _select_plugins_for_goal(args.orientacao, plugin_order)
                 if selected_plugins:
-                    print(f"   Plugins selecionados: {', '.join(selected_plugins)}")
+                    print(f"   Plugins sugeridos pela IA: {', '.join(selected_plugins)}")
             
+            # Aplicar exclusões na seleção da IA
+            if selected_plugins and excluded_plugins:
+                selected_plugins = [p for p in selected_plugins if p not in excluded_plugins]
+            
+            # Se a IA não selecionou nada específico (None), a exclusão deve ser aplicada sobre "todos"
+            # Mas o orchestrator.run_non_interactive trata None como "todos".
+            # Se tivermos exclusões, não podemos passar None, temos que passar All - Excluded.
+            if selected_plugins is None and excluded_plugins:
+                selected_plugins = [p for p in plugin_order if p not in excluded_plugins]
+
             result = orchestrator.run_non_interactive(
                 target=args.target,
                 selected_plugins=selected_plugins,
@@ -392,6 +411,15 @@ def main():
                 if invalid:
                     print(f"❌ Plugins inválidos: {', '.join(invalid)}")
                     return 2
+
+            # Aplicar exclusões
+            if excluded_plugins:
+                # Se nenhum plugin foi explicitamente selecionado, implica "todos"
+                if selected_plugins is None:
+                    selected_plugins = plugin_order[:] # Cópia da lista completa
+                
+                # Filtrar exclusões
+                selected_plugins = [p for p in selected_plugins if p not in excluded_plugins]
 
             orchestrator = MinimalOrchestrator(verbose=True)
             result = orchestrator.run_non_interactive(

@@ -10,7 +10,8 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Configuração sensível
+# Configuração sensível — NUNCA versionar credenciais!
+.env
 config/default.yaml
 settings.json
 
@@ -20,6 +21,7 @@ relatorios/*.html
 temp/
 data/
 history/
+scans/
 
 # Histórico da IA
 historico_ia/*.json

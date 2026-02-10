@@ -41,7 +41,7 @@ class WebCrawlerPlugin(WebPlugin):
         super().__init__()
         self.description = "Navegação web avançada: análise de formulários, login automático, mapeamento"
         self.version = "1.0.0"
-        self.supported_targets = ["url", "domain"]
+        self.supported_targets = ["url", "domain", "ip"]
         
         # Configurações padrão
         self.config = {
@@ -117,8 +117,18 @@ class WebCrawlerPlugin(WebPlugin):
         
         self.driver = None
     
+    def validate_target(self, target: str) -> bool:
+        """Valida se o alvo é suportado"""
+        if not target:
+            return False
+        return True
+
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """Executa navegação web avançada"""
+        # Preferir alvo original com porta/protocolo se disponível
+        actual_target = context.get('original_target', target)
+        print(f"DEBUG: WebCrawlerPlugin usando alvo: {actual_target}")
+        
         start_time = time.time()
         
         if not SELENIUM_AVAILABLE:
@@ -132,7 +142,7 @@ class WebCrawlerPlugin(WebPlugin):
         
         try:
             # Normalizar URL
-            url = self._normalize_url(target)
+            url = self._normalize_url(actual_target)
             
             # Extrair cookies/sessão dos parâmetros
             custom_cookies = kwargs.get('cookies')
@@ -304,13 +314,7 @@ class WebCrawlerPlugin(WebPlugin):
         finally:
             self._cleanup_driver()
     
-    def validate_target(self, target: str) -> bool:
-        """Valida se é uma URL válida"""
-        try:
-            result = urlparse(target)
-            return all([result.scheme, result.netloc])
-        except:
-            return False
+
     
     def _normalize_url(self, target: str) -> str:
         """Normaliza URL adicionando esquema se necessário"""

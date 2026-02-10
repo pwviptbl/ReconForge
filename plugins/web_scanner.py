@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import WebPlugin, PluginResult
+from utils.http_session import create_requests_session
 
 
 class WebScannerPlugin(WebPlugin):
@@ -44,11 +45,13 @@ class WebScannerPlugin(WebPlugin):
         start_time = time.time()
         
         try:
+            session = create_requests_session(plugin_config=self.config, headers=self.headers)
+
             # Normalizar URL
             url = self._normalize_url(target)
             
             # Verificar se é acessível
-            if not self._is_web_accessible(url):
+            if not self._is_web_accessible(session, url):
                 return PluginResult(
                     success=False,
                     plugin_name=self.name,
@@ -58,10 +61,10 @@ class WebScannerPlugin(WebPlugin):
                 )
             
             # Coletar informações básicas
-            info = self._collect_basic_info(url)
+            info = self._collect_basic_info(session, url)
             
             # Testar diretórios comuns
-            directories = self._test_common_directories(url)
+            directories = self._test_common_directories(session, url)
             
             # Buscar tecnologias
             technologies = self._detect_technologies(info.get('headers', {}), info.get('content', ''))
@@ -110,10 +113,10 @@ class WebScannerPlugin(WebPlugin):
             return f"https://{target}"
         return target
     
-    def _is_web_accessible(self, url: str) -> bool:
+    def _is_web_accessible(self, session: requests.Session, url: str) -> bool:
         """Verifica se a URL é acessível"""
         try:
-            response = requests.head(
+            response = session.head(
                 url, 
                 headers=self.headers,
                 timeout=self.timeout,
@@ -126,7 +129,7 @@ class WebScannerPlugin(WebPlugin):
             if url.startswith('https://'):
                 http_url = url.replace('https://', 'http://')
                 try:
-                    response = requests.head(
+                    response = session.head(
                         http_url,
                         headers=self.headers,
                         timeout=self.timeout,
@@ -137,10 +140,10 @@ class WebScannerPlugin(WebPlugin):
                     return False
             return False
     
-    def _collect_basic_info(self, url: str) -> Dict[str, Any]:
+    def _collect_basic_info(self, session: requests.Session, url: str) -> Dict[str, Any]:
         """Coleta informações básicas da página"""
         try:
-            response = requests.get(
+            response = session.get(
                 url,
                 headers=self.headers,
                 timeout=self.timeout,
@@ -160,14 +163,14 @@ class WebScannerPlugin(WebPlugin):
         except Exception as e:
             return {'error': str(e)}
     
-    def _test_common_directories(self, base_url: str) -> List[Dict[str, Any]]:
+    def _test_common_directories(self, session: requests.Session, base_url: str) -> List[Dict[str, Any]]:
         """Testa diretórios comuns"""
         found_dirs = []
         
         for directory in self.common_dirs:
             try:
                 url = urljoin(base_url, directory)
-                response = requests.head(
+                response = session.head(
                     url,
                     headers=self.headers,
                     timeout=5,

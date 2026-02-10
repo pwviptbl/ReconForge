@@ -1,11 +1,29 @@
 """
 Configuração do sistema ReconForge simplificado
+Integra variáveis de ambiente (.env) com configuração YAML
 """
 
 import os
 import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+# Carrega variáveis do arquivo .env automaticamente
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).parent.parent / ".env"
+    load_dotenv(_env_path, override=False)
+except ImportError:
+    pass  # python-dotenv opcional — funciona sem ele
+
+
+# Mapeamento de variáveis de ambiente para caminhos na configuração YAML
+# Formato: NOME_DA_VARIAVEL -> caminho.dotado.no.yaml
+_ENV_OVERRIDES = {
+    'GEMINI_API_KEY': 'ai.gemini.api_key',
+    'LOG_LEVEL': 'logging.level',
+    'LOG_DIR': 'logging.file',
+}
 
 
 class Config:
@@ -17,6 +35,7 @@ class Config:
         self.user_config_file = config_file
         self._config = {}
         self._load_config()
+        self._apply_env_overrides()
     
     def _load_config(self):
         """Carrega configuração dos arquivos"""
@@ -30,6 +49,13 @@ class Config:
             with open(self.user_config_file, 'r', encoding='utf-8') as f:
                 user_config = yaml.safe_load(f) or {}
                 self._merge_configs(self._config, user_config)
+    
+    def _apply_env_overrides(self):
+        """Aplica variáveis de ambiente sobre a configuração YAML"""
+        for env_var, config_path in _ENV_OVERRIDES.items():
+            value = os.environ.get(env_var)
+            if value:
+                self.set(config_path, value)
     
     def _merge_configs(self, base: Dict, override: Dict):
         """Merge recursivo de configurações"""
@@ -94,3 +120,4 @@ def get_config(path: str = None, default=None, config_file: Optional[str] = None
         return _config.all
     
     return _config.get(path, default)
+

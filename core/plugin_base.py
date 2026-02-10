@@ -142,10 +142,12 @@ class WebPlugin(BasePlugin):
 class VulnerabilityPlugin(BasePlugin):
     """Plugin base para detecção de vulnerabilidades"""
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         self.category = "vulnerability"
         self.supported_targets = ["ip", "domain", "url"]
+        if config:
+            self.config.update(config)
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """Implementação padrão - deve ser sobrescrita por plugins filhos"""

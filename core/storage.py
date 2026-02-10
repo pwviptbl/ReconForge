@@ -136,17 +136,27 @@ class Storage:
             conn.execute("DELETE FROM runs WHERE target = ?", (target,))
             conn.execute("DELETE FROM plugin_cache WHERE target = ?", (target,))
 
-    def get_cached_result(self, target: str, plugin_name: str) -> Optional[Dict[str, Any]]:
+    def get_cached_result(self, target: str, plugin_name: str, ttl_seconds: int = 3600) -> Optional[Dict[str, Any]]:
+        """Retorna resultado em cache se existir e não estiver expirado (TTL)."""
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT result_json FROM plugin_cache
+                SELECT result_json, updated_at FROM plugin_cache
                 WHERE target = ? AND plugin_name = ?
                 """,
                 (target, plugin_name)
             ).fetchone()
             if not row:
                 return None
+            # Verificar TTL — invalidar resultados antigos
+            if ttl_seconds > 0:
+                try:
+                    updated = datetime.fromisoformat(row["updated_at"])
+                    age = (datetime.now() - updated).total_seconds()
+                    if age > ttl_seconds:
+                        return None  # Cache expirado
+                except (ValueError, TypeError):
+                    pass  # Se falhar o parse, retorna o cache
             return json.loads(row["result_json"])
 
     def set_cached_result(self, target: str, plugin_name: str, result: Dict[str, Any]) -> None:

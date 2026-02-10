@@ -17,6 +17,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.models import Host
+from utils.http_session import create_requests_session
 
 
 class SubdomainEnumeratorPlugin(NetworkPlugin):
@@ -31,12 +32,15 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
         self.requirements = ["dns"]  # Dependência para dnspython
         self.timeout = 3
         self.max_workers = 30
+        self._session = None
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         """Executa enumeração de subdomínios"""
         start_time = time.time()
         
         try:
+            self._session = create_requests_session(plugin_config=self.config)
+
             # Limpar target (remover protocolo se existir)
             domain = self._clean_domain(target)
             
@@ -202,7 +206,7 @@ class SubdomainEnumeratorPlugin(NetworkPlugin):
         try:
             # API do crt.sh
             url = f"https://crt.sh/?q=%.{domain}&output=json"
-            response = requests.get(url, timeout=10)
+            response = self._session.get(url, timeout=10)
             
             if response.status_code == 200:
                 try:
