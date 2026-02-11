@@ -45,6 +45,8 @@ PLUGIN_GROUPS = {
     'WebScannerPlugin': ('Web', 'Scanner'),
     'WebCrawlerPlugin': ('Web', 'Scanner'),
     'TechnologyDetectorPlugin': ('Web', 'Recon'),
+    'KatanaCrawlerPlugin': ('Web', 'Scanner'),
+    'GauCollectorPlugin': ('Web', 'Recon'),
     'WhatWebScannerPlugin': ('Web', 'Recon'),
     'SubdomainEnumerator': ('Web', 'Recon'),
     'SubfinderPlugin': ('Web', 'Recon'),
@@ -68,6 +70,9 @@ PLUGIN_PREREQS = {
     'DirectoryScannerPlugin': ['PortScannerPlugin'],
     'WebScannerPlugin': ['PortScannerPlugin'],
     # 'WebCrawlerPlugin': ['PortScannerPlugin'],  # Removido para permitir execução direta
+    # Fast endpoint discovery tools (can also run directly on URL targets)
+    'KatanaCrawlerPlugin': ['PortScannerPlugin'],
+    'GauCollectorPlugin': ['PortScannerPlugin'],
     'TechnologyDetectorPlugin': ['PortScannerPlugin'],
     'WhatWebScannerPlugin': ['PortScannerPlugin'],
     'WebVulnScannerPlugin': ['PortScannerPlugin'],

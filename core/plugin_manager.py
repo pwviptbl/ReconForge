@@ -120,6 +120,7 @@ class PluginManager:
                 f"/usr/local/bin/{name}",
                 f"/usr/sbin/{name}",
                 f"/usr/local/sbin/{name}",
+                str(Path.home() / "go" / "bin" / name),
             ]
             if name == "whatweb":
                 candidates.append("/usr/share/whatweb/whatweb")

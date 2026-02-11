@@ -231,6 +231,32 @@ E reinicie o serviço:
 sudo systemctl restart tor
 ```
 
+### Ferramentas Extras (Opcional)
+
+Alguns plugins usam ferramentas externas (se instaladas) para aumentar a cobertura sem brute force pesado:
+
+- `KatanaCrawlerPlugin` (katana): crawler rapido para coletar endpoints
+- `GauCollectorPlugin` (gau): coleta URLs historicas (Wayback/CommonCrawl)
+
+Atalho recomendado: rode `scripts/system_update.sh` (agora ele instala `katana` e `gau` automaticamente, além das dependências de sistema).
+
+Instalacao (via Go):
+
+```bash
+# katana
+go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+
+# gau
+go install -v github.com/lc/gau/v2/cmd/gau@latest
+
+# garanta que o binario esta no PATH (geralmente ~/go/bin)
+export PATH=\"$HOME/go/bin:$PATH\"
+```
+
+Nota sobre `httpx`:
+- No Kali/Debian pode existir um binario `httpx` que e o CLI do Python HTTPX (cliente HTTP), nao o toolkit do ProjectDiscovery.
+- Se voce instalar o `httpx` do ProjectDiscovery via Go, garanta que ele fique antes no `PATH` (ex: `~/go/bin` antes de `/usr/bin`), senao vai chamar o binario errado.
+
 ---
 
 ## Comandos do Menu Interativo

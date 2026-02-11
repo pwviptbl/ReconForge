@@ -106,6 +106,17 @@ plugins:
       use_tor: false               # WhatWeb pode respeitar proxy via env dependendo da instalação
       aggression: 3                # 3 = mais agressivo (heavy)
       timeout: 30
+    KatanaCrawlerPlugin:
+      use_tor: false
+      depth: 2
+      timeout: 180
+      max_urls: 2000
+      follow_redirects: true
+    GauCollectorPlugin:
+      use_tor: false
+      timeout: 120
+      max_urls: 2000
+      include_subdomains: true
     WebCrawlerPlugin:
       headless: true
       timeout: 30

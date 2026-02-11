@@ -89,12 +89,14 @@ def _select_plugins_for_goal(goal: str, available_plugins: list[str]) -> list[st
     # Mapeamento de palavras-chave para plugins
     keyword_mapping = {
         # Web/HTTP
-        'web': ['DirectoryScannerPlugin', 'WebCrawlerPlugin', 'WebVulnScannerPlugin', 
-                'TechnologyDetectorPlugin', 'HeaderAnalyzerPlugin'],
+        'web': ['DirectoryScannerPlugin', 'WebCrawlerPlugin', 'KatanaCrawlerPlugin', 'GauCollectorPlugin',
+                'WebVulnScannerPlugin', 'TechnologyDetectorPlugin', 'HeaderAnalyzerPlugin'],
         'diretório': ['DirectoryScannerPlugin'],
         'directory': ['DirectoryScannerPlugin'],
         'crawl': ['WebCrawlerPlugin'],
         'spider': ['WebCrawlerPlugin'],
+        'katana': ['KatanaCrawlerPlugin'],
+        'gau': ['GauCollectorPlugin'],
         
         # Vulnerabilidades
         'vuln': ['NucleiScannerPlugin', 'WebVulnScannerPlugin', 'MisconfigurationAnalyzerPlugin'],
