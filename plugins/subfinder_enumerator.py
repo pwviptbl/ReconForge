@@ -14,6 +14,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.config import get_config
+from utils.http_session import resolve_use_tor
+from utils.proxy_env import build_proxy_env
 
 
 class SubfinderPlugin(NetworkPlugin):
@@ -49,10 +51,12 @@ class SubfinderPlugin(NetworkPlugin):
             if silent:
                 cmd.append("-silent")
 
+            env = build_proxy_env(use_tor=resolve_use_tor(self.config))
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
+                env=env,
                 timeout=timeout
             )
 

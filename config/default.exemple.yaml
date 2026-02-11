@@ -56,6 +56,7 @@ plugins:
       script_scan: true
       timing: T5                   # T5 = insane (mais rápido/agressivo)
     NucleiScannerPlugin:
+      use_tor: false               # Pode ajudar se o alvo bloquear/rate-limit; deixe false por padrão
       max_templates: 1000
       severity_filter:
       - info
@@ -95,12 +96,14 @@ plugins:
       threat_intelligence: true      # Fontes de threat intel
       advanced_email_harvesting: true # Coleta de emails via Google Dorking e padrões
     SubfinderPlugin:
+      use_tor: false               # Subfinder pode consultar fontes externas; habilite só se necessário
       timeout: 120
       resolve_ips: true
       silent: true
     SubdomainEnumeratorPlugin:
       use_tor: false
     WhatWebScannerPlugin:
+      use_tor: false               # WhatWeb pode respeitar proxy via env dependendo da instalação
       aggression: 3                # 3 = mais agressivo (heavy)
       timeout: 30
     WebCrawlerPlugin:

@@ -8,6 +8,7 @@ import time
 import socket
 from typing import Dict, Any, List, Optional, Tuple
 import http.client
+from urllib.parse import urlparse
 
 import sys
 from pathlib import Path
@@ -29,7 +30,8 @@ class HeaderAnalyzerPlugin(WebPlugin):
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         start_time = time.time()
 
-        endpoints = self._build_endpoints(target, context)
+        actual_target = context.get('original_target', target)
+        endpoints = self._build_endpoints(actual_target, context)
         if not endpoints:
             return PluginResult(
                 success=True,
@@ -93,8 +95,13 @@ class HeaderAnalyzerPlugin(WebPlugin):
         endpoints = []
 
         hostname = target
+        explicit_scheme = None
+        explicit_port = None
         if target.startswith(('http://', 'https://')):
-            hostname = target.split('://', 1)[1].split('/', 1)[0]
+            parsed = urlparse(target)
+            hostname = parsed.hostname or hostname
+            explicit_scheme = parsed.scheme
+            explicit_port = parsed.port
 
         discoveries = context.get('discoveries', {})
         open_ports = discoveries.get('open_ports', [])
@@ -107,6 +114,8 @@ class HeaderAnalyzerPlugin(WebPlugin):
             if not isinstance(service, dict):
                 continue
             port = service.get('port')
+            if not isinstance(port, int):
+                continue
             name = str(service.get('service', '')).lower()
             if name in ('http', 'http-alt', 'http-proxy'):
                 http_ports.add(port)
@@ -114,10 +123,19 @@ class HeaderAnalyzerPlugin(WebPlugin):
                 https_ports.add(port)
 
         for port in open_ports:
+            if not isinstance(port, int):
+                continue
             if port in (80, 8080, 8000):
                 http_ports.add(port)
             if port in (443, 8443):
                 https_ports.add(port)
+
+        # If the user passed an explicit URL with scheme/port, prioritize that.
+        if explicit_scheme and explicit_port:
+            if explicit_scheme == 'https':
+                https_ports.add(explicit_port)
+            else:
+                http_ports.add(explicit_port)
 
         if not http_ports and not https_ports:
             http_ports.add(80)

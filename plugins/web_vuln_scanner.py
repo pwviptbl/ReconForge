@@ -61,9 +61,10 @@ class WebVulnScannerPlugin(VulnerabilityPlugin):
         
         try:
             self._session = create_requests_session(plugin_config=self.config, headers=self.headers)
+            actual_target = context.get('original_target', target)
 
             # Buscar URLs acessíveis baseadas no contexto
-            accessible_urls = self._find_accessible_urls(target, context)
+            accessible_urls = self._find_accessible_urls(actual_target, context)
             
             if not accessible_urls:
                 return PluginResult(

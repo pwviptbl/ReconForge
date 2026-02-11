@@ -193,6 +193,7 @@ Notas:
 - O Tor precisa estar rodando localmente (porta SOCKS padrão `9050`).
 - Para SOCKS funcionar com `requests`, a dependência `pysocks` precisa estar instalada (já incluída em `requirements.txt`).
 - Você pode manter alguns plugins fora do Tor mesmo com `network.tor.enabled: true` definindo `use_tor: false` no plugin (ex: `ExploitSearcherPlugin`, `ReconnaissancePlugin`).
+- Plugins baseados em ferramentas externas (ex: `nuclei`, `whatweb`, `subfinder`) tentam usar proxy via variáveis de ambiente (`ALL_PROXY`/`HTTP(S)_PROXY`) quando `use_tor` estiver habilitado, mas isso depende do suporte da ferramenta.
 
 Ativar o serviço Tor (Debian/Kali):
 
@@ -206,6 +207,9 @@ sudo systemctl enable --now tor
 # verificar se o SOCKS está ouvindo (padrão 9050)
 ss -lntp | rg ':9050\\b' || netstat -lntp | rg ':9050\\b'
 ```
+
+Nota (systemd): no Debian/Kali, o processo que fica rodando normalmente aparece como `tor@default.service`.
+Você não precisa (e geralmente não consegue) dar `enable` diretamente nele; habilitar `tor.service` puxa o `tor@default.service` no boot.
 
 Se a porta `9050` não estiver aberta, confira `/etc/tor/torrc` e garanta:
 

@@ -131,9 +131,10 @@ class TechnologyDetectorPlugin(WebPlugin):
         
         try:
             self._session = create_requests_session(plugin_config=self.config, headers=self.headers)
+            actual_target = context.get('original_target', target)
 
             # Tentar URLs baseadas no contexto
-            urls_to_try = self._get_urls_to_try(target, context)
+            urls_to_try = self._get_urls_to_try(actual_target, context)
             
             successful_url = None
             for url in urls_to_try:

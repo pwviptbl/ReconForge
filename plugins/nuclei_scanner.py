@@ -15,6 +15,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import VulnerabilityPlugin, PluginResult
+from utils.http_session import resolve_use_tor
+from utils.proxy_env import build_proxy_env
 
 
 class NucleiScannerPlugin(VulnerabilityPlugin):
@@ -80,7 +82,7 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                 ['nuclei', '-version'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -117,6 +119,9 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
             output_file = f.name
         
         try:
+            use_tor = resolve_use_tor(self.config)
+            env = build_proxy_env(use_tor=use_tor)
+
             # Comando nuclei
             cmd = [
                 'nuclei',
@@ -141,6 +146,7 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                 cmd,
                 capture_output=True,
                 text=True,
+                env=env,
                 timeout=300  # 5 minutos
             )
             

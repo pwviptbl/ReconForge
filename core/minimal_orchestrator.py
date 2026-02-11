@@ -523,6 +523,7 @@ class MinimalOrchestrator:
         selected_plugins: Optional[List[str]] = None
     ) -> tuple[List[str], Dict[str, Any]]:
         """Resolve ordem final de execução, incluindo pré-requisitos"""
+        is_url_target = bool(target and str(target).startswith(("http://", "https://")))
         available = {
             name: plugin
             for name, plugin in self.plugin_manager.plugins.items()
@@ -549,6 +550,10 @@ class MinimalOrchestrator:
 
         def add_prereqs(name: str):
             for prereq in self.plugin_prereqs.get(name, []):
+                # If the user provided a concrete URL, many web plugins can run directly
+                # without port-scanning the host first.
+                if is_url_target and prereq == "PortScannerPlugin":
+                    continue
                 if prereq in available:
                     if prereq not in selected_set:
                         selected_set.add(prereq)
@@ -565,6 +570,8 @@ class MinimalOrchestrator:
             changed = False
             for name in list(selected_set):
                 prereqs = self.plugin_prereqs.get(name, [])
+                if is_url_target:
+                    prereqs = [p for p in prereqs if p != "PortScannerPlugin"]
                 if any(prereq not in selected_set for prereq in prereqs):
                     blocked.add(name)
                     selected_set.remove(name)

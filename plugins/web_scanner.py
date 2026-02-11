@@ -46,9 +46,10 @@ class WebScannerPlugin(WebPlugin):
         
         try:
             session = create_requests_session(plugin_config=self.config, headers=self.headers)
+            actual_target = context.get('original_target', target)
 
             # Normalizar URL
-            url = self._normalize_url(target)
+            url = self._normalize_url(actual_target)
             
             # Verificar se é acessível
             if not self._is_web_accessible(session, url):
