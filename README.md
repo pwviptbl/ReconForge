@@ -119,7 +119,7 @@ O modo com IA seleciona automaticamente os plugins baseado no objetivo informado
 |-----------|-----------|
 | `--ai` | Habilita o modo com IA |
 | `-o`, `--orientacao` | Define o objetivo/orientação para a IA selecionar plugins |
-| `--model` | Especifica o modelo de IA (padrão: gemini-2.0-flash) |
+| `--model` | Especifica o modelo de IA (padrão: gemini-2.5-flash-lite) |
 | `--config` | Arquivo YAML de configuração customizado |
 
 #### Exemplos
@@ -134,7 +134,7 @@ O modo com IA seleciona automaticamente os plugins baseado no objetivo informado
 ./run.sh example.com --ai -o "reconhecimento completo"
 
 # Especificar modelo de IA
-./run.sh example.com --ai -o "análise ssl" --model gemini-2.0-flash
+./run.sh example.com --ai -o "análise ssl" --model gemini-2.5-flash-lite
 
 # Usar configuração customizada
 ./run.sh example.com --ai --config minha_config.yaml
@@ -163,7 +163,7 @@ ai:
   gemini:
     api_key: SUA_API_KEY_GEMINI
     enabled: true
-    model: gemini-2.0-flash
+    model: gemini-2.5-flash-lite
     temperature: 0.3
 ```
 

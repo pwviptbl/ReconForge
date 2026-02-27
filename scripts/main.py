@@ -311,7 +311,7 @@ def main():
         parser.add_argument('-o', '--orientacao', type=str, metavar='OBJETIVO',
                           help='Orientação/objetivo para a IA (ex: "encontrar vulnerabilidades web")')
         parser.add_argument('--model', type=str, 
-                          help='Modelo de IA a usar (ex: gemini-2.0-flash, gpt-4)')
+                          help='Modelo de IA a usar (ex: gemini-2.5-flash-lite, gpt-4)')
         parser.add_argument('--config', type=str, 
                           help='Arquivo de configuração YAML customizado')
 
@@ -372,7 +372,7 @@ def main():
                 return 2
             
             # Override do modelo se especificado
-            model = args.model or config.get('ai.gemini.model', 'gemini-2.0-flash')
+            model = args.model or config.get('ai.gemini.model', 'gemini-2.5-flash-lite')
             
             print(f"🤖 Modo IA habilitado")
             print(f"   Modelo: {model}")
