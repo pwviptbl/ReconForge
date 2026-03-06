@@ -411,14 +411,16 @@ def main():
             )
 
             summary = state.summary()
+            detected_findings = summary.get("findings_detected", len(state.findings) + len(state.rejected_findings))
+            validated_findings = summary.get("findings_validated", len(state.findings))
             confirmed = sum(1 for e in state.evidences if e.proof_level == "impact_proven")
             partial_ev = sum(1 for e in state.evidences if e.proof_level == "partial")
 
             print(f"\n{'='*55}")
             print(f"✅ Pipeline concluído | run_id={summary['run_id']}")
             print(f"   Estágios executados    : {summary['stages_done']}")
-            print(f"   Findings detectados    : {summary['findings']}")
-            print(f"   Findings validados     : {summary['findings']}")
+            print(f"   Findings detectados    : {detected_findings}")
+            print(f"   Findings validados     : {validated_findings}")
             print(f"   Findings descartados   : {len(state.rejected_findings)}")
             print(f"   Items na queue         : {len(state.queue_items)}")
             print(f"   Tentativas de exploit  : {len(state.attempts)}")

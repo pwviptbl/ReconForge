@@ -9,10 +9,10 @@ em data/evidencias/run_<id>/.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from core.evidence_collector import EvidenceCollector
-from core.models import Evidence, ExploitAttempt, QueueItem
+from core.models import Evidence, ExploitAttempt
 from core.stage_base import StageBase
 from core.workflow_state import WorkflowState
 
@@ -35,8 +35,9 @@ class StageEvidence(StageBase):
         self._evidence_dir = evidence_dir or Path("data") / "evidencias"
 
     def execute(self, state: WorkflowState) -> WorkflowState:
-        if not state.attempts:
-            self.logger.info("StageEvidence: nenhuma tentativa para coletar evidências.")
+        processed_items = [item for item in state.queue_items if item.status != "pending"]
+        if not processed_items:
+            self.logger.info("StageEvidence: nenhum item processado para coletar evidências.")
             return state
 
         collector = EvidenceCollector(
@@ -49,16 +50,9 @@ class StageEvidence(StageBase):
         for attempt in state.attempts:
             attempts_by_item.setdefault(attempt.queue_item_id, []).append(attempt)
 
-        # Mapear queue_items pelo id
-        items_by_id: Dict[str, QueueItem] = {i.id: i for i in state.queue_items}
-
         evidences: List[Evidence] = []
-        for item_id, attempts in attempts_by_item.items():
-            item = items_by_id.get(item_id)
-            if not item:
-                self.logger.warning(f"QueueItem não encontrado para id={item_id}, pulando.")
-                continue
-
+        for item in processed_items:
+            attempts = attempts_by_item.get(item.id, [])
             evidence = collector.collect(item, attempts)
             evidences.append(evidence)
 

@@ -271,6 +271,7 @@ class StageDetect(ReconStageBase):
         """Tenta inferir a categoria de um achado a partir de seus campos."""
         name = str(vuln.get("name", "")).lower()
         cat_map = {
+            "dom xss": "dom_xss",
             "xss": "xss",
             "cross-site": "xss",
             "sql": "sqli",
@@ -279,6 +280,7 @@ class StageDetect(ReconStageBase):
             "local file": "lfi",
             "ssrf": "ssrf",
             "server-side request": "ssrf",
+            "csrf": "csrf",
             "idor": "idor",
             "insecure direct": "idor",
             "open redirect": "open_redirect",

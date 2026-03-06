@@ -4,9 +4,14 @@ Integra variáveis de ambiente (.env) com configuração YAML
 """
 
 import os
-import yaml
+import json
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - fallback depende do ambiente
+    yaml = None
 
 # Carrega variáveis do arquivo .env automaticamente
 try:
@@ -41,14 +46,28 @@ class Config:
         """Carrega configuração dos arquivos"""
         # Carregar configuração padrão
         if self.default_config_file.exists():
-            with open(self.default_config_file, 'r', encoding='utf-8') as f:
-                self._config = yaml.safe_load(f) or {}
+            self._config = self._read_config_file(self.default_config_file)
         
         # Sobrescrever com configuração do usuário se especificada
         if self.user_config_file and Path(self.user_config_file).exists():
-            with open(self.user_config_file, 'r', encoding='utf-8') as f:
-                user_config = yaml.safe_load(f) or {}
-                self._merge_configs(self._config, user_config)
+            user_config = self._read_config_file(Path(self.user_config_file))
+            self._merge_configs(self._config, user_config)
+
+    def _read_config_file(self, path: Path) -> Dict[str, Any]:
+        """
+        Lê arquivo de configuração.
+
+        Se PyYAML não estiver disponível, tenta JSON e em último caso
+        retorna configuração vazia para permitir uso com defaults do código.
+        """
+        if yaml is not None:
+            with open(path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f) or {}
+
+        try:
+            return json.loads(path.read_text(encoding='utf-8'))
+        except json.JSONDecodeError:
+            return {}
     
     def _apply_env_overrides(self):
         """Aplica variáveis de ambiente sobre a configuração YAML"""
@@ -96,7 +115,12 @@ class Config:
     def save_config(self, config_file: Optional[str] = None):
         """Salva configuração atual em arquivo"""
         target_file = config_file or self.default_config_file
-        
+
+        if yaml is None:
+            with open(target_file, 'w', encoding='utf-8') as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            return
+
         with open(target_file, 'w', encoding='utf-8') as f:
             yaml.dump(self._config, f, default_flow_style=False, allow_unicode=True)
     
@@ -120,4 +144,3 @@ def get_config(path: str = None, default=None, config_file: Optional[str] = None
         return _config.all
     
     return _config.get(path, default)
-

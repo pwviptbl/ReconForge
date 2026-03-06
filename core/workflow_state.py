@@ -181,6 +181,8 @@ class WorkflowState:
 
     def summary(self) -> Dict[str, Any]:
         """Resumo executivo do estado atual para exibição."""
+        findings_detected = len(self.findings) + len(self.rejected_findings)
+        findings_validated = len(self.findings)
         confirmed = len(self.get_confirmed_evidences())
         partial = len(self.get_partial_evidences())
         return {
@@ -188,7 +190,9 @@ class WorkflowState:
             "run_id": self.run_id,
             "stages_done": self.executed_stages,
             "current_stage": self.current_stage,
-            "findings": len(self.findings),
+            "findings": findings_validated,
+            "findings_detected": findings_detected,
+            "findings_validated": findings_validated,
             "rejected": len(self.rejected_findings),
             "queue_items": len(self.queue_items),
             "attempts": len(self.attempts),

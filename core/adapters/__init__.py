@@ -149,11 +149,13 @@ class GenericAdapter:
     def _infer_category(name: str) -> str:
         name_lower = name.lower()
         category_keywords: Dict[str, str] = {
+            "dom xss": "dom_xss",
             "xss": "xss", "cross-site scripting": "xss",
             "sql": "sqli", "injection": "sqli",
             "ssrf": "ssrf", "server-side request": "ssrf",
             "lfi": "lfi", "local file": "lfi", "path traversal": "lfi",
             "idor": "idor", "insecure direct": "idor",
+            "csrf": "csrf", "cross-site request forgery": "csrf",
             "ssti": "ssti", "template injection": "ssti",
             "open redirect": "open_redirect",
             "header injection": "header_injection",
@@ -174,13 +176,23 @@ class XssAdapter(GenericAdapter):
     def convert(self, plugin_name, target, data, run_id=None):
         findings = super().convert(plugin_name, target, data, run_id)
         for f in findings:
+            evidence_lower = f.raw_evidence.lower()
+            payload_lower = f.candidate_payload.lower()
+
+            if any(marker in evidence_lower for marker in ["dom", "innerhtml", "document.write", "location.hash"]):
+                f.category = "dom_xss"
+                f.context = "DOM"
+                continue
+
             f.category = "xss"
             # XSS: contexto importa para seleção de payload
-            if "attribute" in f.raw_evidence.lower():
+            if "${" in payload_lower or "template literal" in evidence_lower:
+                f.context = "JS_TEMPLATE"
+            elif "attribute" in evidence_lower:
                 f.context = "ATTRIBUTE"
-            elif "javascript" in f.raw_evidence.lower() or "js" in f.endpoint.lower():
+            elif "javascript" in evidence_lower or "js" in f.endpoint.lower():
                 f.context = "JS_STRING"
-            elif "url" in f.raw_evidence.lower():
+            elif "url" in evidence_lower:
                 f.context = "URL"
             else:
                 f.context = "HTML_BODY"

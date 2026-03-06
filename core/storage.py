@@ -353,8 +353,10 @@ class Storage:
         for item in items:
             self.save_queue_item(item)
 
-    def load_queue_items(self, run_id: int, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Retorna queue items de um run, filtrado opcionalmente por status."""
+    def load_queue_items(self, run_id: int, status: Optional[str] = None) -> List["QueueItem"]:
+        """Retorna QueueItems tipados de um run, filtrado opcionalmente por status."""
+        from core.models import QueueItem
+
         with self._connect() as conn:
             if status:
                 rows = conn.execute(
@@ -366,7 +368,34 @@ class Storage:
                     "SELECT * FROM queue_items WHERE run_id = ? ORDER BY priority, created_at",
                     (run_id,),
                 ).fetchall()
-            return [dict(row) for row in rows]
+            return [QueueItem.from_dict(dict(row)) for row in rows]
+
+    def load_queue_items_all(
+        self,
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> List["QueueItem"]:
+        """Retorna QueueItems tipados de todos os runs, com filtros opcionais."""
+        from core.models import QueueItem
+
+        clauses = []
+        params: List[Any] = []
+
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if category:
+            clauses.append("category = ?")
+            params.append(category)
+
+        query = "SELECT * FROM queue_items"
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY priority, created_at"
+
+        with self._connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+            return [QueueItem.from_dict(dict(row)) for row in rows]
 
     def update_queue_item_status(self, item_id: str, status: str) -> None:
         """Atualiza status de um QueueItem."""
@@ -399,14 +428,16 @@ class Storage:
                 ),
             )
 
-    def load_attempts(self, queue_item_id: str) -> List[Dict[str, Any]]:
-        """Retorna todas as tentativas de um QueueItem."""
+    def load_attempts(self, queue_item_id: str) -> List["ExploitAttempt"]:
+        """Retorna todas as tentativas tipadas de um QueueItem."""
+        from core.models import ExploitAttempt
+
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT * FROM exploit_attempts WHERE queue_item_id = ? ORDER BY attempt_number",
                 (queue_item_id,),
             ).fetchall()
-            return [dict(row) for row in rows]
+            return [ExploitAttempt.from_dict(dict(row)) for row in rows]
 
     # -----------------------------------------------------------------------
     # Evidences
@@ -430,8 +461,10 @@ class Storage:
                 ),
             )
 
-    def load_evidences(self, run_id: int, proof_level: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Retorna evidências de um run, filtrado opcionalmente por proof_level."""
+    def load_evidences(self, run_id: int, proof_level: Optional[str] = None) -> List["Evidence"]:
+        """Retorna evidências tipadas de um run, filtrado opcionalmente por proof_level."""
+        from core.models import Evidence
+
         with self._connect() as conn:
             if proof_level:
                 rows = conn.execute(
@@ -457,7 +490,7 @@ class Storage:
             for row in rows:
                 d = dict(row)
                 d["artifacts"] = json.loads(d.pop("artifacts_json", "[]") or "[]")
-                result.append(d)
+                result.append(Evidence.from_dict(d))
             return result
 
     # -----------------------------------------------------------------------

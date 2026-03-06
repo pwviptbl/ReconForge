@@ -1,0 +1,1 @@
+"""Scripts auxiliares do ReconForge."""

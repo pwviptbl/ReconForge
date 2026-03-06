@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-from core.models import Evidence, ExploitAttempt, QueueItem, _new_id, _now_iso
+from core.models import Evidence, ExploitAttempt, QueueItem
 from utils.logger import get_logger
 
 
@@ -58,16 +58,8 @@ class EvidenceCollector:
         Returns:
             Evidence com proof_level classificado e artefatos salvos.
         """
-        if not attempts:
-            return Evidence(
-                queue_item_id=item.id,
-                attempt_id="",
-                proof_level="none",
-                impact_summary="Nenhuma tentativa foi executada.",
-            )
-
         proof_level, best_attempt = self._classify(attempts)
-        artifacts = self._save_artifacts(item, attempts)
+        artifacts = self._save_artifacts(item, attempts, proof_level)
         impact_summary = self._summarize(item, attempts, proof_level, best_attempt)
 
         evidence = Evidence(
@@ -136,6 +128,7 @@ class EvidenceCollector:
         self,
         item: QueueItem,
         attempts: List[ExploitAttempt],
+        proof_level: str,
     ) -> List[str]:
         """
         Salva request/response dos attempts relevantes como arquivos de log.
@@ -165,23 +158,25 @@ class EvidenceCollector:
             except Exception as exc:
                 self.logger.warning(f"Falha ao salvar artefato {log_path}: {exc}")
 
-        # Salvar JSON completo com todos os attempts se houve impacto
-        has_impact = any(a.status in ("impact_proven", "partial") for a in attempts)
-        if has_impact and attempts:
-            json_name = f"{item.category}_{item.id[:8]}_full.json"
-            json_path = run_dir / json_name
-            try:
-                full_data = {
-                    "item": item.to_dict(),
-                    "attempts": [a.to_dict() for a in attempts],
-                }
-                json_path.write_text(
-                    json.dumps(full_data, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-                artifacts.append(str(json_path.resolve()))
-            except Exception as exc:
-                self.logger.warning(f"Falha ao salvar JSON completo: {exc}")
+        # Salvar um JSON completo com a trilha do item mesmo sem confirmação.
+        json_name = f"{item.category}_{item.id[:8]}_full.json"
+        json_path = run_dir / json_name
+        try:
+            full_data = {
+                "item": item.to_dict(),
+                "proof_level": proof_level,
+                "attempts": [a.to_dict() for a in attempts],
+            }
+            if not attempts:
+                full_data["note"] = "Nenhuma tentativa foi executada para este item."
+
+            json_path.write_text(
+                json.dumps(full_data, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            artifacts.append(str(json_path.resolve()))
+        except Exception as exc:
+            self.logger.warning(f"Falha ao salvar JSON completo: {exc}")
 
         return artifacts
 

