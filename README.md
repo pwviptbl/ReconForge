@@ -2,14 +2,13 @@
 
 ## Introdução
 
-**ReconForge** é um framework de pentesting automatizado desenvolvido para operações **Red Team**. Ele orquestra de forma inteligente plugins nativos e ferramentas externas, combinando varredura de rede, enumeração, detecção de vulnerabilidades e análise de exploits em um único workflow.
+**ReconForge** é um framework de pentesting automatizado desenvolvido para operações **Red Team**. O fluxo atual foi simplificado para funcionar bem com poucos comandos: descobrir a superficie, mapear entradas reais, testar o que faz sentido e gerar relatorio.
 
 ### Por que ReconForge?
 
-- **Modular**: Sistema de plugins extensível
-- **Flexível**: Funciona com ou sem IA
-- **Completo**: Do reconhecimento à exploração
-- **Interativo**: Menu intuitivo para seleção de plugins
+- **Simples de operar**: perfis prontos para os casos mais comuns
+- **Modular**: Sistema de plugins extensivel
+- **Completo**: Do reconhecimento a exploracao
 - **Automatizado**: Execute scans completos com um comando
 
 ---
@@ -20,25 +19,22 @@
 
 | Categoria | Descrição |
 |-----------|-----------|
-| **Reconnaissance** | DNS, subdomínios, tecnologias web, mapeamento de rede |
-| **Network Attack Surface** | Port scanning, Nmap NSE, protocolos, SSL/TLS |
-| **Web Attack Vectors** | Crawling, directory brute-force (estilo GoBuster/FFUF), vulnerabilidades web |
-| **Vulnerability Assessment** | Nuclei templates, análise de misconfigurations |
-| **Exploit Intelligence** | Busca automática de exploits (Exploit-DB/CVE) |
+| **Reconnaissance** | DNS, subdominios, tecnologias web, mapeamento de rede |
+| **Network Attack Surface** | Port scanning, Nmap NSE, SSL/TLS, exposicao de servicos |
+| **Web Attack Vectors** | Crawling, mapeamento de formularios, requests reais e vulnerabilidades web |
+| **Vulnerability Assessment** | Nuclei templates e scanners HTTP request-based |
+| **Exploit Intelligence** | Busca automatica de exploits (Exploit-DB/CVE) |
 | **Firewall/WAF Detection** | Identificação de proteções ativas |
 
-### Arsenal de Plugins
+### Perfis recomendados
 
-**Plugins Nativos (24+)**:
-- Port Scanner, Network Mapper, Protocol Analyzer
-- DNS Resolver, Subdomain Enumerator
-- Directory Scanner (estilo GoBuster/FFUF)
-- Web Crawler, Technology Detector, Header Analyzer
-- SSL Analyzer, Firewall Detector
-- Exploit Searcher, Exploit Suggester
-- Nuclei Scanner, Misconfiguration Analyzer
-- **Web Scanners Avançados**: XSS, LFI, SSRF, SSTI, IDOR, Open Redirect, Header Injection
-- SSH Policy Check, Port Exposure Audit
+Em vez de montar listas longas de plugins, prefira os perfis:
+
+- `web-map`: mapeamento gentil de rotas, formularios, uploads e parametros
+- `web-test`: `web-map` mais os scanners web request-based
+- `infra`: portas, servicos, SSL, firewall e exposicao de infraestrutura
+
+Os plugins continuam habilitaveis por YAML, mas o caminho padrao agora e por perfil.
 
 **Integrações Externas**:
 - `nmap` - Scanner de rede avançado
@@ -74,98 +70,62 @@ sudo apt install nmap nuclei subfinder whatweb
 
 ## Uso
 
-### Modo Interativo (Sem IA)
+### Caminho oficial
+
+O projeto agora usa um unico motor de execucao: o pipeline por estagios.
+
+Se voce rodar apenas:
 
 ```bash
-# Iniciar menu interativo
-./run.sh
-
-# Ou diretamente
-python scripts/main.py
+./run.sh example.com
 ```
 
-**Fluxo**:
-1. Digite o alvo (IP, domínio, URL ou CIDR)
-2. Selecione os plugins no menu interativo
-3. Execute e acompanhe os resultados em tempo real
-4. Visualize o relatório final
+o perfil padrao sera `web-test`.
 
-### Modo CLI - Scans Automatizados
+### Perfis
 
 ```bash
-# Executar todos os plugins em um alvo
+# Perfil padrao para web
 ./run.sh example.com
 
-# Executar plugins específicos por número
-./run.sh example.com --plugins 1,2,4,5
+# Mapear entradas web e requests observadas
+./run.sh example.com --profile web-map
 
-# Excluir plugins específicos (ex: pular brute-force demorado)
-./run.sh example.com --exclude-plugins DirectoryScanner,20
+# Mapear e testar vetores web
+./run.sh example.com --profile web-test
 
-# Listar todos os plugins disponíveis
-./run.sh --list-plugins
+# Foco em infraestrutura
+./run.sh example.com --profile infra
 
-# Ignorar cache (forçar re-scan)
-./run.sh example.com --no-cache
+# Listar perfis
+./run.sh --list-profiles
+
+# Ver saude do ambiente e dependencias
+./run.sh --healthcheck
+
+# Mostrar rotas e parametros de um run ja executado
+./run.sh --show-web-map 50
+
+# Modo avancado do mesmo pipeline
+./run.sh example.com --pipeline --recon-plugins PortScannerPlugin,WebFlowMapperPlugin
 ```
 
-### Modo com IA
+### Leitura pratica do web map
 
-O modo com IA seleciona automaticamente os plugins baseado no objetivo informado.
-
-#### Argumentos de IA
-
-| Argumento | Descrição |
-|-----------|-----------|
-| `--ai` | Habilita o modo com IA |
-| `-o`, `--orientacao` | Define o objetivo/orientação para a IA selecionar plugins |
-| `--model` | Especifica o modelo de IA (padrão: gemini-2.5-flash-lite) |
-| `--config` | Arquivo YAML de configuração customizado |
-
-#### Exemplos
+Depois de um `web-map` ou `web-test`, use:
 
 ```bash
-# Modo IA básico (executa plugins recomendados)
-./run.sh example.com --ai
-
-# IA com orientação específica
-./run.sh example.com --ai -o "encontrar vulnerabilidades web"
-./run.sh example.com --ai -o "scan de portas e serviços"
-./run.sh example.com --ai -o "reconhecimento completo"
-
-# Especificar modelo de IA
-./run.sh example.com --ai -o "análise ssl" --model gemini-2.5-flash-lite
-
-# Usar configuração customizada
-./run.sh example.com --ai --config minha_config.yaml
+./run.sh --show-web-map 50
 ```
 
-#### Palavras-chave para Orientação
+Voce vai ver:
 
-A IA interpreta estas palavras para selecionar plugins:
+- formularios detectados no DOM
+- requests observadas de verdade
+- parametros por bucket
+- acao UI associada a cada request
 
-| Palavra-chave | Plugins Selecionados |
-|---------------|---------------------|
-| `web`, `diretório`, `crawl` | WebFlowMapper, Katana, Gau, Nuclei |
-| `vuln`, `vulnerabilidade`, `cve` | Nuclei, ExploitSearcher |
-| `rede`, `porta`, `scan`, `nmap` | PortScanner, Nmap, NetworkMapper |
-| `ssl`, `https`, `certificado` | SSLAnalyzer |
-| `dns`, `subdomínio` | DNSResolver, Subfinder |
-| `firewall`, `waf` | FirewallDetector |
-| `completo`, `tudo`, `full` | Todos os plugins |
-
-#### Configuração de API Key
-
-Edite `config/default.yaml`:
-
-```yaml
-ai:
-  gemini:
-    api_key: SUA_API_KEY_GEMINI
-    enabled: true
-    model: gemini-2.5-flash-lite
-    temperature: 0.3
-```
+Quando houver divergencia entre DOM e request real, a request observada e a fonte de verdade.
 
 #### Opcional: Usar Tor (Plugins Mais "Barulhentos")
 

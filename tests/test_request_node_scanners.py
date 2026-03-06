@@ -4,7 +4,6 @@ import requests
 
 from plugins.idor_scanner_plugin import IDORScannerPlugin
 from plugins.xss_scanner_plugin import XSSScannerPlugin
-from scripts.main import _select_plugins_for_goal
 
 
 def test_xss_scanner_uses_request_nodes_for_post_body(monkeypatch):
@@ -76,18 +75,3 @@ def test_idor_scanner_uses_numeric_values_from_request_nodes(monkeypatch):
 
     assert result.data["tested_count"] >= 2
     assert result.data["vulnerabilities"]
-
-
-def test_web_goal_selection_prioritizes_flow_mapper_over_directory_scanner():
-    plugins = [
-        "WebFlowMapperPlugin",
-        "DirectoryScannerPlugin",
-        "KatanaCrawlerPlugin",
-        "GauCollectorPlugin",
-        "NucleiScannerPlugin",
-    ]
-
-    selected = _select_plugins_for_goal("mapear superficie web", plugins)
-
-    assert "WebFlowMapperPlugin" in selected
-    assert "DirectoryScannerPlugin" not in selected

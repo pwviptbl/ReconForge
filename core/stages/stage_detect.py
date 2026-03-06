@@ -291,7 +291,7 @@ class StageDetect(ReconStageBase):
         severity = str(data.get("severity", "medium")).lower()
         base = _SEVERITY_CONFIDENCE.get(severity, 0.5)
         # Plugins com maior precisão histórica recebem boost
-        precise_plugins = {"NucleiScannerPlugin", "XssScannerPlugin", "SsrfScannerPlugin"}
+        precise_plugins = {"NucleiScannerPlugin", "XSSScannerPlugin", "SSRFScannerPlugin"}
         if plugin_name in precise_plugins:
             base = min(1.0, base + 0.10)
         return base

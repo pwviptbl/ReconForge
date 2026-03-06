@@ -70,7 +70,7 @@ class WorkflowState:
     executed_stages: List[str] = field(default_factory=list)
     current_stage: Optional[str] = None
 
-    # Plugins executados (legado — compatibilidade com MinimalOrchestrator)
+    # Plugins executados durante o pipeline
     executed_plugins: List[str] = field(default_factory=list)
     plugin_states: Dict[str, Any] = field(default_factory=dict)
 
@@ -156,8 +156,7 @@ class WorkflowState:
 
     def to_context_dict(self) -> Dict[str, Any]:
         """
-        Serializa o estado para armazenamento no Storage (compatível com
-        o formato de contexto esperado pelo MinimalOrchestrator).
+        Serializa o estado para armazenamento no Storage.
         """
         return {
             "target": self.target,

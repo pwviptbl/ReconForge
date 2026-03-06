@@ -24,9 +24,13 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.config import get_config
+from core.plugin_manager import PluginManager
 from core.storage import Storage
 from core.workflow_orchestrator import run_pipeline
 from utils.logger import setup_logger
+from utils.runtime_health import collect_runtime_health
+from utils.runtime_profiles import resolve_profile_plugins
+from utils.web_map import build_web_map_payload
 
 
 def _json_response(handler: BaseHTTPRequestHandler, payload: Dict[str, Any], status: int = 200) -> None:
@@ -44,7 +48,8 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            return _json_response(self, {"status": "ok"})
+            health = collect_runtime_health(self.server.plugin_manager)
+            return _json_response(self, {"status": "ok", **health})
 
         if parsed.path.startswith("/run/"):
             return self._handle_run_get(parsed)
@@ -80,12 +85,34 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
         if not target:
             return _json_response(self, {"error": "campo 'target' é obrigatório"}, status=400)
 
+        recon_plugins = payload.get("recon_plugins")
+        detect_plugins = payload.get("detect_plugins")
+        profile_name = payload.get("profile")
+        if profile_name:
+            try:
+                resolved = resolve_profile_plugins(
+                    str(profile_name),
+                    list(self.server.plugin_manager.plugins.keys()),
+                )
+            except ValueError as exc:
+                return _json_response(self, {"error": str(exc)}, status=400)
+
+            if resolved.get("missing_required"):
+                missing = ", ".join(resolved["missing_required"])
+                return _json_response(
+                    self,
+                    {"error": f"perfil '{profile_name}' indisponível: {missing}"},
+                    status=400,
+                )
+            recon_plugins = resolved.get("recon_plugins") or recon_plugins
+            detect_plugins = resolved.get("detect_plugins") or detect_plugins
+
         state = run_pipeline(
             target=target,
             verbose=bool(payload.get("verbose", False)),
             quiet=bool(payload.get("quiet", True)),
-            recon_plugins=payload.get("recon_plugins"),
-            detect_plugins=payload.get("detect_plugins"),
+            recon_plugins=recon_plugins,
+            detect_plugins=detect_plugins,
             max_exploit_attempts=int(payload.get("max_exploit_attempts", 5)),
             exploit_categories=payload.get("exploit_categories"),
         )
@@ -97,6 +124,7 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
                 "target": state.target,
                 "summary": state.summary(),
                 "report_path": state.report_path,
+                "web_map": build_web_map_payload(state.discoveries),
             },
             status=HTTPStatus.CREATED,
         )
@@ -143,6 +171,21 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
                 payload["content"] = Path(report_path).read_text(encoding="utf-8")
             return _json_response(self, payload)
 
+        if len(parts) == 3 and parts[2] == "webmap":
+            loaded = self.storage.load_run_by_id(run_id)
+            if not loaded:
+                return _json_response(self, {"error": "run não encontrado"}, status=404)
+
+            _, context, _, target = loaded
+            return _json_response(
+                self,
+                {
+                    "run_id": run_id,
+                    "target": target,
+                    "web_map": build_web_map_payload(context.get("discoveries", {})),
+                },
+            )
+
         return _json_response(self, {"error": "subrota não suportada"}, status=404)
 
 
@@ -159,6 +202,7 @@ def main() -> int:
     server = ThreadingHTTPServer((args.host, args.port), ReconForgeAPIHandler)
     server.logger = logger
     server.storage = storage
+    server.plugin_manager = PluginManager()
 
     logger.info(f"API iniciada em http://{args.host}:{args.port}")
     try:

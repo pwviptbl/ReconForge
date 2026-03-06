@@ -1,7 +1,7 @@
 """
 Orquestrador de workflow orientado a estágios para o ReconForge.
 
-Substitui o fluxo manual do MinimalOrchestrator por um pipeline declarativo:
+Executa um pipeline declarativo:
 
     stage_recon → stage_detect → [stage_validate] → [stage_queue_build]
     → [stage_exploit] → [stage_evidence] → stage_report
@@ -11,9 +11,6 @@ Cada estágio:
 - Executa sua lógica e atualiza o estado.
 - Passa por um gate de decisão antes do próximo estágio avançar.
 - Tem seu progresso persistido via checkpoint.
-
-Compatibilidade: o MinimalOrchestrator continua disponível para o modo
-interativo existente. O WorkflowOrchestrator é o novo modo pipeline.
 """
 
 import sys
@@ -122,11 +119,21 @@ class WorkflowOrchestrator:
         self._display_start(state)
 
         stages = self._build_pipeline(state)
+        gate_failed_stage: Optional[str] = None
 
         for stage in stages:
             if state.aborted:
                 self.logger.info(f"Pipeline abortado. Motivo: {state.abort_reason}")
                 break
+
+            if gate_failed_stage and stage.name != StageReport.name:
+                state.skip_stage(
+                    stage.name,
+                    reason=f"dependente do gate que falhou em {gate_failed_stage}",
+                )
+                self.storage.checkpoint_workflow(state)
+                self._display_stage_result(stage, state)
+                continue
 
             # Executar estágio
             state = stage.run(state)
@@ -139,11 +146,9 @@ class WorkflowOrchestrator:
             if not stage.gate_passes(state):
                 self.logger.info(
                     f"Gate do estágio '{stage.name}' não passou — "
-                    f"encerrando estágios subsequentes"
+                    f"estágios dependentes serão pulados até o relatório final"
                 )
-                # Não abortar — apenas parar de avançar para próximos estágios
-                # que dependem do output deste
-                break
+                gate_failed_stage = stage.name
 
         state = self._finalize(state)
         self._display_summary(state)
@@ -249,7 +254,6 @@ class WorkflowOrchestrator:
     def normalize_target(target: str) -> str:
         """
         Normaliza o alvo para host/IP quando for URL.
-        Mantém compatibilidade com MinimalOrchestrator._normalize_target.
         """
         from urllib.parse import urlparse
         target = target.strip()

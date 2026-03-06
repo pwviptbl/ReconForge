@@ -47,6 +47,9 @@ python -m pip install --upgrade pip
 echo "Installing/updating dependencies..."
 pip install -r requirements.txt
 
+echo "Ensuring Playwright Chromium is installed..."
+python -m playwright install chromium
+
 # Start application
 echo "Launching ReconForge..."
 python scripts/main.py "$@"

@@ -1,71 +1,97 @@
-### Dnsresolver (DNSResolverPlugin)
-Resolução de DNS e coleta de informações
+# Funcionalidades atuais
 
-### Directoryscanner (DirectoryScannerPlugin)
-Scanner de diretórios e arquivos web usando wordlists
+O fluxo atual foi reduzido para caber em uma operacao simples:
 
-### Exploitsearcher (ExploitSearcherPlugin)
-Busca exploits para versões de software detectadas via múltiplas fontes
+1. descobrir superficie
+2. mapear entradas
+3. testar o que faz sentido
+4. gerar relatorio
 
-### Exploitsuggester (ExploitSuggester)
-Busca por exploits públicos (Searchsploit) para as CVEs encontradas.
+## Modos de uso
 
-### Firewalldetector (FirewallDetectorPlugin)
-Detecta firewalls, WAFs e sistemas de proteção
+### `web-map`
 
-### Misconfigurationanalyzer (MisconfigurationAnalyzer)
-Analisa falhas de configuração em serviços de rede (FTP, SMB, SSL, etc.)
+Para homologacao e mapeamento gentil de entradas web:
 
-### Networkmapper (NetworkMapperPlugin)
-Mapeamento de topologia e infraestrutura de rede
+- coleta links, formularios e botoes
+- preenche campos com heuristica segura
+- observa requests reais e usa a rede como fonte de verdade
+- registra GET, POST, multipart, uploads e interacoes sem request
 
-### Nmapscanner (NmapScannerPlugin)
-Varredura Nmap completa com detecção de serviços e scripts NSE
+### `web-test`
 
-### Nucleiscanner (NucleiScannerPlugin)
-Scanner de vulnerabilidades Nuclei com templates atualizados
+Tudo do `web-map`, seguido de scanners request-based:
 
-### Portscanner (PortScannerPlugin)
-Scanner de portas TCP eficiente
+- XSS
+- LFI
+- SSRF
+- SSTI
+- IDOR
+- Open Redirect
+- Header Injection
+- Nuclei
 
-### Portexposureaudit (PortExposureAudit)
-Audita exposição de portas e serviços sensíveis com severidade.
+### `infra`
 
-### Protocolanalyzer (ProtocolAnalyzer)
-Analisa protocolos em portas abertas (ex: SMB, SSH) para vulnerabilidades.
+Foco em servicos e exposicao:
 
-### Reconnaissance (ReconnaissancePlugin)
-Reconhecimento avançado e OSINT: DNS, ASN, subdomínios, emails, social media, threat intel
+- portas abertas
+- servicos detectados
+- SSL/TLS
+- firewall/WAF
+- exposicao de portas sensiveis
+- policy SSH
 
-### Reportgenerator (ReportGenerator)
-Gera um relatório consolidado em Markdown a partir dos resultados da varredura.
+## Web flow mapping
 
-### Sslanalyzer (SSLAnalyzerPlugin)
-Análise completa de SSL/TLS e certificados digitais
+O `WebFlowMapperPlugin` virou o componente central da descoberta web.
 
-### Sshpolicycheck (SSHPolicyCheck)
-Avalia políticas SSH e identifica algoritmos fracos (KEX, cifragem, MAC e chaves).
+Ele entrega:
 
-### Subdomainenumerator (SubdomainEnumerator)
-Enumeração de subdomínios usando wordlist e APIs públicas
+- `forms`
+- `request_nodes`
+- `interactions`
+- `parameters`
 
-### Subfinder (SubfinderPlugin)
-Enumeração de subdomínios usando Subfinder
+Esses dados alimentam os scanners posteriores. O scanner nao depende mais so do DOM; ele prioriza a request observada.
 
-### Technologydetector (TechnologyDetectorPlugin)
-Detecção de tecnologias e frameworks web
+## Healthcheck
 
-### Trafficanalyzer (TrafficAnalyzerPlugin)
-Análise de padrões de tráfego de rede e detecção de anomalias
+Antes de rodar um perfil, voce pode validar o ambiente:
 
-### Whatwebscanner (WhatWebScannerPlugin)
-Detecção de tecnologias web usando WhatWeb
+```bash
+./run.sh --healthcheck
+```
 
-### Webcrawler (WebCrawlerPlugin)
-Navegação web avançada: análise de formulários, login automático, mapeamento
+Isso mostra:
 
-### Webscanner (WebScannerPlugin)
-Scanner básico de aplicações web
+- Python ativo
+- modulo `playwright`
+- plugins carregados
+- plugins desativados e motivo
+- disponibilidade dos perfis
 
-### Webvulnscanner (WebVulnScannerPlugin)
-Scanner de vulnerabilidades web comuns
+## Mostrar rotas e parametros
+
+Depois do run:
+
+```bash
+./run.sh --show-web-map 50
+```
+
+Saida esperada:
+
+- formularios detectados
+- requests observadas
+- buckets de parametros
+- acao UI associada
+
+## Personalizacao
+
+O projeto continua permitindo ligacao e desligamento de plugins por YAML. Isso cobre os casos especiais sem complicar o caminho padrao.
+
+Recomendacao pratica:
+
+- use perfil por default
+- ajuste YAML apenas quando tiver necessidade real
+- deixe `DirectoryScannerPlugin` fora do fluxo normal

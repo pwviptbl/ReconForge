@@ -25,7 +25,6 @@ except ImportError:
 # Mapeamento de variáveis de ambiente para caminhos na configuração YAML
 # Formato: NOME_DA_VARIAVEL -> caminho.dotado.no.yaml
 _ENV_OVERRIDES = {
-    'GEMINI_API_KEY': 'ai.gemini.api_key',
     'LOG_LEVEL': 'logging.level',
     'LOG_DIR': 'logging.file',
 }
@@ -87,7 +86,7 @@ class Config:
     def get(self, path: str, default=None):
         """
         Obtém valor da configuração usando notação de ponto
-        Ex: config.get('ai.gemini.api_key')
+        Ex: config.get('plugins.enabled.WebFlowMapperPlugin')
         """
         keys = path.split('.')
         value = self._config

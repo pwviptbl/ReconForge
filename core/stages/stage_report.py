@@ -18,11 +18,11 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from core.models import Evidence, Finding, QueueItem
 from core.stage_base import StageBase
 from core.workflow_state import WorkflowState
+from utils.web_map import build_web_map_payload
 
 
 class StageReport(StageBase):
@@ -300,10 +300,10 @@ class StageReport(StageBase):
         return "\n".join(lines)
 
     def _section_web_mapping(self, state: WorkflowState) -> str:
-        d = state.discoveries
-        parameter_buckets = self._parameter_buckets(d.get("parameters", {}))
-        forms = self._summarize_forms(d.get("forms", []))
-        requests = self._summarize_request_nodes(d.get("request_nodes", []))
+        web_map = build_web_map_payload(state.discoveries)
+        parameter_buckets = web_map.get("parameter_buckets", {})
+        forms = web_map.get("forms", [])
+        requests = web_map.get("requests", [])
 
         if not any(parameter_buckets.values()) and not forms and not requests:
             return ""
@@ -356,10 +356,11 @@ class StageReport(StageBase):
         confirmed = [e for e in state.evidences if e.proof_level == "impact_proven"]
         partial_evs = [e for e in state.evidences if e.proof_level == "partial"]
         discoveries = state.discoveries
-        parameter_buckets = self._parameter_buckets(discoveries.get("parameters", {}))
+        web_map = build_web_map_payload(discoveries)
+        parameter_buckets = web_map.get("parameter_buckets", {})
         parameter_summary = {bucket: len(values) for bucket, values in parameter_buckets.items()}
-        forms = self._summarize_forms(discoveries.get("forms", []))
-        requests = self._summarize_request_nodes(discoveries.get("request_nodes", []))
+        forms = web_map.get("forms", [])
+        requests = web_map.get("requests", [])
         stage_statuses = {k: v.to_dict() for k, v in state.stage_statuses.items()}
         report_stage = stage_statuses.get(self.name)
         if report_stage and report_stage.get("status") == "running":
@@ -426,98 +427,3 @@ class StageReport(StageBase):
             "confirmed": sum(1 for e in state.evidences if e.proof_level == "impact_proven"),
             "partial": sum(1 for e in state.evidences if e.proof_level == "partial"),
         }
-
-    def _parameter_buckets(self, parameters: Any) -> Dict[str, List[str]]:
-        if not isinstance(parameters, dict):
-            return {}
-        normalized: Dict[str, List[str]] = {}
-        for bucket, values in parameters.items():
-            if not isinstance(values, list):
-                continue
-            names = sorted({str(value) for value in values if value})
-            normalized[str(bucket)] = names
-        return normalized
-
-    def _summarize_forms(self, forms: Any) -> List[Dict[str, Any]]:
-        if not isinstance(forms, list):
-            return []
-
-        summaries: List[Dict[str, Any]] = []
-        seen = set()
-        for form in forms:
-            if not isinstance(form, dict):
-                continue
-            page = str(form.get("url") or "")
-            action = str(form.get("action") or page)
-            method = str(form.get("method") or "GET").upper()
-            fields = []
-            for field in form.get("inputs", []):
-                if not isinstance(field, dict):
-                    continue
-                name = str(field.get("name") or "").strip()
-                if name and name not in fields:
-                    fields.append(name)
-            key = (method, page, action, tuple(fields))
-            if key in seen:
-                continue
-            seen.add(key)
-            summaries.append({
-                "page": page,
-                "action": action,
-                "method": method,
-                "enctype": str(form.get("enctype") or ""),
-                "fields": fields,
-            })
-        return summaries
-
-    def _summarize_request_nodes(self, request_nodes: Any) -> List[Dict[str, Any]]:
-        if not isinstance(request_nodes, list):
-            return []
-
-        summaries: List[Dict[str, Any]] = []
-        seen = set()
-        for node in request_nodes:
-            if not isinstance(node, dict):
-                continue
-            url = str(node.get("url") or "")
-            if not url or self._is_static_asset(url):
-                continue
-
-            parameter_names: List[str] = []
-            for key in ("params", "data", "json", "files", "cookies"):
-                value = node.get(key)
-                if isinstance(value, dict):
-                    for name in value.keys():
-                        text = str(name).strip()
-                        if text and text not in parameter_names:
-                            parameter_names.append(text)
-
-            ui_action = node.get("ui_action") if isinstance(node.get("ui_action"), dict) else {}
-            action = str(ui_action.get("kind") or "")
-
-            if not parameter_names and action not in {"submit", "click"}:
-                continue
-
-            method = str(node.get("method") or "GET").upper()
-            key = (method, url, tuple(parameter_names), action)
-            if key in seen:
-                continue
-            seen.add(key)
-
-            summaries.append({
-                "method": method,
-                "url": url,
-                "parameter_names": parameter_names,
-                "source_page": str(node.get("source_page") or ""),
-                "observed_via": str(node.get("observed_via") or ""),
-                "action": action,
-            })
-
-        return summaries
-
-    def _is_static_asset(self, url: str) -> bool:
-        path = urlparse(url).path.lower()
-        return path.endswith((
-            ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-            ".woff", ".woff2", ".ttf", ".map", ".webp", ".pdf",
-        ))

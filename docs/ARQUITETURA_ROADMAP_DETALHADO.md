@@ -1,5 +1,7 @@
 # ReconForge — Análise Arquitetural e Roadmap Detalhado
 
+> Nota: este documento e historico. O `MinimalOrchestrator` citado abaixo ja foi removido; o estado atual do projeto e o pipeline unico baseado em `WorkflowOrchestrator`.
+
 ## 1. Estado Atual da Arquitetura
 
 O ReconForge hoje é uma **aplicação monolítica com plugin architecture plana**:

@@ -7,7 +7,7 @@ import os
 import sys
 import importlib.util
 from pathlib import Path
-from typing import Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 import inspect
 
 from .plugin_base import BasePlugin, PluginResult, NetworkPlugin, WebPlugin, VulnerabilityPlugin
@@ -28,6 +28,7 @@ class PluginManager:
             self.plugins_dir = base_dir / raw_dir
         self.plugins: Dict[str, BasePlugin] = {}
         self.plugin_classes: Dict[str, Type[BasePlugin]] = {}
+        self.disabled_plugins: Dict[str, Dict[str, Any]] = {}
         
         # Criar diretório de plugins se não existir
         self.plugins_dir.mkdir(exist_ok=True)
@@ -72,27 +73,34 @@ class PluginManager:
                 issubclass(obj, BasePlugin) and 
                 obj not in base_classes):
                 
-                # Verificar se o plugin está habilitado na configuração
+                plugin_instance = obj()
+                plugin_name = plugin_instance.name
                 plugin_class_name = obj.__name__
+
+                # Verificar se o plugin está habilitado na configuração
                 is_enabled = get_config(f'plugins.enabled.{plugin_class_name}')
-                
-                # Se não está definido na configuração, usar True como padrão
-                # Mas se está explicitamente definido como False, respeitar
                 if is_enabled is False:
                     self.logger.info(f"  ⏭️ {plugin_class_name} desabilitado na configuração")
+                    self.disabled_plugins[plugin_name] = {
+                        "class_name": plugin_class_name,
+                        "reason": "disabled_in_config",
+                        "detail": f"{plugin_class_name} desabilitado na configuração",
+                    }
                     continue
-                elif is_enabled is None:
-                    # Plugin não configurado, usar padrão True
-                    is_enabled = True
-                
-                # Instanciar plugin
-                plugin_instance = obj()
 
                 # Verificar dependências
-                if not self._check_dependencies(plugin_instance):
+                dependency_error = self._get_dependency_error(plugin_instance)
+                if dependency_error:
+                    self.logger.warning(
+                        f"  ⏭️ Plugin '{plugin_name}' desabilitado: "
+                        f"{dependency_error}"
+                    )
+                    self.disabled_plugins[plugin_name] = {
+                        "class_name": plugin_class_name,
+                        "reason": "missing_dependency",
+                        "detail": dependency_error,
+                    }
                     continue
-
-                plugin_name = plugin_instance.name
                 
                 # Aplicar configurações específicas do plugin se existirem
                 plugin_config = get_config(f'plugins.config.{plugin_class_name}', {})
@@ -104,10 +112,10 @@ class PluginManager:
                 
                 self.logger.debug(f"  📦 {plugin_name} ({plugin_instance.category})")
 
-    def _check_dependencies(self, plugin: BasePlugin) -> bool:
-        """Verifica se as dependências de um plugin estão instaladas."""
+    def _get_dependency_error(self, plugin: BasePlugin) -> Optional[str]:
+        """Retorna erro de dependência se houver."""
         if not plugin.requirements:
-            return True
+            return None
 
         import shutil
 
@@ -137,19 +145,11 @@ class PluginManager:
             # Verificar se é um módulo Python
             try:
                 if importlib.util.find_spec(requirement) is None:
-                    self.logger.warning(
-                        f"  ⏭️ Plugin '{plugin.name}' desabilitado: "
-                        f"dependência '{requirement}' não encontrada."
-                    )
-                    return False
+                    return f"dependência '{requirement}' não encontrada"
             except ModuleNotFoundError:
-                self.logger.warning(
-                    f"  ⏭️ Plugin '{plugin.name}' desabilitado: "
-                    f"dependência '{requirement}' não encontrada."
-                )
-                return False
+                return f"dependência '{requirement}' não encontrada"
 
-        return True
+        return None
     
     def get_plugin(self, name: str) -> Optional[BasePlugin]:
         """Obtém plugin pelo nome"""
@@ -257,7 +257,16 @@ class PluginManager:
         self.logger.info("🔄 Recarregando plugins...")
         self.plugins.clear()
         self.plugin_classes.clear()
+        self.disabled_plugins.clear()
         self._load_plugins()
+
+    def get_health_report(self) -> Dict[str, Any]:
+        """Retorna visão resumida do estado de carga dos plugins."""
+        return {
+            "loaded_count": len(self.plugins),
+            "loaded_plugins": sorted(self.plugins.keys()),
+            "disabled_plugins": dict(sorted(self.disabled_plugins.items())),
+        }
     
     def get_plugin_categories(self) -> List[str]:
         """Retorna todas as categorias de plugins disponíveis"""

@@ -1,194 +1,134 @@
-# 🔌 Gerenciamento de Plugins - ReconForge
+# Plugins do ReconForge
 
-O ReconForge possui um sistema flexível de plugins que permite ativar/desativar funcionalidades específicas e configurar cada plugin individualmente.
+O projeto foi simplificado para operar com um unico fluxo de execucao e duas formas de ajuste:
 
-## 📋 Visão Geral
+- por perfil, que e o caminho recomendado
+- por habilitacao/desabilitacao de plugins, quando voce quer personalizar
 
-### Tipos de Plugins Disponíveis
+Se um plugin nao aparece nesta pagina, ele nao faz mais parte do fluxo atual.
 
-- **🔍 Plugins de Reconhecimento**: Reconnaissance (avançado)
-- **🌐 Plugins de Rede**: DNS, Nmap, Port Scanner, Network Mapper, SSH Policy Check, Port Exposure Audit
-- **🔗 Plugins Web**: Web Scanner, Technology Detector, Directory Scanner
-- **🛡️ Plugins de Análise de Vulnerabilidade**: Nuclei Scanner, Web Vuln Scanner, Misconfiguration Analyzer, Exploit Suggester
+## Perfis recomendados
 
-### Status Padrão dos Plugins
+Use perfis antes de sair montando listas manuais.
 
-Por padrão, a maioria dos plugins está **habilitada**, exceto:
-- `WebVulnScannerPlugin` - Desabilitado por ser potencialmente invasivo
+- `web-map`: mapeia rotas, formularios, requests observadas e parametros
+- `web-test`: faz o `web-map` e depois executa os scanners HTTP request-based
+- `infra`: foca em portas, servicos, SSL e exposicao de infraestrutura
 
-#### ✅ **Habilitados por padrão (seguros):**
-- **ReconnaissancePlugin v2.0.0** - 🔍 **ATUALIZADO!** Reconhecimento avançado + OSINT completo
-- DNSResolverPlugin - Resolução DNS básica
-- NmapScannerPlugin - Scanner Nmap completo (Agora com extração de CVEs!)
-- PortScannerPlugin - Scanner de portas básico
-- NetworkMapperPlugin - Mapeamento de topologia e infraestrutura
-- SSHPolicyCheck - Avalia algoritmos e politica SSH
-- PortExposureAudit - Audita exposicao de portas sensiveis
-- SubdomainEnumeratorPlugin - Enumeração de subdomínios
-- WebScannerPlugin - Scanner web básico
-- TechnologyDetectorPlugin - Detector de tecnologias
-- DirectoryScannerPlugin - Scanner de diretórios
-- HeaderAnalyzerPlugin - Analisa headers HTTP/HTTPS
-- NucleiScannerPlugin - Scanner de vulnerabilidades
-- **MisconfigurationAnalyzerPlugin (NOVO!)** - 🕵️ Analisa falhas de configuração em serviços de rede.
-- **ExploitSuggesterPlugin (NOVO!)** - 💥 Sugere exploits públicos para as CVEs encontradas.
-
-## 🛠️ Como Gerenciar Plugins
-
-### 1. Listar Todos os Plugins
+Comandos:
 
 ```bash
-# Ativar o ambiente virtual
-source venv/bin/activate
-
-# Listar plugins e status
-python scripts/manage_plugins.py list
+./run.sh alvo --profile web-map
+./run.sh alvo --profile web-test
+./run.sh alvo --profile infra
+./run.sh --healthcheck
+./run.sh --show-web-map 50
 ```
 
-### 2. Habilitar um Plugin
+## Plugins ativos
 
-```bash
-# Habilitar plugin específico
-python scripts/manage_plugins.py enable NucleiScannerPlugin
+### Recon e descoberta
 
-```
+- `PortScannerPlugin`
+- `NmapScannerPlugin`
+- `DNSResolverPlugin`
+- `SubfinderPlugin`
+- `ReconnaissancePlugin`
+- `NetworkMapperPlugin`
+- `TrafficAnalyzerPlugin`
+- `FirewallDetectorPlugin`
+- `PortExposureAudit`
+- `SSHPolicyCheck`
 
-### 3. Desabilitar um Plugin
+### Web
 
-```bash
-# Desabilitar plugin específico
-python scripts/manage_plugins.py disable PortScannerPlugin
+- `WhatWebScannerPlugin`
+- `TechnologyDetectorPlugin`
+- `GauCollectorPlugin`
+- `KatanaCrawlerPlugin`
+- `WebFlowMapperPlugin`
+- `HeaderAnalyzerPlugin`
+- `DirectoryScannerPlugin`
 
-```
+### Vulnerabilidades
 
-### 4. Ver Configuração de um Plugin
+- `NucleiScannerPlugin`
+- `XSSScannerPlugin`
+- `LFIScannerPlugin`
+- `SSRFScannerPlugin`
+- `IDORScannerPlugin`
+- `SSTIScannerPlugin`
+- `OpenRedirectScannerPlugin`
+- `HeaderInjectionScannerPlugin`
+- `SSLAnalyzerPlugin`
 
-```bash
-# Mostrar configuração atual
-python scripts/manage_plugins.py config DNSResolverPlugin
-```
+### Inteligencia de exploit
 
-### 5. Configurar um Plugin
+- `ExploitSearcherPlugin`
 
-```bash
-# Criar arquivo de configuração personalizada
-cp config/plugins_example.yaml config/my_plugins.yaml
+## O que fica fora do caminho padrao
 
-# Editar o arquivo conforme necessário
-nano config/my_plugins.yaml
+Nem tudo precisa rodar sempre.
 
-# Aplicar configuração personalizada
-python scripts/manage_plugins.py config DNSResolverPlugin config/my_plugins.yaml
-```
+- `DirectoryScannerPlugin`: util para fuzzing, mas agressivo; use por escolha explicita
+- `ReconnaissancePlugin`: util para OSINT e contexto amplo, nao para toda auditoria web
+- `TechnologyDetectorPlugin`: fallback quando o `WhatWebScannerPlugin` nao cobre bem
+- `NetworkMapperPlugin`, `TrafficAnalyzerPlugin`, `FirewallDetectorPlugin`: mais uteis em perfil infra do que em perfil web
 
-### 6. Ver Categorias de Plugins
+## Habilitar ou desabilitar
 
-```bash
-# Listar categorias disponíveis
-python scripts/manage_plugins.py categories
-```
+O ponto central continua sendo o YAML. Isso mantem a ferramenta simples: o default funciona, e voce personaliza so quando precisar.
 
-### 7. Exportar Configuração Atual
+Exemplo:
 
-```bash
-# Exportar configuração para backup
-python scripts/manage_plugins.py export backup_plugins.yaml
-```
-
-## ⚙️ Configuração via Arquivo
-
-### Usando Arquivo de Configuração Personalizado
-
-1. **Copie o exemplo**:
-   ```bash
-   cp config/plugins_example.yaml config/custom_plugins.yaml
-   ```
-
-2. **Edite as configurações**:
-   ```yaml
-   plugins:
-     enabled:
-       DNSResolverPlugin: true
-       NmapScannerPlugin: false  # Desabilitar Nmap
-      MisconfigurationAnalyzerPlugin: true # Habilitar novo plugin
-     
-     config:
-       DNSResolverPlugin:
-         timeout: 20
-         max_subdomains: 50
-   ```
-
-3. **Use no programa principal**:
-   ```bash
-   python scripts/main.py --target example.com --config config/custom_plugins.yaml
-   ```
-
-### Configurações Importantes por Plugin
-
-#### 🔍 **ReconnaissancePlugin v2.0.0 - OSINT Expandido (NOVO!)**
-**O plugin mais avançado para reconhecimento completo e OSINT!**
-(conteúdo omitido para brevidade)
-
-#### 🌐 DNSResolverPlugin
 ```yaml
-DNSResolverPlugin:
-  timeout: 30
-  max_subdomains: 100
-  dns_servers: ["8.8.8.8", "1.1.1.1"]
+plugins:
+  enabled:
+    DirectoryScannerPlugin: false
+    WebFlowMapperPlugin: true
+    NucleiScannerPlugin: true
 ```
 
-#### 🔍 NmapScannerPlugin (ATUALIZADO!)
-- **O que há de novo?** Agora o plugin está otimizado para usar portas descobertas por outros scanners e extrai CVEs de forma estruturada.
+Configuracoes especificas por plugin continuam em `plugins.config`.
+
+Exemplo:
+
 ```yaml
-NmapScannerPlugin:
-  scan_type: "syn"        # syn, tcp, udp
-  timing: "T4"           # T0-T5 (velocidade)
-  script_scan: true      # Executar scripts NSE
-  max_ports: 1000        # Usado como fallback se nenhuma porta for descoberta antes
+plugins:
+  config:
+    WebFlowMapperPlugin:
+      max_depth: 3
+      max_pages: 30
+      max_actions_per_page: 10
 ```
 
-#### 🕵️ MisconfigurationAnalyzerPlugin (NOVO!)
-**Este plugin foca em vulnerabilidades que não são CVEs, mas sim falhas de configuração.**
-- **Funcionalidades:**
-  - Verifica login anônimo em FTP (`ftp-anon`).
-  - Enumera compartilhamentos SMB (`smb-enum-shares`).
-  - Analisa cifras de criptografia fracas em SSL/TLS (`ssl-enum-ciphers`).
-  - E mais...
-- **Configuração:** Este plugin não possui configurações complexas, basta habilitá-lo.
+## Dependencias e healthcheck
 
-#### 💥 ExploitSuggesterPlugin (NOVO!)
-**Transforma dados em ação, sugerindo exploits para as vulnerabilidades encontradas.**
-- **Funcionalidades:**
-  - Consome os CVEs extraídos pelo `NmapScannerPlugin`.
-  - Utiliza o `searchsploit` para encontrar exploits públicos no Exploit-DB.
-  - Adiciona uma lista de exploits potenciais ao relatório final.
-- **Pré-requisitos:** Requer que a ferramenta `searchsploit` (parte do Exploit-DB) esteja instalada.
-- **Configuração:** Nenhuma configuração necessária, apenas habilitar.
+Plugins podem ser desativados automaticamente quando falta dependencia de sistema ou modulo Python. O jeito certo de verificar isso agora e:
 
-
-#### ⚡ NucleiScannerPlugin
-```yaml
-NucleiScannerPlugin:
-  severity_filter: ["medium", "high", "critical"]
-  timeout: 300
-  exclude_tags: ["intrusive", "dos"]
+```bash
+./run.sh --healthcheck
 ```
 
-## 🚨 Plugins Perigosos
-(conteúdo omitido para brevidade)
+O healthcheck mostra:
 
-## 🛡️ Boas Práticas de Segurança
-(conteúdo omitido para brevidade)
+- Python em uso
+- se `playwright` esta importavel
+- plugins carregados
+- plugins desativados e o motivo
+- quais perfis estao prontos ou bloqueados
 
-## 🔧 Desenvolvimento de Plugins
-(conteúdo omitido para brevidade)
+## Web map
 
-## 📝 Exemplos Práticos
-(conteúdo omitido para brevidade)
+Quando o `WebFlowMapperPlugin` roda, o mapeamento de entradas fica disponivel em tres lugares:
 
-## ❓ Solução de Problemas
-(conteúdo omitido para brevidade)
+- resumo do pipeline
+- relatorio final
+- comando `--show-web-map`
 
----
+Exemplo:
 
-⚠️ **LEMBRE-SE**: Sempre use com responsabilidade e apenas em sistemas que você possui ou tem autorização explícita para testar!
+```bash
+./run.sh hom.nfse.charqueadas.rs.gov.br --profile web-map
+./run.sh --show-web-map 50
+```

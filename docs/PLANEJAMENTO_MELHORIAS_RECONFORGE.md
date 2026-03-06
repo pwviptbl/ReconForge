@@ -1,5 +1,7 @@
 # Planejamento de Melhoria - ReconForge (Essencial)
 
+> Nota: este documento e historico. O fluxo interativo citado abaixo foi substituido pelo pipeline unico em `scripts/main.py` e `core/workflow_orchestrator.py`.
+
 ## 1) Objetivo
 
 Evoluir o ReconForge de "scanner + plugins soltos" para um orquestrador orientado a prova de impacto, com pipeline claro:
