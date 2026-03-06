@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from core.minimal_orchestrator import MinimalOrchestrator
 from core.storage import Storage
 from core.config import get_config
+from core.workflow_orchestrator import WorkflowOrchestrator, run_pipeline
 from utils.logger import setup_logger
 
 
@@ -315,6 +316,42 @@ def main():
         parser.add_argument('--config', type=str, 
                           help='Arquivo de configuração YAML customizado')
 
+        # Modo pipeline (Fase 1 — WorkflowOrchestrator)
+        parser.add_argument(
+            '--pipeline',
+            action='store_true',
+            help=(
+                'Executa o novo pipeline orientado a estágios (WorkflowOrchestrator). '
+                'Substitui o modo não-interativo clássico. '
+                'Compatível com --plugins para restringir estágios de detecção.'
+            ),
+        )
+        parser.add_argument(
+            '--recon-plugins',
+            type=str,
+            metavar='PLUGINS',
+            help='Plugins de reconhecimento para o pipeline (ex: NmapScannerPlugin,SubfinderPlugin).',
+        )
+        parser.add_argument(
+            '--detect-plugins',
+            type=str,
+            metavar='PLUGINS',
+            help='Plugins de detecção para o pipeline (ex: XssScannerPlugin,NucleiScannerPlugin).',
+        )
+        parser.add_argument(
+            '--exploit-categories',
+            type=str,
+            metavar='CATS',
+            help='Categorias de exploit a executar (ex: xss,sqli,ssrf). Padrão: todas disponíveis.',
+        )
+        parser.add_argument(
+            '--max-exploit-attempts',
+            type=int,
+            default=5,
+            metavar='N',
+            help='Máximo de tentativas de exploit por item da queue (padrão: 5).',
+        )
+
         args = parser.parse_args()
 
         if args.list_plugins:
@@ -339,7 +376,64 @@ def main():
 
         setup_logger('ReconForge', verbose=True)
 
-        # Processar exclusões (se houver)
+        # ----------------------------------------------------------------
+        # Modo Pipeline — WorkflowOrchestrator (Fases 1-3)
+        # ----------------------------------------------------------------
+        if args.pipeline:
+            recon_plugins = None
+            detect_plugins = None
+            exploit_categories = None
+
+            if args.recon_plugins:
+                recon_plugins = [p.strip() for p in args.recon_plugins.split(',') if p.strip()]
+
+            if args.detect_plugins:
+                detect_plugins = [p.strip() for p in args.detect_plugins.split(',') if p.strip()]
+            elif args.plugins:
+                # --plugins no modo pipeline mapeia para detect-plugins
+                detect_plugins_parsed, invalid = _parse_plugins_arg(args.plugins, plugin_order)
+                if invalid:
+                    print(f"❌ Plugins inválidos: {', '.join(invalid)}")
+                    return 2
+                detect_plugins = detect_plugins_parsed if detect_plugins_parsed else None
+
+            if hasattr(args, 'exploit_categories') and args.exploit_categories:
+                exploit_categories = [c.strip() for c in args.exploit_categories.split(',') if c.strip()]
+
+            state = run_pipeline(
+                target=args.target,
+                verbose=True,
+                quiet=False,
+                recon_plugins=recon_plugins,
+                detect_plugins=detect_plugins,
+                max_exploit_attempts=getattr(args, 'max_exploit_attempts', 5),
+                exploit_categories=exploit_categories,
+            )
+
+            summary = state.summary()
+            confirmed = sum(1 for e in state.evidences if e.proof_level == "impact_proven")
+            partial_ev = sum(1 for e in state.evidences if e.proof_level == "partial")
+
+            print(f"\n{'='*55}")
+            print(f"✅ Pipeline concluído | run_id={summary['run_id']}")
+            print(f"   Estágios executados    : {summary['stages_done']}")
+            print(f"   Findings detectados    : {summary['findings']}")
+            print(f"   Findings validados     : {summary['findings']}")
+            print(f"   Findings descartados   : {len(state.rejected_findings)}")
+            print(f"   Items na queue         : {len(state.queue_items)}")
+            print(f"   Tentativas de exploit  : {len(state.attempts)}")
+            print(f"   Confirmadas (impacto)  : {confirmed}")
+            print(f"   Potenciais (parcial)   : {partial_ev}")
+            if state.report_path:
+                print(f"   Relatório              : {state.report_path}")
+            if summary.get('errors'):
+                print(f"   Erros                  : {summary['errors']}")
+            print(f"{'='*55}")
+            return 0 if not state.aborted else 1
+
+        # ----------------------------------------------------------------
+        # Modo clássico (MinimalOrchestrator) — mantido intacto
+        # ----------------------------------------------------------------
         excluded_plugins = []
         if args.exclude_plugins:
             excluded_plugins, invalid_excluded = _parse_plugins_arg(args.exclude_plugins, plugin_order)
