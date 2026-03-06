@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    command: python3 scripts/api_server.py --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker_xss:
+    build: .
+    command: python3 scripts/worker.py --category xss --loop --poll-interval 5
+    network_mode: host
+    cap_add:
+      - NET_RAW
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  worker_sqli:
+    build: .
+    command: python3 scripts/worker.py --category sqli --loop --poll-interval 5
+    network_mode: host
+    cap_add:
+      - NET_RAW
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  browser:
+    build: .
+    command: python3 scripts/browser_worker.py --loop --poll-interval 5
+    shm_size: "2gb"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=reconforge
+      - POSTGRES_USER=reconforge
+      - POSTGRES_PASSWORD=reconforge
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
