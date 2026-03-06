@@ -9,7 +9,7 @@ Plugins típicos deste estágio:
 - ReconnaissancePlugin
 - PortScannerPlugin
 - NmapScannerPlugin
-- SubdomainEnumeratorPlugin / SubfinderPlugin
+- SubfinderPlugin
 - DNSResolverPlugin
 - WhatWebScannerPlugin / TechnologyDetectorPlugin
 """
@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from core.stage_base import ReconStageBase
 from core.workflow_state import WorkflowState
+from utils.web_discovery import merge_discovery_payload
 
 
 # Plugins que pertencem ao estágio de reconhecimento
@@ -28,13 +29,14 @@ RECON_PLUGIN_NAMES = [
     "FirewallDetectorPlugin",
     "NetworkMapperPlugin",
     "DNSResolverPlugin",
-    "SubdomainEnumeratorPlugin",
     "SubfinderPlugin",
     "WhatWebScannerPlugin",
     "TechnologyDetectorPlugin",
-    "ProtocolAnalyzerPlugin",
-    "PortExposureAuditPlugin",
-    "SSHPolicyCheckPlugin",
+    "GauCollectorPlugin",
+    "KatanaCrawlerPlugin",
+    "WebFlowMapperPlugin",
+    "PortExposureAudit",
+    "SSHPolicyCheck",
     "TrafficAnalyzerPlugin",
 ]
 
@@ -116,28 +118,7 @@ class StageRecon(ReconStageBase):
         elif isinstance(result, dict):
             data = result
 
-        mapping = {
-            "hosts": "hosts",
-            "open_ports": "open_ports",
-            "ports": "open_ports",
-            "services": "services",
-            "technologies": "technologies",
-            "subdomains": "subdomains",
-            "endpoints": "endpoints",
-            "forms": "forms",
-            "parameters": "parameters",
-        }
-
-        for src_key, dst_key in mapping.items():
-            items = data.get(src_key)
-            if not items:
-                continue
-            if not isinstance(items, list):
-                items = [items]
-            existing = state.discoveries.setdefault(dst_key, [])
-            for item in items:
-                if item not in existing:
-                    existing.append(item)
+        merge_discovery_payload(state.discoveries, data)
 
     def gate_passes(self, state: WorkflowState) -> bool:
         """Recon sempre passa — não bloquear o pipeline por falta de descobertas."""

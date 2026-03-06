@@ -11,7 +11,13 @@ class RequestNode(TypedDict, total=False):
     data: Any
     json: Any
     cookies: Dict[str, str]
+    files: Dict[str, Any]
     body: Any
+    content_type: str
+    source_page: str
+    ui_action: Dict[str, Any]
+    observed_via: str
+    response_meta: Dict[str, Any]
     request: Dict[str, Any]
 
 

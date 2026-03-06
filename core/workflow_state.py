@@ -20,6 +20,7 @@ from core.models import (
     Vulnerability,
     _now_iso,
 )
+from utils.web_discovery import empty_parameter_buckets
 
 
 @dataclass
@@ -38,14 +39,16 @@ class WorkflowState:
     started_at: str = field(default_factory=_now_iso)
 
     # Dados coletados no stage_recon e stage_detect (legado + novo modelo)
-    discoveries: Dict[str, List[Any]] = field(default_factory=lambda: {
+    discoveries: Dict[str, Any] = field(default_factory=lambda: {
         "hosts": [],
         "open_ports": [],
         "services": [],
         "technologies": [],
         "forms": [],
         "endpoints": [],
-        "parameters": [],
+        "parameters": empty_parameter_buckets(),
+        "request_nodes": [],
+        "interactions": [],
         "subdomains": [],
     })
 

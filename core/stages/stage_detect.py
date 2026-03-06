@@ -7,16 +7,14 @@ PluginFindingAdapter. Os Findings ficam em state.findings prontos
 para o ValidationGate (Fase 2).
 
 Plugins típicos deste estágio:
-- XssScannerPlugin
-- LfiScannerPlugin
-- SsrfScannerPlugin
-- IdorScannerPlugin
+- XSSScannerPlugin
+- LFIScannerPlugin
+- SSRFScannerPlugin
+- IDORScannerPlugin
 - HeaderInjectionScannerPlugin
 - OpenRedirectScannerPlugin
-- SstiScannerPlugin
-- WebVulnScannerPlugin
+- SSTIScannerPlugin
 - NucleiScannerPlugin
-- MisconfigurationAnalyzerPlugin
 - HeaderAnalyzerPlugin
 - DirectoryScannerPlugin
 - SSLAnalyzerPlugin
@@ -31,44 +29,33 @@ from core.workflow_state import WorkflowState
 
 # Plugins que pertencem ao estágio de detecção
 DETECT_PLUGIN_NAMES = [
-    "XssScannerPlugin",
-    "LfiScannerPlugin",
-    "SsrfScannerPlugin",
-    "IdorScannerPlugin",
+    "XSSScannerPlugin",
+    "LFIScannerPlugin",
+    "SSRFScannerPlugin",
+    "IDORScannerPlugin",
     "HeaderInjectionScannerPlugin",
     "OpenRedirectScannerPlugin",
-    "SstiScannerPlugin",
-    "WebVulnScannerPlugin",
-    "WebScannerPlugin",
+    "SSTIScannerPlugin",
     "NucleiScannerPlugin",
-    "MisconfigurationAnalyzerPlugin",
     "HeaderAnalyzerPlugin",
     "DirectoryScannerPlugin",
     "SSLAnalyzerPlugin",
     "ExploitSearcherPlugin",
-    "ExploitSuggesterPlugin",
-    "KatanaCrawlerPlugin",
-    "GauCollectorPlugin",
-    "WebCrawlerPlugin",
 ]
 
 # Mapeamento de nome de plugin para categoria de finding
 _PLUGIN_CATEGORY_MAP = {
-    "XssScannerPlugin":              "xss",
-    "LfiScannerPlugin":              "lfi",
-    "SsrfScannerPlugin":             "ssrf",
-    "IdorScannerPlugin":             "idor",
+    "XSSScannerPlugin":              "xss",
+    "LFIScannerPlugin":              "lfi",
+    "SSRFScannerPlugin":             "ssrf",
+    "IDORScannerPlugin":             "idor",
     "HeaderInjectionScannerPlugin":  "header_injection",
     "OpenRedirectScannerPlugin":     "open_redirect",
-    "SstiScannerPlugin":             "ssti",
-    "WebVulnScannerPlugin":          "web_vuln",
-    "WebScannerPlugin":              "web_vuln",
+    "SSTIScannerPlugin":             "ssti",
     "NucleiScannerPlugin":           "nuclei",
-    "MisconfigurationAnalyzerPlugin": "misconfiguration",
     "HeaderAnalyzerPlugin":          "header",
     "SSLAnalyzerPlugin":             "ssl",
     "ExploitSearcherPlugin":         "exploit",
-    "ExploitSuggesterPlugin":        "exploit",
 }
 
 # Mapeamento de severidade legada para confidence_score estimado

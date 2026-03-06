@@ -15,6 +15,7 @@ from core.models import Vulnerability
 from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
 from utils.http_session import create_requests_session
+from utils.web_discovery import build_request_nodes, iter_request_node_parameters
 
 class IDORScannerPlugin(VulnerabilityPlugin):
     """
@@ -40,51 +41,24 @@ class IDORScannerPlugin(VulnerabilityPlugin):
         self.logger.info(f"🚀 Iniciando varredura IDOR em: {actual_target}")
         
         discoveries = context.get('discoveries', {})
-        endpoints = discoveries.get('endpoints', [])
-        
-        urls_to_test = set()
-        if actual_target.startswith('http'):
-            urls_to_test.add(actual_target)
-        
-        for endp in endpoints:
-            if isinstance(endp, str):
-                urls_to_test.add(endp)
-            elif isinstance(endp, dict) and 'url' in endp:
-                urls_to_test.add(endp['url'])
-
         session = create_requests_session(plugin_config=self.config)
         session.verify = self.verify_ssl
         session.headers.update({
             'User-Agent': 'ReconForge/IDORScanner'
         })
+        request_nodes = build_request_nodes(discoveries, actual_target, default_headers=dict(session.headers))
 
-        self.logger.info(f"🔍 Testando {len(urls_to_test)} URLs para IDOR...")
-        for url in urls_to_test:
+        self.logger.info(f"🔍 Testando {len(request_nodes)} requests para IDOR...")
+        for request_node in request_nodes:
             try:
-                # 1. Testar Query Params
-                parsed = urlparse(url)
-                if parsed.query:
-                    query_params = parse_qs(parsed.query)
-                    for param_name, values in query_params.items():
-                        for val in values:
-                            if val.isdigit():
-                                tested_count += 1
-                                vuln = self._test_idor_param(session, url, param_name, val)
-                                if vuln:
-                                    vulns.append(vuln)
-                
-                # 2. Testar Path Params (e.g. /users/123)
-                # Regex para encontrar segmentos numéricos no path
-                path_segments = re.finditer(r'/(\d+)(?=/|$)', parsed.path)
-                for match in path_segments:
-                    original_id = match.group(1)
-                    tested_count += 1
-                    vuln = self._test_idor_path(session, url, original_id)
-                    if vuln:
-                        vulns.append(vuln)
-
+                candidates = self._test_request_node(session, request_node)
+                if candidates:
+                    vulns.extend(candidates)
+                tested_count += len(iter_request_node_parameters(request_node))
+                if request_node.get('url'):
+                    tested_count += len(re.findall(r'/(\d+)(?=/|$)', urlparse(request_node['url']).path))
             except Exception as e:
-                self.logger.debug(f"Erro ao testar URL {url}: {e}")
+                self.logger.debug(f"Erro ao testar request {request_node.get('url')}: {e}")
 
         execution_time = time.time() - start_time
         
@@ -97,6 +71,66 @@ class IDORScannerPlugin(VulnerabilityPlugin):
                 'tested_count': tested_count
             }
         )
+
+    def _test_request_node(self, session: requests.Session, request_node: Dict[str, Any]) -> List[Vulnerability]:
+        found_vulns = []
+
+        for injection_point in iter_request_node_parameters(request_node):
+            original_val = injection_point.get('original_value')
+            if not str(original_val).isdigit():
+                continue
+            param_name = injection_point.get('parameter_name')
+            if not param_name:
+                continue
+            vuln = self._test_idor_injection(session, request_node, injection_point, str(original_val))
+            if vuln:
+                found_vulns.append(vuln)
+
+        if str(request_node.get('method', 'GET')).upper() == 'GET':
+            parsed = urlparse(request_node.get('url', ''))
+            for match in re.finditer(r'/(\d+)(?=/|$)', parsed.path):
+                original_id = match.group(1)
+                vuln = self._test_idor_path(session, request_node.get('url', ''), original_id)
+                if vuln:
+                    found_vulns.append(vuln)
+        return found_vulns
+
+    def _test_idor_injection(
+        self,
+        session: requests.Session,
+        request_node: Dict[str, Any],
+        injection_point: Dict[str, Any],
+        original_val: str,
+    ) -> Optional[Vulnerability]:
+        try:
+            req_orig = rebuild_attack_request(request_node, injection_point, original_val)
+            resp_orig = session.send(req_orig, timeout=self.timeout)
+
+            new_val = str(int(original_val) + 1)
+            req_mod = rebuild_attack_request(request_node, injection_point, new_val)
+            resp_mod = session.send(req_mod, timeout=self.timeout)
+
+            if resp_mod.status_code == resp_orig.status_code:
+                if len(resp_mod.content) != len(resp_orig.content) and abs(len(resp_mod.content) - len(resp_orig.content)) > 50:
+                    return Vulnerability(
+                        name="Insecure Direct Object Reference (IDOR)",
+                        severity="High",
+                        description=(
+                            f"Alteracao de ID '{original_val}' -> '{new_val}' no parametro "
+                            f"'{injection_point.get('parameter_name')}' retornou resposta diferente com mesmo status."
+                        ),
+                        url=request_node.get('url'),
+                        evidence=(
+                            f"Original Len: {len(resp_orig.content)}, Modified Len: {len(resp_mod.content)}\n"
+                            f"Param: {injection_point.get('parameter_name')}\n"
+                            f"Location: {injection_point.get('location')}"
+                        ),
+                        cve="CWE-639",
+                        plugin_source="IDORScannerPlugin"
+                    )
+        except Exception:
+            pass
+        return None
 
     def _test_idor_param(self, session: requests.Session, url: str, param_name: str, original_val: str) -> Optional[Vulnerability]:
         """Testa IDOR em parâmetro GET numérico"""
@@ -188,5 +222,5 @@ class IDORScannerPlugin(VulnerabilityPlugin):
     def get_info(self) -> Dict[str, Any]:
         info = super().get_info()
         info['category'] = 'vulnerability'
-        info['requires'] = ['WebCrawlerPlugin']
+        info['requires'] = ['WebFlowMapperPlugin']
         return info

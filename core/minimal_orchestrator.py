@@ -15,6 +15,11 @@ from .config import get_config
 from .plugin_manager import PluginManager
 from .plugin_base import PluginResult
 from .storage import Storage
+from utils.web_discovery import (
+    empty_parameter_buckets,
+    merge_discovery_payload,
+    normalize_parameter_buckets,
+)
 from utils.logger import get_logger
 
 from rich.console import Console
@@ -23,59 +28,45 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich import print as rprint
 
-REPORT_PLUGIN_NAME = "ReportGenerator"
-
 PLUGIN_GROUPS = {
     'PortScannerPlugin': ('Infra', 'Scanner'),
     'NmapScannerPlugin': ('Infra', 'Scanner'),
     'NetworkMapperPlugin': ('Infra', 'Scanner'),
     'DNSResolverPlugin': ('Infra', 'Recon'),
     'ReconnaissancePlugin': ('Infra', 'Recon'),
-    'ProtocolAnalyzer': ('Infra', 'Testes'),
-    'MisconfigurationAnalyzer': ('Infra', 'Testes'),
     'FirewallDetectorPlugin': ('Infra', 'Testes'),
     'SSLAnalyzerPlugin': ('Infra', 'Testes'),
     'TrafficAnalyzerPlugin': ('Infra', 'Testes'),
     'SSHPolicyCheck': ('Infra', 'Testes'),
     'PortExposureAudit': ('Infra', 'Testes'),
     'ExploitSearcherPlugin': ('Infra', 'Vulnerabilidades'),
-    'ExploitSuggester': ('Infra', 'Vulnerabilidades'),
-    REPORT_PLUGIN_NAME: ('Infra', 'Testes'),
     'DirectoryScannerPlugin': ('Web', 'Scanner'),
-    'WebScannerPlugin': ('Web', 'Scanner'),
-    'WebCrawlerPlugin': ('Web', 'Scanner'),
+    'WebFlowMapperPlugin': ('Web', 'Recon'),
     'TechnologyDetectorPlugin': ('Web', 'Recon'),
     'KatanaCrawlerPlugin': ('Web', 'Scanner'),
     'GauCollectorPlugin': ('Web', 'Recon'),
     'WhatWebScannerPlugin': ('Web', 'Recon'),
-    'SubdomainEnumerator': ('Web', 'Recon'),
     'SubfinderPlugin': ('Web', 'Recon'),
     'HeaderAnalyzerPlugin': ('Web', 'Recon'),
-    'WebVulnScannerPlugin': ('Web', 'Vulnerabilidades'),
     'NucleiScannerPlugin': ('Web', 'Vulnerabilidades')
 }
 
 PLUGIN_PREREQS = {
     'NmapScannerPlugin': ['PortScannerPlugin'],
     'NetworkMapperPlugin': ['PortScannerPlugin'],
-    'ProtocolAnalyzer': ['PortScannerPlugin'],
-    'MisconfigurationAnalyzer': ['PortScannerPlugin'],
     'FirewallDetectorPlugin': ['PortScannerPlugin'],
     'SSLAnalyzerPlugin': ['PortScannerPlugin'],
     'TrafficAnalyzerPlugin': ['PortScannerPlugin'],
     'SSHPolicyCheck': ['PortScannerPlugin'],
     'PortExposureAudit': ['PortScannerPlugin'],
     'ExploitSearcherPlugin': ['NmapScannerPlugin'],
-    'ExploitSuggester': ['NmapScannerPlugin'],
     'DirectoryScannerPlugin': ['PortScannerPlugin'],
-    'WebScannerPlugin': ['PortScannerPlugin'],
-    # 'WebCrawlerPlugin': ['PortScannerPlugin'],  # Removido para permitir execução direta
+    'WebFlowMapperPlugin': ['PortScannerPlugin'],
     # Fast endpoint discovery tools (can also run directly on URL targets)
     'KatanaCrawlerPlugin': ['PortScannerPlugin'],
     'GauCollectorPlugin': ['PortScannerPlugin'],
     'TechnologyDetectorPlugin': ['PortScannerPlugin'],
     'WhatWebScannerPlugin': ['PortScannerPlugin'],
-    'WebVulnScannerPlugin': ['PortScannerPlugin'],
     'NucleiScannerPlugin': ['PortScannerPlugin'],
     'HeaderAnalyzerPlugin': ['PortScannerPlugin']
 }
@@ -138,7 +129,9 @@ class MinimalOrchestrator:
                     'technologies': [],
                     'forms': [],
                     'endpoints': [],
-                    'parameters': []
+                    'parameters': empty_parameter_buckets(),
+                    'request_nodes': [],
+                    'interactions': []
                 },
                 'vulnerabilities': [],
                 'errors': []
@@ -589,9 +582,6 @@ class MinimalOrchestrator:
                 base_order.append(name)
 
         order = self._topological_sort(selected_set, base_order)
-        if REPORT_PLUGIN_NAME in order:
-            order = [name for name in order if name != REPORT_PLUGIN_NAME] + [REPORT_PLUGIN_NAME]
-
         return order, {
             'invalid_target': invalid_target,
             'unknown': unknown,
@@ -718,58 +708,6 @@ class MinimalOrchestrator:
             if len(data['vulnerabilities']) > 10:
                 rprint(f"    [dim]... e mais {len(data['vulnerabilities']) - 10}[/dim]")
 
-        # MisconfigurationAnalyzer - resultados
-        if data.get('misconfigurations'):
-            misconfigs = data.get('misconfigurations', [])
-            rprint(f"\n  [yellow][bold]🛠️  Más Configurações ({len(misconfigs)}):[/bold][/yellow]")
-            severity_counts = {}
-            for item in misconfigs:
-                sev = str(item.get('severity', 'Info')).upper()
-                severity_counts[sev] = severity_counts.get(sev, 0) + 1
-            if severity_counts:
-                counts = ", ".join(f"{k}:{v}" for k, v in sorted(severity_counts.items()))
-                rprint(f"    [dim]Severidades: {counts}[/dim]")
-            for finding in misconfigs[:10]:
-                sev = str(finding.get('severity', 'Info')).upper()
-                host = finding.get('host', 'N/A')
-                port = finding.get('port', 'N/A')
-                script = finding.get('script', 'N/A')
-                details = str(finding.get('details', ''))[:120]
-                rprint(f"    • [{sev}] {host}:{port} {script}")
-                if details:
-                    rprint(f"      [dim]{details}[/dim]")
-            if len(misconfigs) > 10:
-                rprint(f"    [dim]... e mais {len(misconfigs) - 10}[/dim]")
-
-        # ProtocolAnalyzer - resultados
-        if result.plugin_name == 'ProtocolAnalyzer':
-            port_details = data.get('port_details', {})
-            if isinstance(port_details, dict) and port_details:
-                total_ports = len(port_details)
-                total_vulns = sum(len(v.get('vulnerabilities', [])) for v in port_details.values())
-                total_info = sum(len(v.get('service_info', [])) for v in port_details.values())
-                rprint(f"\n  [blue][bold]🧪 Protocolos Analisados ({total_ports}):[/bold][/blue]")
-                rprint(f"    [dim]Vulnerabilidades: {total_vulns} | Informações: {total_info}[/dim]")
-
-                for port, details in list(port_details.items())[:5]:
-                    vulns = details.get('vulnerabilities', [])
-                    infos = details.get('service_info', [])
-                    rprint(f"    • Porta {port}: {len(vulns)} vulns, {len(infos)} infos")
-                    for vuln in vulns[:3]:
-                        script = vuln.get('script', 'N/A')
-                        detail = str(vuln.get('details', ''))[:120]
-                        rprint(f"      - [red]{script}[/red] {detail}")
-                    for info in infos[:3]:
-                        script = info.get('script', 'N/A')
-                        detail = str(info.get('details', ''))[:120]
-                        rprint(f"      - [cyan]{script}[/cyan] {detail}")
-                    if len(vulns) > 3 or len(infos) > 3:
-                        extra = (len(vulns) - 3 if len(vulns) > 3 else 0) + (len(infos) - 3 if len(infos) > 3 else 0)
-                        if extra > 0:
-                            rprint(f"      [dim]... e mais {extra}[/dim]")
-                if len(port_details) > 5:
-                    rprint(f"    [dim]... e mais {len(port_details) - 5} portas[/dim]")
-
         # ExploitSearcherPlugin - resumo especifico
         if result.plugin_name == 'ExploitSearcherPlugin' or 'security_report' in data:
             software_analyzed = data.get('software_analyzed')
@@ -831,38 +769,6 @@ class MinimalOrchestrator:
                         rprint(f"      [dim]... e mais {len(exploits) - 5}[/dim]")
                 if len(detailed_results) > 5:
                     rprint(f"    [dim]... e mais {len(detailed_results) - 5} alvos[/dim]")
-
-        # ExploitSuggester - resumo especifico
-        if result.plugin_name == 'ExploitSuggester':
-            exploits = data.get('exploits', [])
-            if isinstance(exploits, list):
-                total_entries = len(exploits)
-                total_exploits = 0
-                for entry in exploits:
-                    items = entry.get('exploits', [])
-                    if isinstance(items, list):
-                        total_exploits += len(items)
-                rprint("\n  [bold]🧭 Resumo de Exploits:[/bold]")
-                rprint(f"    • CVEs com resultados: {total_entries}")
-                rprint(f"    • Exploits encontrados: {total_exploits}")
-                if total_entries:
-                    rprint("\n  [bold]🧾 Detalhes (ExploitSuggester):[/bold]")
-                    for entry in exploits[:10]:
-                        cve = entry.get('cve', 'N/A')
-                        items = entry.get('exploits', [])
-                        rprint(f"    • {cve} ({len(items)} exploits)")
-                        if isinstance(items, list):
-                            for exploit in items[:5]:
-                                title = exploit.get('title', 'N/A')
-                                path = exploit.get('path', '')
-                                if path:
-                                    rprint(f"      - {title} [dim]({path})[/dim]")
-                                else:
-                                    rprint(f"      - {title}")
-                            if len(items) > 5:
-                                rprint(f"      [dim]... e mais {len(items) - 5}[/dim]")
-                    if total_entries > 10:
-                        rprint(f"    [dim]... e mais {total_entries - 10} CVEs[/dim]")
 
         # FirewallDetectorPlugin - resumo especifico
         if result.plugin_name == 'FirewallDetectorPlugin':
@@ -1231,16 +1137,6 @@ class MinimalOrchestrator:
                     if total_exploits is not None:
                         parts.append(f"exploits:{total_exploits}")
 
-                if plugin_name == 'ExploitSuggester':
-                    exploits = data.get('exploits', [])
-                    if isinstance(exploits, list):
-                        total_exploits = 0
-                        for entry in exploits:
-                            items = entry.get('exploits', [])
-                            if isinstance(items, list):
-                                total_exploits += len(items)
-                        parts.append(f"exploits:{total_exploits}")
-
                 if plugin_name == 'SSHPolicyCheck':
                     summary = data.get('summary', {})
                     ports_checked = summary.get('ports_checked')
@@ -1429,6 +1325,13 @@ class MinimalOrchestrator:
         self.context['discoveries'].setdefault('open_ports', [])
         self.context['discoveries'].setdefault('services', [])
         self.context['discoveries'].setdefault('technologies', [])
+        self.context['discoveries'].setdefault('forms', [])
+        self.context['discoveries'].setdefault('endpoints', [])
+        self.context['discoveries']['parameters'] = normalize_parameter_buckets(
+            self.context['discoveries'].get('parameters', empty_parameter_buckets())
+        )
+        self.context['discoveries'].setdefault('request_nodes', [])
+        self.context['discoveries'].setdefault('interactions', [])
         self.context.setdefault('vulnerabilities', [])
         self.context.setdefault('errors', [])
 
@@ -1474,16 +1377,13 @@ class MinimalOrchestrator:
             new_techs = [t for t in data['technologies'] if t not in self.context['discoveries']['technologies']]
             self.context['discoveries']['technologies'].extend(new_techs)
 
-        if 'forms' in data:
-            # Formulários são dicionários, não hashable, então verificação simples ou por URL+Action
-            self.context['discoveries']['forms'].extend(data['forms'])
-        
-        if 'endpoints' in data:
-            self.context['discoveries']['endpoints'].extend(data['endpoints'])
+        merge_discovery_payload(self.context['discoveries'], data)
 
         if 'web_crawling' in data and 'parameters_discovered' in data['web_crawling']:
-            # parameters_discovered é um dict, vamos armazenar como está ou simplificar
-            self.context['discoveries']['parameters'] = data['web_crawling']['parameters_discovered']
+            merge_discovery_payload(
+                self.context['discoveries'],
+                {'parameters': data['web_crawling']['parameters_discovered']}
+            )
         
         # Atualizar vulnerabilidades
         if 'vulnerabilities' in data:

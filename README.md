@@ -146,11 +146,11 @@ A IA interpreta estas palavras para selecionar plugins:
 
 | Palavra-chave | Plugins Selecionados |
 |---------------|---------------------|
-| `web`, `diretório`, `crawl` | DirectoryScanner, WebCrawler, WebVuln |
-| `vuln`, `vulnerabilidade`, `cve` | Nuclei, WebVuln, Exploits |
+| `web`, `diretório`, `crawl` | WebFlowMapper, Katana, Gau, Nuclei |
+| `vuln`, `vulnerabilidade`, `cve` | Nuclei, ExploitSearcher |
 | `rede`, `porta`, `scan`, `nmap` | PortScanner, Nmap, NetworkMapper |
 | `ssl`, `https`, `certificado` | SSLAnalyzer |
-| `dns`, `subdomínio` | DNSResolver, SubdomainEnumerator |
+| `dns`, `subdomínio` | DNSResolver, Subfinder |
 | `firewall`, `waf` | FirewallDetector |
 | `completo`, `tudo`, `full` | Todos os plugins |
 

@@ -10,9 +10,6 @@ Gera o relatório final orientado a evidências, diferenciando claramente:
 
 Gera arquivo Markdown em data/relatorios/run_<id>/<alvo>_<timestamp>.md
 e atualiza state.report_path.
-
-Também chama o ReportGeneratorPlugin legado para backward-compat
-com o modo clássico.
 """
 
 from __future__ import annotations
@@ -21,6 +18,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from core.models import Evidence, Finding, QueueItem
 from core.stage_base import StageBase
@@ -82,6 +80,7 @@ class StageReport(StageBase):
         sections.append(self._section_no_proof(state))
         sections.append(self._section_rejected(state))
         sections.append(self._section_recon(state))
+        sections.append(self._section_web_mapping(state))
         sections.append(self._section_stages(state))
 
         return "\n\n".join(s for s in sections if s)
@@ -100,6 +99,7 @@ class StageReport(StageBase):
         confirmed = [e for e in state.evidences if e.proof_level == "impact_proven"]
         partial_evs = [e for e in state.evidences if e.proof_level == "partial"]
         none_evs = [e for e in state.evidences if e.proof_level == "none"]
+        discoveries = state.discoveries
 
         risk_level = (
             "🔴 CRÍTICO" if confirmed else
@@ -121,8 +121,12 @@ class StageReport(StageBase):
             f"| Vulnerabilidades confirmadas | **{len(confirmed)}** |",
             f"| Vulnerabilidades potenciais | {len(partial_evs)} |",
             f"| Sem confirmação | {len(none_evs)} |",
-            f"| Hosts descobertos | {len(state.discoveries.get('hosts', []))} |",
-            f"| Portas abertas | {len(state.discoveries.get('open_ports', []))} |",
+            f"| Hosts descobertos | {len(discoveries.get('hosts', []))} |",
+            f"| Portas abertas | {len(discoveries.get('open_ports', []))} |",
+            f"| Endpoints mapeados | {len(discoveries.get('endpoints', []))} |",
+            f"| Formulários mapeados | {len(discoveries.get('forms', []))} |",
+            f"| Requests observadas | {len(discoveries.get('request_nodes', []))} |",
+            f"| Interações UI | {len(discoveries.get('interactions', []))} |",
         ]
         return "\n".join(lines)
 
@@ -238,8 +242,11 @@ class StageReport(StageBase):
         ports = d.get("open_ports", [])
         techs = d.get("technologies", [])
         subdomains = d.get("subdomains", [])
+        forms = d.get("forms", [])
+        request_nodes = d.get("request_nodes", [])
+        interactions = d.get("interactions", [])
 
-        if not (hosts or ports or techs or subdomains):
+        if not (hosts or ports or techs or subdomains or forms or request_nodes or interactions):
             return ""
 
         lines = ["## 🔍 Descobertas de Reconhecimento\n"]
@@ -262,6 +269,12 @@ class StageReport(StageBase):
         if subdomains:
             lines.append(f"\n**Subdomínios:** {', '.join(str(s) for s in subdomains[:20])}")
 
+        if forms or request_nodes or interactions:
+            lines.append(
+                "\n**Entradas Web Mapeadas:** "
+                f"forms={len(forms)}, requests={len(request_nodes)}, interactions={len(interactions)}"
+            )
+
         return "\n".join(lines)
 
     def _section_stages(self, state: WorkflowState) -> str:
@@ -275,9 +288,63 @@ class StageReport(StageBase):
         ]
 
         for stage_name, st in state.stage_statuses.items():
-            icon = {"done": "✅", "error": "❌", "skipped": "⏭"}.get(st.status, "•")
-            metrics_str = json.dumps(st.metrics, ensure_ascii=False)[:80] if st.metrics else "{}"
-            lines.append(f"| {stage_name} | {icon} {st.status} | {metrics_str} |")
+            status = st.status
+            metrics = dict(st.metrics or {})
+            if stage_name == self.name and status == "running":
+                status = "done"
+                metrics = self._collect_metrics(state)
+            icon = {"done": "✅", "error": "❌", "skipped": "⏭"}.get(status, "•")
+            metrics_str = json.dumps(metrics, ensure_ascii=False)[:80] if metrics else "{}"
+            lines.append(f"| {stage_name} | {icon} {status} | {metrics_str} |")
+
+        return "\n".join(lines)
+
+    def _section_web_mapping(self, state: WorkflowState) -> str:
+        d = state.discoveries
+        parameter_buckets = self._parameter_buckets(d.get("parameters", {}))
+        forms = self._summarize_forms(d.get("forms", []))
+        requests = self._summarize_request_nodes(d.get("request_nodes", []))
+
+        if not any(parameter_buckets.values()) and not forms and not requests:
+            return ""
+
+        lines = ["## 🌐 Rotas e Parâmetros Mapeados\n"]
+
+        if any(parameter_buckets.values()):
+            lines.extend([
+                "| Bucket | Parâmetros |",
+                "|--------|------------|",
+            ])
+            for bucket, names in parameter_buckets.items():
+                if not names:
+                    continue
+                lines.append(f"| {bucket} | {', '.join(names)} |")
+
+        if forms:
+            lines.extend([
+                "\n**Formulários detectados**",
+                "",
+                "| Método | Página | Action | Campos |",
+                "|--------|--------|--------|--------|",
+            ])
+            for form in forms:
+                lines.append(
+                    f"| {form['method']} | `{form['page']}` | `{form['action']}` | {', '.join(form['fields']) or '-'} |"
+                )
+
+        if requests:
+            lines.extend([
+                "\n**Requests observadas com parâmetros**",
+                "",
+                "| Método | URL | Parâmetros | Ação UI |",
+                "|--------|-----|------------|---------|",
+            ])
+            for request in requests:
+                action = request["action"] or "-"
+                params = ", ".join(request["parameter_names"]) or "-"
+                lines.append(
+                    f"| {request['method']} | `{request['url']}` | {params} | {action} |"
+                )
 
         return "\n".join(lines)
 
@@ -288,11 +355,25 @@ class StageReport(StageBase):
     def _save_json_report(self, state: WorkflowState, json_path: Path) -> None:
         confirmed = [e for e in state.evidences if e.proof_level == "impact_proven"]
         partial_evs = [e for e in state.evidences if e.proof_level == "partial"]
+        discoveries = state.discoveries
+        parameter_buckets = self._parameter_buckets(discoveries.get("parameters", {}))
+        parameter_summary = {bucket: len(values) for bucket, values in parameter_buckets.items()}
+        forms = self._summarize_forms(discoveries.get("forms", []))
+        requests = self._summarize_request_nodes(discoveries.get("request_nodes", []))
+        stage_statuses = {k: v.to_dict() for k, v in state.stage_statuses.items()}
+        report_stage = stage_statuses.get(self.name)
+        if report_stage and report_stage.get("status") == "running":
+            report_stage = dict(report_stage)
+            report_stage["status"] = "done"
+            report_stage["finished_at"] = datetime.now(timezone.utc).isoformat()
+            report_stage["metrics"] = self._collect_metrics(state)
+            stage_statuses[self.name] = report_stage
 
         report_data = {
             "run_id": state.run_id,
             "target": state.target,
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "executed_plugins": list(state.executed_plugins),
             "summary": {
                 "findings_total": len(state.findings) + len(state.rejected_findings),
                 "findings_validated": len(state.findings),
@@ -301,6 +382,21 @@ class StageReport(StageBase):
                 "attempts": len(state.attempts),
                 "confirmed": len(confirmed),
                 "partial": len(partial_evs),
+            },
+            "discovery_summary": {
+                "hosts": len(discoveries.get("hosts", [])),
+                "open_ports": len(discoveries.get("open_ports", [])),
+                "endpoints": len(discoveries.get("endpoints", [])),
+                "forms": len(forms),
+                "request_nodes": len(discoveries.get("request_nodes", [])),
+                "interesting_requests": len(requests),
+                "interactions": len(discoveries.get("interactions", [])),
+                "parameter_buckets": parameter_summary,
+            },
+            "web_mapping": {
+                "parameter_buckets": parameter_buckets,
+                "forms": forms,
+                "requests": requests,
             },
             "confirmed_evidences": [
                 {
@@ -312,7 +408,7 @@ class StageReport(StageBase):
                 for e in confirmed
             ],
             "partial_evidences": [e.to_dict() for e in partial_evs],
-            "stage_statuses": {k: v.to_dict() for k, v in state.stage_statuses.items()},
+            "stage_statuses": stage_statuses,
         }
 
         try:
@@ -330,3 +426,98 @@ class StageReport(StageBase):
             "confirmed": sum(1 for e in state.evidences if e.proof_level == "impact_proven"),
             "partial": sum(1 for e in state.evidences if e.proof_level == "partial"),
         }
+
+    def _parameter_buckets(self, parameters: Any) -> Dict[str, List[str]]:
+        if not isinstance(parameters, dict):
+            return {}
+        normalized: Dict[str, List[str]] = {}
+        for bucket, values in parameters.items():
+            if not isinstance(values, list):
+                continue
+            names = sorted({str(value) for value in values if value})
+            normalized[str(bucket)] = names
+        return normalized
+
+    def _summarize_forms(self, forms: Any) -> List[Dict[str, Any]]:
+        if not isinstance(forms, list):
+            return []
+
+        summaries: List[Dict[str, Any]] = []
+        seen = set()
+        for form in forms:
+            if not isinstance(form, dict):
+                continue
+            page = str(form.get("url") or "")
+            action = str(form.get("action") or page)
+            method = str(form.get("method") or "GET").upper()
+            fields = []
+            for field in form.get("inputs", []):
+                if not isinstance(field, dict):
+                    continue
+                name = str(field.get("name") or "").strip()
+                if name and name not in fields:
+                    fields.append(name)
+            key = (method, page, action, tuple(fields))
+            if key in seen:
+                continue
+            seen.add(key)
+            summaries.append({
+                "page": page,
+                "action": action,
+                "method": method,
+                "enctype": str(form.get("enctype") or ""),
+                "fields": fields,
+            })
+        return summaries
+
+    def _summarize_request_nodes(self, request_nodes: Any) -> List[Dict[str, Any]]:
+        if not isinstance(request_nodes, list):
+            return []
+
+        summaries: List[Dict[str, Any]] = []
+        seen = set()
+        for node in request_nodes:
+            if not isinstance(node, dict):
+                continue
+            url = str(node.get("url") or "")
+            if not url or self._is_static_asset(url):
+                continue
+
+            parameter_names: List[str] = []
+            for key in ("params", "data", "json", "files", "cookies"):
+                value = node.get(key)
+                if isinstance(value, dict):
+                    for name in value.keys():
+                        text = str(name).strip()
+                        if text and text not in parameter_names:
+                            parameter_names.append(text)
+
+            ui_action = node.get("ui_action") if isinstance(node.get("ui_action"), dict) else {}
+            action = str(ui_action.get("kind") or "")
+
+            if not parameter_names and action not in {"submit", "click"}:
+                continue
+
+            method = str(node.get("method") or "GET").upper()
+            key = (method, url, tuple(parameter_names), action)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            summaries.append({
+                "method": method,
+                "url": url,
+                "parameter_names": parameter_names,
+                "source_page": str(node.get("source_page") or ""),
+                "observed_via": str(node.get("observed_via") or ""),
+                "action": action,
+            })
+
+        return summaries
+
+    def _is_static_asset(self, url: str) -> bool:
+        path = urlparse(url).path.lower()
+        return path.endswith((
+            ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+            ".woff", ".woff2", ".ttf", ".map", ".webp", ".pdf",
+        ))

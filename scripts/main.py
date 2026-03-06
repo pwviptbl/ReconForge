@@ -90,33 +90,37 @@ def _select_plugins_for_goal(goal: str, available_plugins: list[str]) -> list[st
     # Mapeamento de palavras-chave para plugins
     keyword_mapping = {
         # Web/HTTP
-        'web': ['DirectoryScannerPlugin', 'WebCrawlerPlugin', 'KatanaCrawlerPlugin', 'GauCollectorPlugin',
-                'WebVulnScannerPlugin', 'TechnologyDetectorPlugin', 'HeaderAnalyzerPlugin'],
+        'web': ['WebFlowMapperPlugin', 'KatanaCrawlerPlugin', 'GauCollectorPlugin',
+                'NucleiScannerPlugin', 'WhatWebScannerPlugin', 'HeaderAnalyzerPlugin'],
         'diretório': ['DirectoryScannerPlugin'],
         'directory': ['DirectoryScannerPlugin'],
-        'crawl': ['WebCrawlerPlugin'],
-        'spider': ['WebCrawlerPlugin'],
+        'crawl': ['WebFlowMapperPlugin', 'KatanaCrawlerPlugin'],
+        'spider': ['WebFlowMapperPlugin', 'KatanaCrawlerPlugin'],
+        'map': ['WebFlowMapperPlugin'],
+        'fluxo': ['WebFlowMapperPlugin'],
+        'mapper': ['WebFlowMapperPlugin'],
+        'passive': ['WebFlowMapperPlugin'],
         'katana': ['KatanaCrawlerPlugin'],
         'gau': ['GauCollectorPlugin'],
         
         # Vulnerabilidades
-        'vuln': ['NucleiScannerPlugin', 'WebVulnScannerPlugin', 'MisconfigurationAnalyzerPlugin'],
-        'vulnerabilidade': ['NucleiScannerPlugin', 'WebVulnScannerPlugin', 'MisconfigurationAnalyzerPlugin'],
-        'cve': ['ExploitSearcherPlugin', 'ExploitSuggesterPlugin'],
-        'exploit': ['ExploitSearcherPlugin', 'ExploitSuggesterPlugin'],
+        'vuln': ['NucleiScannerPlugin'],
+        'vulnerabilidade': ['NucleiScannerPlugin'],
+        'cve': ['ExploitSearcherPlugin'],
+        'exploit': ['ExploitSearcherPlugin'],
         
         # Rede
         'rede': ['PortScannerPlugin', 'NetworkMapperPlugin', 'NmapScannerPlugin'],
         'network': ['PortScannerPlugin', 'NetworkMapperPlugin', 'NmapScannerPlugin'],
-        'porta': ['PortScannerPlugin', 'NmapScannerPlugin', 'PortExposureAuditPlugin'],
-        'port': ['PortScannerPlugin', 'NmapScannerPlugin', 'PortExposureAuditPlugin'],
+        'porta': ['PortScannerPlugin', 'NmapScannerPlugin', 'PortExposureAudit'],
+        'port': ['PortScannerPlugin', 'NmapScannerPlugin', 'PortExposureAudit'],
         'scan': ['PortScannerPlugin', 'NmapScannerPlugin'],
         'nmap': ['NmapScannerPlugin'],
         
         # DNS e subdomínios
-        'dns': ['DNSResolverPlugin', 'SubdomainEnumeratorPlugin'],
-        'subdomain': ['SubdomainEnumeratorPlugin', 'SubfinderPlugin'],
-        'subdomínio': ['SubdomainEnumeratorPlugin', 'SubfinderPlugin'],
+        'dns': ['DNSResolverPlugin', 'SubfinderPlugin'],
+        'subdomain': ['SubfinderPlugin'],
+        'subdomínio': ['SubfinderPlugin'],
         
         # SSL/TLS
         'ssl': ['SSLAnalyzerPlugin'],
@@ -130,7 +134,7 @@ def _select_plugins_for_goal(goal: str, available_plugins: list[str]) -> list[st
         'bypass': ['FirewallDetectorPlugin'],
         
         # SSH
-        'ssh': ['SSHPolicyCheckPlugin'],
+        'ssh': ['SSHPolicyCheck'],
         
         # Reconhecimento
         'recon': ['ReconnaissancePlugin', 'TechnologyDetectorPlugin', 'WhatWebScannerPlugin'],
@@ -154,7 +158,7 @@ def _select_plugins_for_goal(goal: str, available_plugins: list[str]) -> list[st
     
     # Se nenhum plugin foi selecionado, usar conjunto padrão
     if not selected:
-        default_plugins = ['PortScannerPlugin', 'TechnologyDetectorPlugin']
+        default_plugins = ['PortScannerPlugin', 'WhatWebScannerPlugin']
         for plugin in default_plugins:
             if plugin in available_plugins:
                 selected.add(plugin)

@@ -100,8 +100,6 @@ plugins:
       timeout: 120
       resolve_ips: true
       silent: true
-    SubdomainEnumeratorPlugin:
-      use_tor: false
     WhatWebScannerPlugin:
       use_tor: false               # WhatWeb pode respeitar proxy via env dependendo da instalação
       aggression: 3                # 3 = mais agressivo (heavy)
@@ -112,37 +110,22 @@ plugins:
       timeout: 180
       max_urls: 2000
       follow_redirects: true
+    WebFlowMapperPlugin:
+      headless: true
+      timeout_seconds: 12
+      max_depth: 3
+      max_pages: 30
+      max_actions_per_page: 10
+      wait_after_action_ms: 1200
+      submit_forms: true
+      same_origin_only: true
+      click_safe_elements: true
+      follow_redirects: true
     GauCollectorPlugin:
       use_tor: false
       timeout: 120
       max_urls: 2000
       include_subdomains: true
-    WebCrawlerPlugin:
-      headless: true
-      timeout: 30
-      page_load_timeout: 60
-      implicit_wait: 10
-      max_depth: 3
-      max_pages: 50
-      screenshot_on_error: true
-      follow_redirects: true
-      analyze_forms: true
-      attempt_login: true
-      common_credentials: true
-      javascript_enabled: true
-      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      window_size: [1920, 1080]
-      extract_apis: true
-      analyze_cookies: true
-      check_security_headers: true
-      detect_frameworks: true
-    WebScannerPlugin:
-      follow_redirects: true
-      max_depth: 3
-      timeout: 30
-      user_agent: ReconForge/1.0
-    WebVulnScannerPlugin:
-      use_tor: false
     # Novos plugins de análise de rede
     NetworkMapperPlugin:
       max_hops: 30
@@ -179,18 +162,15 @@ plugins:
   directory: plugins
   enabled:
     DNSResolverPlugin: true
-    DirectoryScannerPlugin: true
+    DirectoryScannerPlugin: false
     NmapScannerPlugin: true
     NucleiScannerPlugin: true
     PortScannerPlugin: true
     ReconnaissancePlugin: true
-    SubdomainEnumeratorPlugin: true
     SubfinderPlugin: true
     TechnologyDetectorPlugin: true
     WhatWebScannerPlugin: true
-    WebCrawlerPlugin: true
-    WebScannerPlugin: true
-    WebVulnScannerPlugin: true
+    WebFlowMapperPlugin: true
     NetworkMapperPlugin: true
     SSLAnalyzerPlugin: true
     FirewallDetectorPlugin: true
@@ -198,3 +178,19 @@ plugins:
     SSHPolicyCheck: true
     PortExposureAudit: true
   max_parallel: 3
+
+browser_attack:
+  enabled: true
+  headless: true
+  record_video: false
+  screenshot_on_finish: true
+  timeout_seconds: 8
+  wait_after_inject_ms: 1200
+  evidence_dir: data/evidencias/browser
+  credentials:
+    login_url: null
+    username: null
+    password: null
+    username_selector: null
+    password_selector: null
+    submit_selector: null

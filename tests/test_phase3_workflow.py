@@ -5,6 +5,7 @@ from core.storage import Storage
 from core.stages import stage_exploit as stage_exploit_module
 from core.stages.stage_evidence import StageEvidence
 from core.stages.stage_exploit import StageExploit
+from core.stages.stage_report import StageReport
 from core.workflow_state import WorkflowState
 
 
@@ -70,7 +71,7 @@ def test_stage_exploit_updates_statuses_and_finding_stages(monkeypatch):
     )
 
     stage = StageExploit(max_attempts_per_item=2)
-    stage.execute(state)
+    stage.run(state)
 
     items_by_category = {item.category: item for item in state.queue_items}
     findings_by_category = {finding.category: finding for finding in state.findings}
@@ -162,3 +163,62 @@ def test_storage_loaders_return_typed_models(tmp_path):
     assert isinstance(loaded_attempts[0], ExploitAttempt)
     assert isinstance(loaded_evidences[0], Evidence)
     assert loaded_evidences[0].artifacts == evidence.artifacts
+
+
+def test_stage_report_json_exposes_web_mapping_summary(tmp_path):
+    state = WorkflowState(
+        target="example.test",
+        run_id=77,
+        discoveries={
+            "hosts": ["127.0.0.1"],
+            "open_ports": [443],
+            "services": [],
+            "technologies": [],
+            "forms": [{"action": "https://example.test/login"}],
+            "endpoints": ["https://example.test/login"],
+            "parameters": {
+                "query": ["next"],
+                "form": ["email", "password"],
+                "json": [],
+                "multipart": [],
+                "file": [],
+                "cookie": ["session"],
+                "path": ["42"],
+            },
+            "request_nodes": [{
+                "method": "POST",
+                "url": "https://example.test/login",
+                "data": {"email": "user@example.test", "password": "secret"},
+                "ui_action": {"kind": "submit", "label": "Entrar"},
+            }],
+            "interactions": [{"kind": "submit", "page_url": "https://example.test/login"}],
+            "subdomains": [],
+        },
+        executed_plugins=["WebFlowMapperPlugin", "XSSScannerPlugin"],
+    )
+
+    stage = StageReport(output_dir=tmp_path / "relatorios")
+    stage.run(state)
+
+    json_reports = list((tmp_path / "relatorios" / "run_77").glob("*.json"))
+    md_reports = list((tmp_path / "relatorios" / "run_77").glob("*.md"))
+    assert len(json_reports) == 1
+    assert len(md_reports) == 1
+
+    payload = json_reports[0].read_text(encoding="utf-8")
+    markdown = md_reports[0].read_text(encoding="utf-8")
+    assert '"WebFlowMapperPlugin"' in payload
+    assert '"discovery_summary"' in payload
+    assert '"forms": 1' in payload
+    assert '"request_nodes": 1' in payload
+    assert '"interactions": 1' in payload
+    assert '"web_mapping"' in payload
+    assert '"parameter_buckets"' in payload
+    assert 'https://example.test/login' in payload
+    assert '"email"' in payload
+    assert '"stage_report"' in payload
+    assert '"status": "done"' in payload
+    assert "## 🌐 Rotas e Parâmetros Mapeados" in markdown
+    assert "Formulários detectados" in markdown
+    assert "Requests observadas com parâmetros" in markdown
+    assert "| stage_report | ✅ done |" in markdown

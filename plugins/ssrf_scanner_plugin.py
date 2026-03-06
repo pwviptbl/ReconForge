@@ -14,6 +14,7 @@ from core.models import Vulnerability
 from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
 from utils.http_session import create_requests_session
+from utils.web_discovery import build_request_nodes, iter_request_node_parameters
 
 class SSRFScannerPlugin(VulnerabilityPlugin):
     """
@@ -48,52 +49,22 @@ class SSRFScannerPlugin(VulnerabilityPlugin):
         self.logger.info(f"🚀 Iniciando varredura SSRF em: {actual_target}")
         
         discoveries = context.get('discoveries', {})
-        forms = discoveries.get('forms', [])
-        endpoints = discoveries.get('endpoints', [])
-        
-        urls_to_test = set()
-        if actual_target.startswith('http'):
-            urls_to_test.add(actual_target)
-        
-        for endp in endpoints:
-            if isinstance(endp, str):
-                urls_to_test.add(endp)
-            elif isinstance(endp, dict) and 'url' in endp:
-                urls_to_test.add(endp['url'])
-
         session = create_requests_session(plugin_config=self.config)
         session.verify = self.verify_ssl
         session.headers.update({
             'User-Agent': 'ReconForge/SSRFScanner'
         })
+        request_nodes = build_request_nodes(discoveries, actual_target, default_headers=dict(session.headers))
 
-        # 1. Testar URLs
-        self.logger.info(f"🔍 Testando {len(urls_to_test)} URLs para SSRF...")
-        for url in urls_to_test:
+        self.logger.info(f"🔍 Testando {len(request_nodes)} requests para SSRF...")
+        for request_node in request_nodes:
             try:
-                parsed = urlparse(url)
-                if not parsed.query:
-                    continue
-                
-                query_params = parse_qs(parsed.query)
-                for param_name in query_params:
-                    tested_count += 1
-                    vuln = self._test_get_param(session, url, param_name)
-                    if vuln:
-                        vulns.append(vuln)
+                candidates = self._test_request_node(session, request_node)
+                if candidates:
+                    vulns.extend(candidates)
+                tested_count += len(iter_request_node_parameters(request_node))
             except Exception as e:
-                self.logger.debug(f"Erro ao testar URL {url}: {e}")
-
-        # 2. Testar Formulários
-        self.logger.info(f"📝 Testando {len(forms)} formulários para SSRF...")
-        for form in forms:
-            try:
-                vulns_form = self._test_form(session, form)
-                if vulns_form:
-                    vulns.extend(vulns_form)
-                    tested_count += len(vulns_form)
-            except Exception as e:
-                self.logger.debug(f"Erro ao testar formulário: {e}")
+                self.logger.debug(f"Erro ao testar request {request_node.get('url')}: {e}")
 
         execution_time = time.time() - start_time
         
@@ -106,6 +77,37 @@ class SSRFScannerPlugin(VulnerabilityPlugin):
                 'tested_count': tested_count
             }
         )
+
+    def _test_request_node(self, session: requests.Session, request_node: Dict[str, Any]) -> List[Vulnerability]:
+        found_vulns = []
+        for injection_point in iter_request_node_parameters(request_node):
+            location = injection_point.get('location')
+            if location not in {'QUERY', 'BODY_FORM', 'BODY_JSON', 'BODY_MULTIPART'}:
+                continue
+            param_name = injection_point.get('parameter_name')
+            if not param_name:
+                continue
+
+            for payload in self.payloads:
+                try:
+                    prepared = rebuild_attack_request(request_node, injection_point, payload)
+                    response = session.send(prepared, timeout=self.timeout)
+                    if response.status_code == 200 and "ami-id" in response.text and "169.254.169.254" in payload:
+                        found_vulns.append(
+                            Vulnerability(
+                                name="SSRF (Cloud Metadata)",
+                                severity="Critical",
+                                description=f"Possivel SSRF no parametro '{param_name}'.",
+                                url=request_node.get('url'),
+                                evidence=f"Payload: {payload}\nLocation: {location}\nResponse contains 'ami-id'",
+                                cve="CWE-918",
+                                plugin_source="SSRFScannerPlugin"
+                            )
+                        )
+                        break
+                except Exception:
+                    pass
+        return found_vulns
 
     def _test_get_param(self, session: requests.Session, url: str, param_name: str) -> Optional[Vulnerability]:
         request_node = {
@@ -218,5 +220,5 @@ class SSRFScannerPlugin(VulnerabilityPlugin):
     def get_info(self) -> Dict[str, Any]:
         info = super().get_info()
         info['category'] = 'vulnerability'
-        info['requires'] = ['WebCrawlerPlugin']
+        info['requires'] = ['WebFlowMapperPlugin']
         return info

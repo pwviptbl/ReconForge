@@ -332,15 +332,14 @@ class MisconfigAdapter(GenericAdapter):
 # ---------------------------------------------------------------------------
 
 _ADAPTER_MAP: Dict[str, type] = {
-    "XssScannerPlugin":            XssAdapter,
-    "LfiScannerPlugin":            LfiAdapter,
-    "SsrfScannerPlugin":           SsrfAdapter,
-    "IdorScannerPlugin":           IdorAdapter,
+    "XSSScannerPlugin":            XssAdapter,
+    "LFIScannerPlugin":            LfiAdapter,
+    "SSRFScannerPlugin":           SsrfAdapter,
+    "IDORScannerPlugin":           IdorAdapter,
     "HeaderInjectionScannerPlugin": HeaderInjectionAdapter,
     "OpenRedirectScannerPlugin":   OpenRedirectAdapter,
-    "SstiScannerPlugin":           SstiAdapter,
+    "SSTIScannerPlugin":           SstiAdapter,
     "NucleiScannerPlugin":         NucleiAdapter,
-    "MisconfigurationAnalyzerPlugin": MisconfigAdapter,
 }
 
 

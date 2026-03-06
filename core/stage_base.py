@@ -103,6 +103,9 @@ class ReconStageBase(StageBase):
             "hosts": len(state.discoveries.get("hosts", [])),
             "open_ports": len(state.discoveries.get("open_ports", [])),
             "endpoints": len(state.discoveries.get("endpoints", [])),
+            "forms": len(state.discoveries.get("forms", [])),
+            "request_nodes": len(state.discoveries.get("request_nodes", [])),
+            "interactions": len(state.discoveries.get("interactions", [])),
             "subdomains": len(state.discoveries.get("subdomains", [])),
         })
         return base

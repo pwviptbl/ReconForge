@@ -1,5 +1,6 @@
 import json
 from typing import Any, Dict, Tuple
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
@@ -38,6 +39,39 @@ def _parse_cookies(headers: Dict[str, str]) -> Dict[str, str]:
     return cookies
 
 
+def _normalize_files(raw_files: Any) -> Dict[str, Dict[str, Any]]:
+    if not isinstance(raw_files, dict):
+        return {}
+    normalized: Dict[str, Dict[str, Any]] = {}
+    for field_name, meta in raw_files.items():
+        if not field_name:
+            continue
+        if not isinstance(meta, dict):
+            meta = {"content": meta}
+        item = dict(meta)
+        item.setdefault("filename", f"{field_name}.txt")
+        item.setdefault("content_type", "text/plain")
+        item.setdefault("content", "ReconForge upload probe")
+        normalized[str(field_name)] = item
+    return normalized
+
+
+def _build_files_payload(raw_files: Dict[str, Dict[str, Any]]) -> Dict[str, Tuple[str, Any, str]]:
+    payload: Dict[str, Tuple[str, Any, str]] = {}
+    for field_name, meta in raw_files.items():
+        filename = str(meta.get("filename") or f"{field_name}.txt")
+        content_type = str(meta.get("content_type") or "text/plain")
+        content = meta.get("content")
+        path = meta.get("path")
+        if path:
+            try:
+                content = Path(path).read_bytes()
+            except OSError:
+                content = content or b""
+        payload[field_name] = (filename, content, content_type)
+    return payload
+
+
 def rebuild_attack_request(request_node: Dict[str, Any], injection_point: Dict[str, Any], payload: Any) -> requests.PreparedRequest:
     base = request_node.get("request") or request_node
 
@@ -52,6 +86,7 @@ def rebuild_attack_request(request_node: Dict[str, Any], injection_point: Dict[s
     json_body = base.get("json")
     cookies = dict(base.get("cookies") or {})
     body = base.get("body")
+    files = _normalize_files(base.get("files"))
 
     clean_url, url_params = _split_url_query(url)
     params = _merge_dict(url_params, params)
@@ -61,7 +96,7 @@ def rebuild_attack_request(request_node: Dict[str, Any], injection_point: Dict[s
 
     if location == "QUERY" and param_name:
         params[param_name] = payload
-    elif location == "BODY_FORM" and param_name:
+    elif location in {"BODY_FORM", "BODY_MULTIPART"} and param_name:
         if isinstance(data, dict):
             form_data = dict(data)
             form_data[param_name] = payload
@@ -103,10 +138,21 @@ def rebuild_attack_request(request_node: Dict[str, Any], injection_point: Dict[s
         if not cookies:
             cookies = _parse_cookies(headers)
         cookies[param_name] = str(payload)
+    elif location == "FILE" and param_name:
+        file_item = dict(files.get(param_name) or {})
+        file_item.setdefault("filename", f"{param_name}.txt")
+        file_item.setdefault("content_type", "text/plain")
+        file_item["content"] = payload
+        files[param_name] = file_item
     elif location == "PATH":
         original_value = injection_point.get("original_value")
         if original_value is not None:
             clean_url = clean_url.replace(str(original_value), str(payload), 1)
+
+    request_files = _build_files_payload(files) if files else None
+    if request_files:
+        headers.pop("Content-Type", None)
+        headers.pop("content-type", None)
 
     req = requests.Request(
         method=method,
@@ -115,6 +161,7 @@ def rebuild_attack_request(request_node: Dict[str, Any], injection_point: Dict[s
         params=params or None,
         data=data,
         json=json_body,
+        files=request_files,
         cookies=cookies or None,
     )
     return requests.Session().prepare_request(req)
