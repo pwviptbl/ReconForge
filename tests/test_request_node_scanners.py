@@ -16,7 +16,10 @@ def test_xss_scanner_uses_request_nodes_for_post_body(monkeypatch):
 
     session.send = fake_send
 
-    monkeypatch.setattr("plugins.xss_scanner_plugin.create_requests_session", lambda plugin_config=None: session)
+    monkeypatch.setattr(
+        "plugins.xss_scanner_plugin.create_requests_session",
+        lambda plugin_config=None, **kwargs: session,
+    )
 
     scanner = XSSScannerPlugin({"payloads": ["PAYLOAD"]})
     result = scanner.execute(
@@ -54,7 +57,10 @@ def test_idor_scanner_uses_numeric_values_from_request_nodes(monkeypatch):
 
     session.send = fake_send
 
-    monkeypatch.setattr("plugins.idor_scanner_plugin.create_requests_session", lambda plugin_config=None: session)
+    monkeypatch.setattr(
+        "plugins.idor_scanner_plugin.create_requests_session",
+        lambda plugin_config=None, **kwargs: session,
+    )
 
     scanner = IDORScannerPlugin()
     result = scanner.execute(

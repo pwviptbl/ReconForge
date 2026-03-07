@@ -36,6 +36,7 @@ class WorkflowState:
     target: str
     run_id: int = -1                          # Preenchido pelo Storage ao criar o run
     original_target: str = ""                 # URL completa antes de normalização
+    auth_session_file: str = ""               # Caminho de arquivo de sessao autenticada
     started_at: str = field(default_factory=_now_iso)
 
     # Dados coletados no stage_recon e stage_detect (legado + novo modelo)
@@ -161,10 +162,12 @@ class WorkflowState:
         return {
             "target": self.target,
             "original_target": self.original_target,
+            "auth_session_file": self.auth_session_file,
             "start_time": self.started_at,
             "executed_plugins": self.executed_plugins,
             "plugin_states": self.plugin_states,
             "discoveries": self.discoveries,
+            "config": self.config,
             "vulnerabilities": [
                 v.to_dict() if hasattr(v, "to_dict") else v
                 for v in self.vulnerabilities
@@ -190,6 +193,7 @@ class WorkflowState:
         return {
             "target": self.target,
             "run_id": self.run_id,
+            "auth_session_file": bool(self.auth_session_file),
             "stages_done": self.executed_stages,
             "current_stage": self.current_stage,
             "findings": findings_validated,

@@ -19,6 +19,7 @@ from core.config import get_config
 from core.plugin_manager import PluginManager
 from core.storage import Storage
 from core.workflow_orchestrator import run_pipeline
+from utils.auth_session import load_session_profile
 from utils.logger import setup_logger
 from utils.runtime_health import collect_runtime_health, format_runtime_health_text
 from utils.runtime_profiles import list_profiles, profile_choices, resolve_profile_plugins
@@ -39,6 +40,7 @@ def _format_profile_help() -> str:
             "  ./run.sh alvo",
             "  ./run.sh alvo --profile web-map",
             "  ./run.sh alvo --profile infra",
+            "  ./run.sh https://app.exemplo.local/dashboard --session-file sessions/app.yaml",
             "  ./run.sh alvo --pipeline --recon-plugins PortScannerPlugin,WebFlowMapperPlugin",
             "  ./run.sh --healthcheck",
             "  ./run.sh --show-web-map 50",
@@ -151,6 +153,12 @@ def main() -> int:
         parser.add_argument("--healthcheck", action="store_true", help="Mostra estado do runtime e dependencias")
         parser.add_argument("--show-web-map", type=int, metavar="RUN_ID", help="Exibe rotas e parametros mapeados de um run")
         parser.add_argument(
+            "--session-file",
+            type=str,
+            metavar="ARQUIVO",
+            help="Arquivo YAML/JSON com cookies/headers/token para acessar areas autenticadas",
+        )
+        parser.add_argument(
             "--pipeline",
             action="store_true",
             help="Executa o pipeline com selecao avancada de plugins por estagio",
@@ -200,6 +208,23 @@ def main() -> int:
         if not args.target:
             parser.print_help()
             return 2
+
+        session_file = None
+        if args.session_file:
+            try:
+                profile = load_session_profile(args.session_file)
+                session_file = str(Path(args.session_file).expanduser().resolve())
+                auth_bits = []
+                if profile.get("headers"):
+                    auth_bits.append(f"headers={len(profile['headers'])}")
+                if profile.get("cookies"):
+                    auth_bits.append(f"cookies={len(profile['cookies'])}")
+                if profile.get("local_storage"):
+                    auth_bits.append(f"local_storage={len(profile['local_storage'])}")
+                print("Sessao autenticada ativa: " + (", ".join(auth_bits) if auth_bits else session_file))
+            except Exception as exc:
+                print(f"Falha ao carregar --session-file: {exc}")
+                return 2
 
         if args.profile and (args.recon_plugins or args.detect_plugins):
             print("Use --profile ou ajuste manual com --recon-plugins/--detect-plugins, nao os dois.")
@@ -254,6 +279,7 @@ def main() -> int:
             detect_plugins=detect_plugins,
             max_exploit_attempts=args.max_exploit_attempts,
             exploit_categories=exploit_categories,
+            auth_session_file=session_file,
         )
         _print_pipeline_summary(state)
         return 0 if not state.aborted else 1

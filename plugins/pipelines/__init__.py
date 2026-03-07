@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from core.models import ExploitAttempt, QueueItem, _new_id, _now_iso
+from utils.auth_session import apply_session_profile_to_prepared_request
 from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
 
@@ -137,7 +138,14 @@ def _prepared_to_raw_request(prepared: requests.PreparedRequest) -> str:
 def _http_send_prepared(
     prepared: requests.PreparedRequest,
     timeout: int = DEFAULT_TIMEOUT,
+    session_file: str = "",
+    session_profile: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, _HttpResult]:
+    apply_session_profile_to_prepared_request(
+        prepared,
+        session_file=session_file or None,
+        session_profile=session_profile,
+    )
     raw_req = _prepared_to_raw_request(prepared)
     session = requests.Session()
     try:
@@ -168,21 +176,32 @@ def _http_send_item(
 ) -> Tuple[str, _HttpResult]:
     request_node = getattr(item, "request_node", None)
     injection_point = getattr(item, "injection_point", None)
+    session_profile = getattr(item, "auth_session", None) or {}
+    session_file = str(getattr(item, "auth_session_file", "") or "")
 
     if request_node and injection_point:
         prepared = rebuild_attack_request(request_node, injection_point, payload)
-        return _http_send_prepared(prepared, timeout=timeout)
+        return _http_send_prepared(
+            prepared,
+            timeout=timeout,
+            session_file=session_file,
+            session_profile=session_profile,
+        )
 
     url = item.endpoint or item.target
     method = (item.method or "GET").upper()
     parameter = item.parameter or fallback_param
+    headers = dict(session_profile.get("headers") or {})
+    cookie_header = str(session_profile.get("cookie_string") or "").strip()
+    if cookie_header and "Cookie" not in headers and "cookie" not in headers:
+        headers["Cookie"] = cookie_header
 
     if method == "POST":
         data = {parameter: payload} if parameter else {}
-        return _http_send(url, method="POST", data=data, timeout=timeout)
+        return _http_send(url, method="POST", data=data, headers=headers or None, timeout=timeout)
 
     params = {parameter: payload} if parameter else {}
-    return _http_send(url, method="GET", params=params, timeout=timeout)
+    return _http_send(url, method="GET", params=params, headers=headers or None, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------

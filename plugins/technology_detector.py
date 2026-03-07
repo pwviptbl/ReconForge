@@ -130,7 +130,11 @@ class TechnologyDetectorPlugin(WebPlugin):
         start_time = time.time()
         
         try:
-            self._session = create_requests_session(plugin_config=self.config, headers=self.headers)
+            self._session = create_requests_session(
+                plugin_config=self.config,
+                headers=self.headers,
+                session_file=context.get("auth_session_file"),
+            )
             actual_target = context.get('original_target', target)
 
             # Tentar URLs baseadas no contexto

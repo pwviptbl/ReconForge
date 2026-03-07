@@ -13,7 +13,7 @@ from core.plugin_base import VulnerabilityPlugin, PluginResult
 from core.models import Vulnerability
 from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
-from utils.http_session import create_requests_session
+from utils.http_session import build_request_node_headers, create_requests_session
 from utils.web_discovery import build_request_nodes, iter_request_node_parameters
 
 class XSSScannerPlugin(VulnerabilityPlugin):
@@ -50,12 +50,19 @@ class XSSScannerPlugin(VulnerabilityPlugin):
         # Recuperar descobertas do contexto
         discoveries = context.get('discoveries', {})
         # Sessão para requests
-        session = create_requests_session(plugin_config=self.config)
+        session = create_requests_session(
+            plugin_config=self.config,
+            session_file=context.get("auth_session_file"),
+        )
         session.verify = self.verify_ssl
         session.headers.update({
             'User-Agent': 'ReconForge/XSSScanner'
         })
-        request_nodes = build_request_nodes(discoveries, actual_target, default_headers=dict(session.headers))
+        request_nodes = build_request_nodes(
+            discoveries,
+            actual_target,
+            default_headers=build_request_node_headers(session),
+        )
 
         self.logger.info(f"🔍 Testando {len(request_nodes)} requests para XSS...")
         for request_node in request_nodes:

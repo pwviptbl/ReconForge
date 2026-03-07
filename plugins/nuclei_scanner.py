@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import VulnerabilityPlugin, PluginResult
+from utils.auth_session import load_session_profile
 from utils.http_session import resolve_use_tor
 from utils.proxy_env import build_proxy_env
 
@@ -134,6 +135,16 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                 '-timeout', '10',
                 '-retries', '1'
             ]
+
+            session_file = context.get("auth_session_file")
+            if session_file:
+                profile = load_session_profile(session_file)
+                headers = dict(profile.get("headers") or {})
+                cookie_header = profile.get("cookie_string") or ""
+                if cookie_header and "Cookie" not in headers and "cookie" not in headers:
+                    headers["Cookie"] = cookie_header
+                for header_name, header_value in headers.items():
+                    cmd.extend(["-H", f"{header_name}: {header_value}"])
             
             # Adicionar severidades baseadas no contexto
             if context.get('mode') == 'quick':

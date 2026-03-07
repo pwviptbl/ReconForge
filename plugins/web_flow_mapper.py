@@ -15,6 +15,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from core.plugin_base import PluginResult, WebPlugin
+from utils.auth_session import (
+    apply_local_storage_init_script,
+    load_session_profile,
+    playwright_context_options_from_session,
+)
 from utils.logger import get_logger
 from utils.web_discovery import (
     dedupe_request_nodes,
@@ -147,7 +152,7 @@ class WebFlowMapperPlugin(WebPlugin):
         url = self._normalize_url(actual_target)
 
         try:
-            data = self._run_mapping(url, kwargs)
+            data = self._run_mapping(url, context, kwargs)
             execution_time = time.time() - start_time
             stats = data.get("web_flow_mapping", {}).get("statistics", {})
             return PluginResult(
@@ -170,7 +175,7 @@ class WebFlowMapperPlugin(WebPlugin):
                 error=str(exc),
             )
 
-    def _run_mapping(self, start_url: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_mapping(self, start_url: str, context_data: Dict[str, Any], kwargs: Dict[str, Any]) -> Dict[str, Any]:
         max_depth = int(self.config.get("max_depth", 3))
         max_pages = int(self.config.get("max_pages", 30))
         wait_ms = int(self.config.get("wait_after_action_ms", 1200))
@@ -188,12 +193,16 @@ class WebFlowMapperPlugin(WebPlugin):
         errors: List[Dict[str, Any]] = []
         origin = urlparse(start_url).netloc
 
+        auth_profile = self._resolve_auth_profile(context_data, kwargs)
+
         with sync_playwright() as playwright:  # pragma: no cover - depende do browser real
             browser = playwright.chromium.launch(
                 headless=bool(self.config.get("headless", True)),
                 args=browser_args,
             )
-            context = browser.new_context(ignore_https_errors=True)
+            context_options = {"ignore_https_errors": True}
+            context_options.update(playwright_context_options_from_session(session_profile=auth_profile))
+            context = browser.new_context(**context_options)
             page = context.new_page()
 
             collector = _NetworkCollector(self)
@@ -201,7 +210,7 @@ class WebFlowMapperPlugin(WebPlugin):
             page.on("response", collector.on_response)
             page.on("dialog", self._handle_dialog)
 
-            self._apply_authentication(context, start_url, kwargs)
+            self._apply_authentication(context, page, start_url, auth_profile, kwargs)
 
             while queue and len(pages) < max_pages:
                 current_url, depth = queue.pop(0)
@@ -938,13 +947,35 @@ class WebFlowMapperPlugin(WebPlugin):
         except Exception:
             return ""
 
-    def _apply_authentication(self, context: Any, start_url: str, kwargs: Dict[str, Any]):
+    def _resolve_auth_profile(self, context_data: Dict[str, Any], kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        session_file = kwargs.get("session_file") or context_data.get("auth_session_file")
+        if not session_file:
+            return {}
+        try:
+            return load_session_profile(session_file)
+        except Exception as exc:
+            self.logger.warning(f"Falha ao carregar sessao autenticada: {exc}")
+            return {}
+
+    def _apply_authentication(
+        self,
+        context: Any,
+        page: Any,
+        start_url: str,
+        auth_profile: Dict[str, Any],
+        kwargs: Dict[str, Any],
+    ):
         cookies = kwargs.get("cookies") or []
         cookie_string = kwargs.get("cookie_string")
         if cookie_string:
             cookies = [*cookies, *self._parse_cookie_string(cookie_string, start_url)]
+        if auth_profile.get("cookies"):
+            cookies = [*cookies, *auth_profile.get("cookies", [])]
         if cookies:
             context.add_cookies(cookies)
+        local_storage = auth_profile.get("local_storage") or {}
+        if local_storage:
+            apply_local_storage_init_script(page, local_storage)
 
     def _parse_cookie_string(self, cookie_string: str, url: str) -> List[Dict[str, Any]]:
         parsed = urlparse(url)

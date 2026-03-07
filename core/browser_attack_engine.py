@@ -17,6 +17,10 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from core.models import ExploitAttempt, QueueItem
+from utils.auth_session import (
+    load_session_profile,
+    playwright_context_options_from_session,
+)
 from utils.logger import get_logger
 
 try:  # pragma: no cover - depende do ambiente
@@ -135,9 +139,28 @@ class BrowserAttackEngine:
                 context_kwargs: Dict[str, Any] = {}
                 if self.config.record_video:
                     context_kwargs["record_video_dir"] = str(run_dir)
+                auth_profile = self._load_auth_profile(item)
+                context_kwargs.update(playwright_context_options_from_session(session_profile=auth_profile))
 
                 context = await browser.new_context(**context_kwargs)
                 page = await context.new_page()
+                if auth_profile.get("cookies"):
+                    await context.add_cookies(auth_profile["cookies"])
+                if auth_profile.get("local_storage"):
+                    await page.add_init_script(
+                        """
+                        (items) => {
+                            const data = items || {};
+                            for (const [key, value] of Object.entries(data)) {
+                                try {
+                                    window.localStorage.setItem(key, String(value));
+                                } catch (error) {
+                                }
+                            }
+                        }
+                        """,
+                        auth_profile["local_storage"],
+                    )
 
                 console_messages: List[str] = []
                 dialog_messages: List[str] = []
@@ -275,6 +298,20 @@ class BrowserAttackEngine:
             await page.wait_for_timeout(1000)
         except Exception as exc:
             self.logger.debug(f"Autenticação heurística não concluída: {exc}")
+
+    def _load_auth_profile(self, item: QueueItem) -> Dict[str, Any]:
+        if getattr(item, "auth_session", None):
+            return item.auth_session
+        session_file = str(getattr(item, "auth_session_file", "") or "")
+        if not session_file:
+            return {}
+        try:
+            profile = load_session_profile(session_file)
+            item.auth_session = profile
+            return profile
+        except Exception as exc:
+            self.logger.debug(f"Falha ao carregar sessao do browser attack: {exc}")
+            return {}
 
     async def _perform_request(
         self,

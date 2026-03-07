@@ -27,6 +27,7 @@ from core.config import get_config
 from core.plugin_manager import PluginManager
 from core.storage import Storage
 from core.workflow_orchestrator import run_pipeline
+from utils.auth_session import load_session_profile
 from utils.logger import setup_logger
 from utils.runtime_health import collect_runtime_health
 from utils.runtime_profiles import resolve_profile_plugins
@@ -88,6 +89,13 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
         recon_plugins = payload.get("recon_plugins")
         detect_plugins = payload.get("detect_plugins")
         profile_name = payload.get("profile")
+        session_file = payload.get("session_file")
+        if session_file:
+            try:
+                load_session_profile(str(session_file))
+                session_file = str(Path(str(session_file)).expanduser().resolve())
+            except Exception as exc:
+                return _json_response(self, {"error": f"session_file invalido: {exc}"}, status=400)
         if profile_name:
             try:
                 resolved = resolve_profile_plugins(
@@ -115,6 +123,7 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
             detect_plugins=detect_plugins,
             max_exploit_attempts=int(payload.get("max_exploit_attempts", 5)),
             exploit_categories=payload.get("exploit_categories"),
+            auth_session_file=session_file,
         )
 
         return _json_response(

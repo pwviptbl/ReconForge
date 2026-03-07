@@ -106,9 +106,37 @@ o perfil padrao sera `web-test`.
 # Mostrar rotas e parametros de um run ja executado
 ./run.sh --show-web-map 50
 
+# Rodar autenticado com cookies/token carregados de arquivo
+./run.sh https://app.exemplo.local/dashboard --session-file sessions/app.yaml
+
 # Modo avancado do mesmo pipeline
 ./run.sh example.com --pipeline --recon-plugins PortScannerPlugin,WebFlowMapperPlugin
 ```
+
+### Sessao autenticada por arquivo
+
+Para acessar areas autenticadas sem criar configuracao fixa do projeto, crie um arquivo YAML ou JSON e passe `--session-file`.
+Ha um modelo pronto em [examples/session.example.yaml](/home/kali/Modelos/ReconForge/examples/session.example.yaml).
+
+Exemplo:
+
+```yaml
+headers:
+  Authorization: Bearer eyJhbGciOi...
+cookies:
+  PHPSESSID: abc123
+  XSRF-TOKEN: xyz456
+local_storage:
+  authToken: eyJhbGciOi...
+```
+
+Ou, se preferir, use `cookie_string`:
+
+```yaml
+cookie_string: "PHPSESSID=abc123; XSRF-TOKEN=xyz456"
+```
+
+O mesmo arquivo e reaproveitado pelo `WebFlowMapperPlugin`, pelos scanners HTTP e pela fase de exploit.
 
 ### Leitura pratica do web map
 

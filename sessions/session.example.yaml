@@ -1,0 +1,16 @@
+headers:
+  Authorization: Bearer replace-me
+
+cookies:
+  PHPSESSID: replace-me
+  XSRF-TOKEN: replace-me
+
+local_storage:
+  authToken: replace-me
+
+# Opcional: usar um storage_state exportado pelo Playwright/Chromium.
+# Se informado, o caminho pode ser relativo a este arquivo.
+# storage_state: ./storage-state.json
+
+# Opcional: em vez de cookies estruturados, use uma string crua.
+# cookie_string: "PHPSESSID=replace-me; XSRF-TOKEN=replace-me"

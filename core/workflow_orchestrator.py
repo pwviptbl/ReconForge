@@ -74,6 +74,7 @@ class WorkflowOrchestrator:
         data_dir: Optional[str] = None,
         max_exploit_attempts: int = 5,
         exploit_categories: Optional[List[str]] = None,
+        auth_session_file: Optional[str] = None,
     ):
         self.logger = get_logger("WorkflowOrchestrator")
         self.verbose = verbose
@@ -93,6 +94,7 @@ class WorkflowOrchestrator:
         self._max_exploit_attempts = max_exploit_attempts
         self._exploit_categories = exploit_categories
         self._data_dir = _data_dir
+        self._auth_session_file = auth_session_file or ""
 
         if not self.quiet:
             self.logger.info(
@@ -208,6 +210,7 @@ class WorkflowOrchestrator:
         state = WorkflowState(
             target=target,
             original_target=original_target,
+            auth_session_file=self._auth_session_file,
             config=self._load_config(),
         )
 
@@ -232,6 +235,9 @@ class WorkflowOrchestrator:
             },
             "output": {
                 "data_dir": get_config("output.data_dir", "dados"),
+            },
+            "auth": {
+                "session_file": self._auth_session_file,
             },
         }
 
@@ -328,6 +334,7 @@ def run_pipeline(
     detect_plugins: Optional[List[str]] = None,
     max_exploit_attempts: int = 5,
     exploit_categories: Optional[List[str]] = None,
+    auth_session_file: Optional[str] = None,
 ) -> WorkflowState:
     """
     Executa o pipeline completo para um alvo.
@@ -342,5 +349,6 @@ def run_pipeline(
         detect_plugins=detect_plugins,
         max_exploit_attempts=max_exploit_attempts,
         exploit_categories=exploit_categories,
+        auth_session_file=auth_session_file,
     )
     return orch.run(normalized, original_target=target)
