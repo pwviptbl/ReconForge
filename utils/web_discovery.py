@@ -340,6 +340,66 @@ def iter_request_node_parameters(
     return injection_points
 
 
+def find_request_template_matches(
+    endpoint: str,
+    request_nodes: List[Dict[str, Any]],
+    *,
+    parameter: str = "",
+) -> List[Dict[str, Any]]:
+    matches: List[Dict[str, Any]] = []
+    endpoint_key = _request_url_match_key(endpoint)
+    if not endpoint_key:
+        return matches
+
+    wanted_parameter = str(parameter or "").strip()
+    for node in as_list(request_nodes):
+        normalized = normalize_request_node(node)
+        if not normalized or _request_url_match_key(normalized.get("url", "")) != endpoint_key:
+            continue
+
+        for injection_point in iter_request_node_parameters(normalized):
+            parameter_name = str(injection_point.get("parameter_name") or "").strip()
+            if wanted_parameter and parameter_name != wanted_parameter:
+                continue
+            matches.append(
+                {
+                    "request_node": normalized,
+                    "injection_point": injection_point,
+                }
+            )
+
+    return matches
+
+
+def resolve_queue_item_request_template(
+    item: Any,
+    request_nodes: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    matches = find_request_template_matches(
+        getattr(item, "endpoint", "") or getattr(item, "target", ""),
+        request_nodes,
+        parameter=getattr(item, "parameter", ""),
+    )
+    if not matches:
+        return None
+
+    item_method = str(getattr(item, "method", "") or "").upper()
+
+    def _score(match: Dict[str, Any]) -> int:
+        score = 0
+        node = match.get("request_node") or {}
+        injection_point = match.get("injection_point") or {}
+        if item_method and str(node.get("method") or "").upper() == item_method:
+            score += 3
+        if getattr(item, "parameter", "") and injection_point.get("parameter_name") == getattr(item, "parameter", ""):
+            score += 5
+        if injection_point.get("original_value") not in (None, ""):
+            score += 1
+        return score
+
+    return max(matches, key=_score)
+
+
 def extract_path_segments(url: str) -> List[str]:
     parsed = urlparse(url or "")
     return [segment for segment in parsed.path.split("/") if segment]
@@ -446,3 +506,13 @@ def _mk_injection_point(location: str, parameter_name: str, original_value: Any)
 
 def _is_json_content_type(content_type: str) -> bool:
     return "json" in str(content_type or "").lower()
+
+
+def _request_url_match_key(url: str) -> str:
+    parsed = urlparse(url or "")
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    path = parsed.path or "/"
+    if path != "/" and path.endswith("/"):
+        path = path.rstrip("/")
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{path}"

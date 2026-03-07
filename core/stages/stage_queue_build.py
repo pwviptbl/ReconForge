@@ -7,11 +7,13 @@ Cada finding aceito origina um QueueItem com prioridade calculada por categoria.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from core.exploit_queue import ExploitQueue
+from core.models import Finding
 from core.stage_base import StageBase
 from core.workflow_state import WorkflowState
+from utils.web_discovery import build_request_nodes, find_request_template_matches
 
 
 class StageQueueBuild(StageBase):
@@ -36,7 +38,12 @@ class StageQueueBuild(StageBase):
             return state
 
         queue = ExploitQueue(storage=self._storage)
-        items = queue.enqueue(state.findings)
+        request_nodes = build_request_nodes(
+            state.discoveries,
+            state.original_target or state.target,
+        )
+        findings_for_queue = self._expand_findings(state.findings, request_nodes)
+        items = queue.enqueue(findings_for_queue)
 
         state.queue_items = items
         self.logger.info(
@@ -65,3 +72,53 @@ class StageQueueBuild(StageBase):
             "by_category": by_cat,
             "by_priority": by_pri,
         }
+
+    def _expand_findings(
+        self,
+        findings: List[Finding],
+        request_nodes: List[Dict[str, Any]],
+    ) -> List[Finding]:
+        expanded: List[Finding] = []
+
+        for finding in findings:
+            matches = find_request_template_matches(
+                finding.endpoint,
+                request_nodes,
+                parameter=finding.parameter,
+            )
+            if not matches:
+                expanded.append(finding)
+                continue
+
+            deduped_matches = []
+            seen = set()
+            for match in matches:
+                request_node = match["request_node"]
+                injection_point = match["injection_point"]
+                signature = (
+                    request_node.get("method", "GET"),
+                    request_node.get("url", finding.endpoint),
+                    injection_point.get("parameter_name", ""),
+                )
+                if signature in seen:
+                    continue
+                seen.add(signature)
+                deduped_matches.append(match)
+
+            if not deduped_matches:
+                expanded.append(finding)
+                continue
+
+            for match in deduped_matches:
+                request_node = match["request_node"]
+                injection_point = match["injection_point"]
+                clone = Finding.from_dict(finding.to_dict())
+                clone.method = str(request_node.get("method") or clone.method or "GET").upper()
+                clone.endpoint = str(request_node.get("url") or clone.endpoint)
+                clone.parameter = str(injection_point.get("parameter_name") or clone.parameter)
+                original_value = injection_point.get("original_value")
+                if original_value not in (None, ""):
+                    clone.candidate_payload = str(original_value)
+                expanded.append(clone)
+
+        return expanded

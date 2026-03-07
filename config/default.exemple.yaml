@@ -86,7 +86,7 @@ plugins:
       silent: true
     WhatWebScannerPlugin:
       use_tor: false               # WhatWeb pode respeitar proxy via env dependendo da instalação
-      aggression: 3                # 3 = mais agressivo (heavy)
+      aggression: 1                # 1 = mais leve e previsível
       timeout: 30
     KatanaCrawlerPlugin:
       use_tor: false

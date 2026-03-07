@@ -15,7 +15,7 @@ import urllib.parse
 from typing import List, Tuple
 
 from core.models import QueueItem
-from plugins.pipelines import BasePipeline, _HttpResult, _http_send
+from plugins.pipelines import BasePipeline, _HttpResult, _http_send_item
 
 
 # Domínios de teste para redirect
@@ -41,16 +41,7 @@ class OpenRedirectPipeline(BasePipeline):
         return _REDIRECT_TARGETS
 
     def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        url = item.endpoint or item.target
-        param = item.parameter
-
-        if item.method.upper() == "POST":
-            return _http_send(url, method="POST",
-                              data={param: payload} if param else {"redirect": payload},
-                              timeout=10)
-        else:
-            params = {param: payload} if param else {"redirect": payload}
-            return _http_send(url, method="GET", params=params, timeout=10)
+        return _http_send_item(item, payload, fallback_param="redirect", timeout=10)
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
         if result.status == 0:

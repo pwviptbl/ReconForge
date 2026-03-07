@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from core.models import QueueItem
-from plugins.pipelines import BasePipeline, _HttpResult, _http_send
+from plugins.pipelines import BasePipeline, _HttpResult, _http_send_item
 
 
 # Alvos internos comuns — confirma acesso a recursos internos
@@ -44,16 +44,7 @@ class SsrfPipeline(BasePipeline):
         return _INTERNAL_TARGETS
 
     def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        url = item.endpoint or item.target
-        param = item.parameter
-
-        if item.method.upper() == "POST":
-            return _http_send(url, method="POST",
-                              data={param: payload} if param else {"url": payload},
-                              timeout=12)
-        else:
-            params = {param: payload} if param else {"url": payload}
-            return _http_send(url, method="GET", params=params, timeout=12)
+        return _http_send_item(item, payload, fallback_param="url", timeout=12)
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
         if result.status == 0:

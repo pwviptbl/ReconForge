@@ -14,7 +14,7 @@ import re
 from typing import List, Tuple
 
 from core.models import QueueItem
-from plugins.pipelines import BasePipeline, _HttpResult, _http_send
+from plugins.pipelines import BasePipeline, _HttpResult, _http_send_item
 
 
 _PAYLOADS_UNIX = [
@@ -52,15 +52,7 @@ class LfiPipeline(BasePipeline):
         return _PAYLOADS_UNIX + _PAYLOADS_UNIX_ENCODED + _PAYLOADS_WINDOWS
 
     def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        url = item.endpoint or item.target
-        param = item.parameter
-
-        if item.method.upper() == "POST":
-            return _http_send(url, method="POST",
-                              data={param: payload} if param else {"file": payload})
-        else:
-            params = {param: payload} if param else {"file": payload}
-            return _http_send(url, method="GET", params=params)
+        return _http_send_item(item, payload, fallback_param="file")
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
         if result.status == 0:

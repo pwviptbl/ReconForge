@@ -20,8 +20,11 @@ import urllib.request
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 
+import requests
+
 from core.models import ExploitAttempt, QueueItem, _new_id, _now_iso
 from utils.logger import get_logger
+from utils.request_utils import rebuild_attack_request
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +120,69 @@ def _http_send(
 def _build_response_snapshot(result: _HttpResult) -> str:
     headers_str = "\n".join(f"{k}: {v}" for k, v in result.headers.items())
     return f"HTTP/1.1 {result.status}\n{headers_str}\n\n{result.body[:4096]}"
+
+
+def _prepared_to_raw_request(prepared: requests.PreparedRequest) -> str:
+    lines = [f"{prepared.method} {prepared.url}"]
+    for key, value in prepared.headers.items():
+        lines.append(f"{key}: {value}")
+    body = prepared.body
+    if body:
+        if isinstance(body, bytes):
+            body = body.decode("utf-8", errors="replace")
+        lines.extend(["", str(body)])
+    return "\n".join(lines)
+
+
+def _http_send_prepared(
+    prepared: requests.PreparedRequest,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> Tuple[str, _HttpResult]:
+    raw_req = _prepared_to_raw_request(prepared)
+    session = requests.Session()
+    try:
+        response = session.send(prepared, timeout=timeout, allow_redirects=True)
+        body = response.text[:65536]
+        headers = dict(response.headers)
+        return raw_req, _HttpResult(
+            status=response.status_code,
+            body=body,
+            headers=headers,
+            raw_request=raw_req,
+        )
+    except requests.RequestException as exc:
+        return raw_req, _HttpResult(
+            status=0,
+            body=f"[ERRO: {exc}]",
+            headers={},
+            raw_request=raw_req,
+        )
+
+
+def _http_send_item(
+    item: QueueItem,
+    payload: str,
+    *,
+    fallback_param: str = "",
+    timeout: int = DEFAULT_TIMEOUT,
+) -> Tuple[str, _HttpResult]:
+    request_node = getattr(item, "request_node", None)
+    injection_point = getattr(item, "injection_point", None)
+
+    if request_node and injection_point:
+        prepared = rebuild_attack_request(request_node, injection_point, payload)
+        return _http_send_prepared(prepared, timeout=timeout)
+
+    url = item.endpoint or item.target
+    method = (item.method or "GET").upper()
+    parameter = item.parameter or fallback_param
+
+    if method == "POST":
+        data = {parameter: payload} if parameter else {}
+        return _http_send(url, method="POST", data=data, timeout=timeout)
+
+    params = {parameter: payload} if parameter else {}
+    return _http_send(url, method="GET", params=params, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------

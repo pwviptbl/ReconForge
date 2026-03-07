@@ -16,7 +16,7 @@ from core.browser_attack_engine import BrowserAttackConfig, BrowserAttackEngine
 from core.config import get_config
 from core.payload_engine import PayloadEngine
 from core.models import QueueItem
-from plugins.pipelines import BasePipeline, _HttpResult, _http_send
+from plugins.pipelines import BasePipeline, _HttpResult, _http_send_item
 
 
 _BROWSER_CONTEXTS = {"DOM", "JS_TEMPLATE", "CSS", "JSON"}
@@ -55,14 +55,7 @@ class XssPipeline(BasePipeline):
         return super().run_attempt(item, attempt_num)
 
     def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        url = item.endpoint or item.target
-        param = item.parameter
-
-        if item.method.upper() == "POST":
-            return _http_send(url, method="POST", data={param: payload} if param else {})
-        else:
-            params = {param: payload} if param else {}
-            return _http_send(url, method="GET", params=params)
+        return _http_send_item(item, payload)
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
         body = result.body

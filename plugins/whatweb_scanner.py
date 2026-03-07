@@ -52,6 +52,7 @@ class WhatWebScannerPlugin(WebPlugin):
 
             findings = []
             technologies = []
+            errors = []
 
             for url in urls:
                 result = self._run_whatweb(url, aggression, timeout)
@@ -59,18 +60,23 @@ class WhatWebScannerPlugin(WebPlugin):
                 for tech in result.get('technologies', []):
                     if tech not in technologies:
                         technologies.append(tech)
+                error = result.get('errors')
+                if error:
+                    errors.append(error)
 
             execution_time = time.time() - start_time
 
             return PluginResult(
-                success=True,
+                success=bool(findings or technologies),
                 plugin_name=self.name,
                 execution_time=execution_time,
                 data={
                     'urls_scanned': urls,
                     'technologies': technologies,
-                    'findings': findings
-                }
+                    'findings': findings,
+                    'errors': errors,
+                },
+                error="; ".join(errors) if errors and not (findings or technologies) else None,
             )
 
         except Exception as e:
@@ -131,15 +137,27 @@ class WhatWebScannerPlugin(WebPlugin):
         ]
 
         env = build_proxy_env(use_tor=resolve_use_tor(self.config))
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=timeout
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=timeout
+            )
+        except subprocess.TimeoutExpired:
+            if aggression > 1:
+                Path(output_file).unlink(missing_ok=True)
+                return self._run_whatweb(url, 1, timeout)
+            Path(output_file).unlink(missing_ok=True)
+            return {
+                'findings': [],
+                'technologies': [],
+                'errors': f"WhatWeb timeout em {url} apos {timeout}s"
+            }
 
         if result.returncode != 0:
+            Path(output_file).unlink(missing_ok=True)
             return {
                 'findings': [],
                 'technologies': [],

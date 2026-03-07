@@ -14,7 +14,7 @@ import time
 from typing import List, Tuple
 
 from core.models import QueueItem
-from plugins.pipelines import BasePipeline, _HttpResult, _http_send
+from plugins.pipelines import BasePipeline, _HttpResult, _http_send_item
 
 
 _PAYLOADS_ERROR = [
@@ -63,16 +63,7 @@ class SqliPipeline(BasePipeline):
         return _PAYLOADS_BLIND_TIME[idx]
 
     def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        url = item.endpoint or item.target
-        param = item.parameter
-
-        if item.method.upper() == "POST":
-            return _http_send(url, method="POST",
-                              data={param: payload} if param else {"q": payload},
-                              timeout=20)
-        else:
-            params = {param: payload} if param else {"q": payload}
-            return _http_send(url, method="GET", params=params, timeout=20)
+        return _http_send_item(item, payload, fallback_param="q", timeout=20)
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
         if result.status == 0:
