@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 from core.models import Evidence, Finding, QueueItem
 from core.stage_base import StageBase
 from core.workflow_state import WorkflowState
+from utils.ai_reporter import AIReportGenerator, AIReportResult
 from utils.web_map import build_web_map_payload
 
 
@@ -43,7 +44,8 @@ class StageReport(StageBase):
     def execute(self, state: WorkflowState) -> WorkflowState:
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-        report_md = self._build_report(state)
+        ai_report = self._build_ai_report(state)
+        report_md = self._build_report(state, ai_report)
 
         # Salvar arquivo
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -55,6 +57,13 @@ class StageReport(StageBase):
         md_path.write_text(report_md, encoding="utf-8")
 
         state.report_path = str(md_path.resolve())
+        state.plugin_states["ai_report"] = {
+            "generated": ai_report.generated,
+            "provider": ai_report.provider,
+            "model": ai_report.model,
+            "skipped_reason": ai_report.skipped_reason,
+            "error": ai_report.error,
+        }
         self.logger.info(f"Relatório gerado: {state.report_path}")
 
         # Também salvar JSON estruturado
@@ -70,10 +79,25 @@ class StageReport(StageBase):
     # Construção do relatório Markdown
     # -----------------------------------------------------------------------
 
-    def _build_report(self, state: WorkflowState) -> str:
+    def _build_ai_report(self, state: WorkflowState) -> AIReportResult:
+        result = AIReportGenerator().generate_for_state(state)
+        if result.generated:
+            self.logger.info(
+                "Relatório IA gerado com sucesso "
+                f"| provider={result.provider} | model={result.model}"
+            )
+        elif result.error:
+            self.logger.warning(
+                "Falha ao gerar relatório IA; mantendo relatório técnico atual "
+                f"| provider={result.provider} | model={result.model} | erro={result.error}"
+            )
+        return result
+
+    def _build_report(self, state: WorkflowState, ai_report: AIReportResult) -> str:
         sections: List[str] = []
 
         sections.append(self._section_header(state))
+        sections.append(self._section_ai(ai_report))
         sections.append(self._section_summary(state))
         sections.append(self._section_confirmed(state))
         sections.append(self._section_partial(state))
@@ -84,6 +108,11 @@ class StageReport(StageBase):
         sections.append(self._section_stages(state))
 
         return "\n\n".join(s for s in sections if s)
+
+    def _section_ai(self, ai_report: AIReportResult) -> str:
+        if not ai_report.generated or not ai_report.text:
+            return ""
+        return ai_report.text.strip()
 
     def _section_header(self, state: WorkflowState) -> str:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -375,6 +404,7 @@ class StageReport(StageBase):
             "target": state.target,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "executed_plugins": list(state.executed_plugins),
+            "ai_report": dict(state.plugin_states.get("ai_report", {})),
             "summary": {
                 "findings_total": len(state.findings) + len(state.rejected_findings),
                 "findings_validated": len(state.findings),
@@ -422,8 +452,10 @@ class StageReport(StageBase):
             self.logger.warning(f"Falha ao salvar JSON report: {exc}")
 
     def _collect_metrics(self, state: WorkflowState) -> Dict[str, Any]:
+        ai_meta = dict(state.plugin_states.get("ai_report", {}))
         return {
             "report_path": state.report_path or "",
             "confirmed": sum(1 for e in state.evidences if e.proof_level == "impact_proven"),
             "partial": sum(1 for e in state.evidences if e.proof_level == "partial"),
+            "ai_report_generated": bool(ai_meta.get("generated", False)),
         }

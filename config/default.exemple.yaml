@@ -20,6 +20,14 @@ output:
   data_dir: data
   max_results: 50
   timestamp_format: '%Y%m%d_%H%M%S'
+report:
+  ai:
+    enabled: true
+    provider: gemini
+    model: gemini-2.5-flash-lite
+    timeout_seconds: 45
+    max_output_tokens: 1200
+    temperature: 0.2
 plugins:
   config:
     DNSResolverPlugin:

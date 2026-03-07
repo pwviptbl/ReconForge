@@ -7,6 +7,7 @@ from core.stages.stage_evidence import StageEvidence
 from core.stages.stage_exploit import StageExploit
 from core.stages.stage_report import StageReport
 from core.workflow_state import WorkflowState
+from utils.ai_reporter import AIReportResult
 
 
 def _build_finding(category: str, suffix: str, run_id: int = 1) -> Finding:
@@ -222,3 +223,61 @@ def test_stage_report_json_exposes_web_mapping_summary(tmp_path):
     assert "Formulários detectados" in markdown
     assert "Requests observadas com parâmetros" in markdown
     assert "| stage_report | ✅ done |" in markdown
+
+
+def test_stage_report_includes_ai_sections_when_generation_succeeds(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        StageReport,
+        "_build_ai_report",
+        lambda self, state: AIReportResult(
+            generated=True,
+            provider="gemini",
+            model="gemini-2.5-flash-lite",
+            text=(
+                "## 🤖 Resumo Executivo Assistido por IA\n"
+                "- Risco elevado por exposição de rota autenticada.\n\n"
+                "## 🛠️ Leitura Técnica Assistida por IA\n"
+                "- O endpoint `/admin/users` aceita parâmetros sensíveis."
+            ),
+        ),
+    )
+
+    state = WorkflowState(target="example.test", run_id=78)
+    stage = StageReport(output_dir=tmp_path / "relatorios")
+    stage.run(state)
+
+    report_path = next((tmp_path / "relatorios" / "run_78").glob("*.md"))
+    json_path = next((tmp_path / "relatorios" / "run_78").glob("*.json"))
+    markdown = report_path.read_text(encoding="utf-8")
+    payload = json_path.read_text(encoding="utf-8")
+
+    assert "## 🤖 Resumo Executivo Assistido por IA" in markdown
+    assert "## 🛠️ Leitura Técnica Assistida por IA" in markdown
+    assert '"generated": true' in payload
+    assert '"provider": "gemini"' in payload
+
+
+def test_stage_report_keeps_base_report_when_ai_generation_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        StageReport,
+        "_build_ai_report",
+        lambda self, state: AIReportResult(
+            generated=False,
+            provider="gemini",
+            model="gemini-2.5-flash-lite",
+            error="API key expired",
+        ),
+    )
+
+    state = WorkflowState(target="example.test", run_id=79)
+    stage = StageReport(output_dir=tmp_path / "relatorios")
+    stage.run(state)
+
+    report_path = next((tmp_path / "relatorios" / "run_79").glob("*.md"))
+    json_path = next((tmp_path / "relatorios" / "run_79").glob("*.json"))
+    markdown = report_path.read_text(encoding="utf-8")
+    payload = json_path.read_text(encoding="utf-8")
+
+    assert "## 🤖 Resumo Executivo Assistido por IA" not in markdown
+    assert '"generated": false' in payload
+    assert '"error": "API key expired"' in payload

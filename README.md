@@ -138,6 +138,15 @@ cookie_string: "PHPSESSID=abc123; XSRF-TOKEN=xyz456"
 
 O mesmo arquivo e reaproveitado pelo `WebFlowMapperPlugin`, pelos scanners HTTP e pela fase de exploit.
 
+### Relatório complementar com IA
+
+Se `GEMINI_API_KEY` estiver configurada no ambiente, o `stage_report` tenta adicionar ao Markdown final duas seções extras:
+
+- `Resumo Executivo Assistido por IA`
+- `Leitura Técnica Assistida por IA`
+
+Se a chave não existir, estiver expirada ou a API falhar, o relatório técnico atual continua sendo gerado normalmente, sem interromper o run.
+
 ### Leitura pratica do web map
 
 Depois de um `web-map` ou `web-test`, use:
