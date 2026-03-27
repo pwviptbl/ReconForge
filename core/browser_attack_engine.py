@@ -22,6 +22,7 @@ from utils.auth_session import (
     playwright_context_options_from_session,
 )
 from utils.logger import get_logger
+from utils.tor import get_playwright_proxy_settings, is_tor_globally_enabled
 
 try:  # pragma: no cover - depende do ambiente
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -132,6 +133,7 @@ class BrowserAttackEngine:
                 browser = await playwright.chromium.launch(
                     headless=self.config.headless,
                     args=self.config.launch_args,
+                    proxy=get_playwright_proxy_settings(use_tor=is_tor_globally_enabled()),
                 )
 
                 run_dir = self.config.evidence_dir / f"run_{item.run_id or 'unknown'}"

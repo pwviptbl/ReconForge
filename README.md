@@ -191,6 +191,9 @@ Notas:
 - Para SOCKS funcionar com `requests`, a dependência `pysocks` precisa estar instalada (já incluída em `requirements.txt`).
 - Você pode manter alguns plugins fora do Tor mesmo com `network.tor.enabled: true` definindo `use_tor: false` no plugin (ex: `ExploitSearcherPlugin`, `ReconnaissancePlugin`).
 - Plugins baseados em ferramentas externas (ex: `nuclei`, `whatweb`, `subfinder`) tentam usar proxy via variáveis de ambiente (`ALL_PROXY`/`HTTP(S)_PROXY`) quando `use_tor` estiver habilitado, mas isso depende do suporte da ferramenta.
+- Quando `network.tor.enabled: true`, o projeto agora valida se o proxy Tor local esta acessivel antes de iniciar.
+- Fluxos HTTP/browser compativeis passam a usar Tor de forma centralizada, incluindo Playwright e pipelines de exploit.
+- Plugins incompatíveis com Tor (ex: scans de baixo nivel com sockets/Nmap/DNS local) sao bloqueados em modo Tor estrito para evitar vazamento silencioso de trafego fora do proxy.
 
 Ativar o serviço Tor (Debian/Kali):
 

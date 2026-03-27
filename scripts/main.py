@@ -23,6 +23,7 @@ from utils.auth_session import load_session_profile
 from utils.logger import setup_logger
 from utils.runtime_health import collect_runtime_health, format_runtime_health_text
 from utils.runtime_profiles import list_profiles, profile_choices, resolve_profile_plugins
+from utils.tor import collect_tor_status
 from utils.web_map import build_web_map_payload, format_web_map_text
 
 
@@ -204,6 +205,14 @@ def main() -> int:
             data_dir = Path(get_config("output.data_dir", "data"))
             storage = Storage(data_dir / "reconforge.db")
             return _show_web_map(args.show_web_map, storage)
+
+        tor_status = collect_tor_status()
+        if tor_status.get("enabled") and not tor_status.get("ready"):
+            print("Modo Tor habilitado, mas o proxy local nao esta pronto.")
+            for issue in tor_status.get("issues", []):
+                print(f"  - {issue}")
+            print("Corrija o ambiente ou desabilite network.tor.enabled antes de executar o pipeline.")
+            return 2
 
         if not args.target:
             parser.print_help()

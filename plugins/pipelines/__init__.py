@@ -13,10 +13,6 @@ Todos os pipelines compartilham a interface BasePipeline.
 from __future__ import annotations
 
 import re
-import socket
-import urllib.error
-import urllib.parse
-import urllib.request
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -24,6 +20,7 @@ import requests
 
 from core.models import ExploitAttempt, QueueItem, _new_id, _now_iso
 from utils.auth_session import apply_session_profile_to_prepared_request
+from utils.http_session import create_requests_session
 from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
 
@@ -35,7 +32,7 @@ DEFAULT_TIMEOUT = 15   # segundos por tentativa
 
 
 # ---------------------------------------------------------------------------
-# HTTP helper mínimo (sem dependência de requests/httpx para compatibilidade)
+# HTTP helper minimo para envio consistente via configuracao central.
 # ---------------------------------------------------------------------------
 
 class _HttpResult:
@@ -55,8 +52,8 @@ def _http_send(
     timeout: int = DEFAULT_TIMEOUT,
 ) -> Tuple[str, _HttpResult]:
     """
-    Envia uma requisição HTTP e retorna (raw_request, HttpResult).
-    Usa urllib puro — nenhuma dependência externa.
+    Envia uma requisicao HTTP e retorna (raw_request, HttpResult).
+    Usa requests.Session centralizada para respeitar Tor quando habilitado.
     """
     default_headers = {
         "User-Agent": "ReconForge/3.0 (pipeline exploit)",
@@ -68,14 +65,14 @@ def _http_send(
     # Monta URL com query string para GET
     final_url = url
     if method.upper() == "GET" and params:
-        qs = urllib.parse.urlencode(params)
+        qs = requests.models.RequestEncodingMixin._encode_params(params)
         sep = "&" if "?" in url else "?"
         final_url = f"{url}{sep}{qs}"
 
     # Monta body para POST
     body_bytes: Optional[bytes] = None
     if method.upper() == "POST" and data:
-        body_bytes = urllib.parse.urlencode(data).encode("utf-8")
+        body_bytes = requests.models.RequestEncodingMixin._encode_params(data).encode("utf-8")
         default_headers["Content-Type"] = "application/x-www-form-urlencoded"
 
     # Snapshot da requisição enviada
@@ -84,32 +81,22 @@ def _http_send(
     if body_bytes:
         raw_req += f"\n\n{body_bytes.decode('utf-8', errors='replace')}"
 
-    req = urllib.request.Request(
-        final_url,
-        data=body_bytes,
-        headers=default_headers,
-        method=method.upper(),
-    )
-
+    session = create_requests_session(headers=default_headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            resp_body = resp.read(65536).decode("utf-8", errors="replace")
-            resp_headers = {k: v for k, v in resp.headers.items()}
-            return raw_req, _HttpResult(
-                status=resp.status,
-                body=resp_body,
-                headers=resp_headers,
-                raw_request=raw_req,
-            )
-    except urllib.error.HTTPError as e:
-        body = e.read(4096).decode("utf-8", errors="replace") if e.fp else ""
+        response = session.request(
+            method.upper(),
+            final_url,
+            data=body_bytes,
+            timeout=timeout,
+            allow_redirects=True,
+        )
         return raw_req, _HttpResult(
-            status=e.code,
-            body=body,
-            headers={k: v for k, v in e.headers.items()},
+            status=response.status_code,
+            body=response.text[:65536],
+            headers=dict(response.headers),
             raw_request=raw_req,
         )
-    except Exception as exc:
+    except requests.RequestException as exc:
         return raw_req, _HttpResult(
             status=0,
             body=f"[ERRO: {exc}]",
@@ -147,7 +134,7 @@ def _http_send_prepared(
         session_profile=session_profile,
     )
     raw_req = _prepared_to_raw_request(prepared)
-    session = requests.Session()
+    session = create_requests_session()
     try:
         response = session.send(prepared, timeout=timeout, allow_redirects=True)
         body = response.text[:65536]

@@ -14,6 +14,19 @@ from .plugin_base import BasePlugin, PluginResult, NetworkPlugin, WebPlugin, Vul
 from .config import get_config
 from utils.logger import get_logger
 
+_TOR_INCOMPATIBLE_PLUGINS = {
+    "PortScannerPlugin": "usa sockets TCP diretos e nao pode ser roteado com seguranca via proxy Tor.",
+    "NmapScannerPlugin": "usa varredura de rede de baixo nivel e nao pode ser roteado com seguranca via proxy Tor.",
+    "FirewallDetectorPlugin": "usa tecnicas de fingerprinting/scan de rede de baixo nivel fora do escopo de um proxy Tor.",
+    "NetworkMapperPlugin": "usa ferramentas e rotinas de rede locais que nao respeitam proxy Tor.",
+    "DNSResolverPlugin": "usa resolucao DNS direta via socket e geraria vazamento fora do Tor.",
+    "ReconnaissancePlugin": "mistura APIs HTTP com DNS/WHOIS locais, entao nao e seguro assumir roteamento integral via Tor.",
+    "SSHPolicyCheck": "usa Nmap local e nao pode ser roteado integralmente via Tor.",
+    "SSLAnalyzerPlugin": "depende de conexoes TLS/CLI diretas fora da camada de proxy HTTP/Tor.",
+    "TrafficAnalyzerPlugin": "captura e analisa trafego local, sem suporte a roteamento via Tor.",
+    "PortExposureAudit": "depende de validacoes de rede direta fora da camada de proxy Tor.",
+}
+
 
 class PluginManager:
     """Gerenciador de plugins"""
@@ -192,6 +205,20 @@ class PluginManager:
                 data={},
                 error=f"Plugin '{name}' não encontrado"
             )
+
+        if get_config("network.tor.enabled", False):
+            tor_reason = _TOR_INCOMPATIBLE_PLUGINS.get(plugin.__class__.__name__) or _TOR_INCOMPATIBLE_PLUGINS.get(name)
+            if tor_reason:
+                return PluginResult(
+                    success=False,
+                    plugin_name=name,
+                    execution_time=0.0,
+                    data={},
+                    error=(
+                        f"Plugin '{name}' bloqueado em modo Tor estrito: {tor_reason} "
+                        "Desabilite o Tor para este fluxo ou use plugins compativeis."
+                    ),
+                )
         
         # Validar alvo
         if not plugin.validate_target(target):

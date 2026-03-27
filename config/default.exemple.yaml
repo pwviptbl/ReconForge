@@ -14,7 +14,7 @@ network:
   max_threads: 300               # Mais threads = mais agressivo
   timeout: 5                     # Timeout menor
   tor:
-    enabled: false               # Se true, algumas requests podem ser roteadas via Tor (SOCKS5)
+    enabled: false               # Se true, ativa modo Tor estrito: trafego compativel vai pelo proxy e plugins incompatíveis sao bloqueados
     proxy_url: socks5h://127.0.0.1:9050  # Tor local padrão (porta SOCKS)
 output:
   data_dir: data

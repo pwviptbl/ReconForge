@@ -20,7 +20,9 @@ from utils.auth_session import (
     load_session_profile,
     playwright_context_options_from_session,
 )
+from utils.http_session import resolve_use_tor
 from utils.logger import get_logger
+from utils.tor import get_playwright_proxy_settings
 from utils.web_discovery import (
     dedupe_request_nodes,
     empty_parameter_buckets,
@@ -199,6 +201,7 @@ class WebFlowMapperPlugin(WebPlugin):
             browser = playwright.chromium.launch(
                 headless=bool(self.config.get("headless", True)),
                 args=browser_args,
+                proxy=get_playwright_proxy_settings(use_tor=resolve_use_tor(self.config)),
             )
             context_options = {"ignore_https_errors": True}
             context_options.update(playwright_context_options_from_session(session_profile=auth_profile))

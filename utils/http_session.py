@@ -13,6 +13,7 @@ import requests
 
 from core.config import get_config
 from utils.auth_session import apply_session_profile_to_requests_session, request_node_default_headers
+from utils.tor import ensure_tor_ready, get_requests_proxies as _tor_requests_proxies
 
 
 def resolve_use_tor(plugin_config: Optional[Dict[str, Any]] = None, use_tor: Optional[bool] = None) -> bool:
@@ -40,25 +41,13 @@ def _tor_proxy_url() -> str:
 
 
 def _ensure_socks_support(proxy_url: str) -> None:
-    # requests only supports socks* proxies when PySocks is installed.
-    if proxy_url.lower().startswith("socks"):
-        try:
-            import socks  # noqa: F401
-        except Exception as e:  # pragma: no cover
-            raise RuntimeError(
-                "Tor/SOCKS proxy is enabled but PySocks is not installed. "
-                "Install `pysocks` (or `requests[socks]`) and try again."
-            ) from e
+    # Mantido por compatibilidade local para chamadas antigas.
+    ensure_tor_ready(use_tor=True)
 
 
 def get_requests_proxies(*, use_tor: bool) -> Optional[Dict[str, str]]:
     """Return a `requests` proxies dict or None."""
-    if not use_tor:
-        return None
-
-    proxy_url = _tor_proxy_url()
-    _ensure_socks_support(proxy_url)
-    return {"http": proxy_url, "https": proxy_url}
+    return _tor_requests_proxies(use_tor=use_tor)
 
 
 def create_requests_session(

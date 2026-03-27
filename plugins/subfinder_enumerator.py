@@ -46,12 +46,13 @@ class SubfinderPlugin(NetworkPlugin):
             timeout = get_config('plugins.config.SubfinderPlugin.timeout', 120)
             resolve_ips = get_config('plugins.config.SubfinderPlugin.resolve_ips', True)
             silent = get_config('plugins.config.SubfinderPlugin.silent', True)
+            use_tor = resolve_use_tor(self.config)
 
             cmd = ["subfinder", "-d", domain]
             if silent:
                 cmd.append("-silent")
 
-            env = build_proxy_env(use_tor=resolve_use_tor(self.config))
+            env = build_proxy_env(use_tor=use_tor)
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -73,7 +74,7 @@ class SubfinderPlugin(NetworkPlugin):
             resolved_hosts = []
             ips = []
 
-            if resolve_ips:
+            if resolve_ips and not use_tor:
                 for subdomain in subdomains:
                     ip = self._resolve_host(subdomain)
                     if ip:
@@ -96,7 +97,8 @@ class SubfinderPlugin(NetworkPlugin):
                     'subdomains': subdomains,
                     'resolved_hosts': resolved_hosts,
                     'hosts': ips,
-                    'raw_output': result.stdout.strip()
+                    'raw_output': result.stdout.strip(),
+                    'resolution_skipped_for_tor': bool(resolve_ips and use_tor),
                 }
             )
 

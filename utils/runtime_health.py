@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from core.plugin_manager import PluginManager
 from utils.runtime_profiles import list_profiles, resolve_profile_plugins
+from utils.tor import collect_tor_status
 
 
 def collect_runtime_health(plugin_manager: PluginManager | None = None) -> Dict[str, Any]:
@@ -36,6 +37,7 @@ def collect_runtime_health(plugin_manager: PluginManager | None = None) -> Dict[
     return {
         "python_executable": sys.executable,
         "playwright_module_available": importlib.util.find_spec("playwright") is not None,
+        "tor": collect_tor_status(),
         "plugin_health": plugin_health,
         "profiles": profiles,
     }
@@ -45,6 +47,7 @@ def format_runtime_health_text(health: Dict[str, Any]) -> str:
     lines = [
         f"Python: {health.get('python_executable', 'N/A')}",
         f"Playwright module: {'ok' if health.get('playwright_module_available') else 'missing'}",
+        _format_tor_line(health.get("tor", {})),
         "",
         "Plugins",
         f"  Loaded: {health.get('plugin_health', {}).get('loaded_count', 0)}",
@@ -73,3 +76,18 @@ def format_runtime_health_text(health: Dict[str, Any]) -> str:
         lines.append(f"  {profile.get('name')}: {status}")
 
     return "\n".join(lines)
+
+
+def _format_tor_line(tor_health: Dict[str, Any]) -> str:
+    enabled = bool(tor_health.get("enabled"))
+    ready = bool(tor_health.get("ready"))
+    proxy_url = tor_health.get("proxy_url", "N/A")
+
+    if not enabled:
+        return f"Tor: disabled ({proxy_url})"
+    if ready:
+        return f"Tor: ok ({proxy_url})"
+
+    issues = tor_health.get("issues", [])
+    suffix = f" | {'; '.join(issues)}" if issues else ""
+    return f"Tor: error ({proxy_url}){suffix}"
