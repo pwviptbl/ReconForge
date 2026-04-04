@@ -19,11 +19,13 @@ from core.config import get_config
 from utils.web_map import build_web_map_payload
 
 try:  # pragma: no cover - depende do ambiente
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
 
     _GEMINI_AVAILABLE = True
 except Exception:  # pragma: no cover - depende do ambiente
     genai = None
+    genai_types = None
     _GEMINI_AVAILABLE = False
 
 
@@ -86,17 +88,15 @@ class AIReportGenerator:
         prompt = self._build_prompt(payload)
 
         try:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(
-                self.model,
-                generation_config={
-                    "temperature": self.temperature,
-                    "max_output_tokens": self.max_output_tokens,
-                },
-            )
-            response = model.generate_content(
-                prompt,
-                request_options={"timeout": self.timeout_seconds},
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=self.temperature,
+                    maxOutputTokens=self.max_output_tokens,
+                    httpOptions=genai_types.HttpOptions(timeout=self.timeout_seconds * 1000),
+                ),
             )
             text = self._extract_text(response)
             if not text.strip():

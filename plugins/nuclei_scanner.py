@@ -18,6 +18,14 @@ from core.plugin_base import VulnerabilityPlugin, PluginResult
 from utils.auth_session import load_session_profile
 from utils.http_session import resolve_use_tor
 from utils.proxy_env import build_proxy_env
+from utils.tor import tor_proxy_url
+
+
+def _nuclei_proxy_url() -> str:
+    proxy = tor_proxy_url()
+    if proxy.startswith("socks5h://"):
+        return "socks5://" + proxy[len("socks5h://"):]
+    return proxy
 
 
 class NucleiScannerPlugin(VulnerabilityPlugin):
@@ -50,6 +58,18 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
             
             # Executar varredura
             nuclei_results = self._run_nuclei_scan(prepared_target, context)
+
+            if nuclei_results.get("returncode", 1) != 0:
+                stderr = (nuclei_results.get("stderr") or "").strip()
+                stdout = (nuclei_results.get("stdout") or "").strip()
+                details = stderr or stdout or "Falha ao executar nuclei"
+                return PluginResult(
+                    success=False,
+                    plugin_name=self.name,
+                    execution_time=time.time() - start_time,
+                    data=nuclei_results,
+                    error=details,
+                )
             
             # Processar resultados
             processed_results = self._process_nuclei_results(nuclei_results, target)
@@ -136,6 +156,14 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                 '-retries', '1'
             ]
 
+            if use_tor:
+                # Nuclei possui suporte nativo a proxy; use flags explicitas
+                # para evitar depender apenas de variaveis de ambiente.
+                cmd.extend([
+                    '-p', _nuclei_proxy_url(),
+                    '-proxy-internal',
+                ])
+
             session_file = context.get("auth_session_file")
             if session_file:
                 profile = load_session_profile(session_file)
@@ -178,6 +206,8 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
             
             return {
                 'returncode': result.returncode,
+                'command': cmd,
+                'proxy': _nuclei_proxy_url() if use_tor else None,
                 'stdout': result.stdout,
                 'stderr': result.stderr,
                 'results': results,

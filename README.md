@@ -205,11 +205,18 @@ sudo apt install -y tor
 sudo systemctl enable --now tor
 
 # verificar se o SOCKS está ouvindo (padrão 9050)
-ss -lntp | rg ':9050\\b' || netstat -lntp | rg ':9050\\b'
+# use sem `-p` para não depender de root e sem regex com escape dobrado
+ss -ltn | rg '127\\.0\\.0\\.1:9050|:9050 ' || netstat -ltn | rg '127\\.0\\.0\\.1:9050|:9050 '
 ```
 
 Nota (systemd): no Debian/Kali, o processo que fica rodando normalmente aparece como `tor@default.service`.
 Você não precisa (e geralmente não consegue) dar `enable` diretamente nele; habilitar `tor.service` puxa o `tor@default.service` no boot.
+
+Se o `systemctl status tor@default` mostrar `active (running)` mas o comando acima nao retornar nada, valide sem filtro:
+
+```bash
+ss -ltn | rg '9050|9051'
+```
 
 Se a porta `9050` não estiver aberta, confira `/etc/tor/torrc` e garanta:
 
