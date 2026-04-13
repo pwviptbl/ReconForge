@@ -97,10 +97,15 @@ class StageReport(StageBase):
         sections: List[str] = []
 
         sections.append(self._section_header(state))
+
+        sections.append("---\n\n# 💼 PARTE EXECUTIVA\n")
         sections.append(self._section_ai(ai_report))
         sections.append(self._section_summary(state))
+
+        sections.append("---\n\n# 🛠️ PARTE TÉCNICA E DADOS BRUTOS\n")
         sections.append(self._section_confirmed(state))
         sections.append(self._section_partial(state))
+        sections.append(self._section_queued(state))
         sections.append(self._section_no_proof(state))
         sections.append(self._section_rejected(state))
         sections.append(self._section_recon(state))
@@ -180,6 +185,8 @@ class StageReport(StageBase):
 
             lines.append(f"### [{item.category.upper()}] {item.endpoint}")
             lines.append(f"- **Parâmetro:** `{item.parameter}`")
+            if item.candidate_payload:
+                lines.append(f"- **Payload:** `{item.candidate_payload}`")
             lines.append(f"- **Método:** `{item.method}`")
             lines.append(f"- **Contexto:** `{item.context}`")
             lines.append(f"- **Pipeline:** `{item.assigned_executor}`")
@@ -214,10 +221,32 @@ class StageReport(StageBase):
                 continue
             lines.append(f"### [{item.category.upper()}] {item.endpoint}")
             lines.append(f"- **Parâmetro:** `{item.parameter}`  |  **Método:** `{item.method}`")
-            lines.append(f"- **Sumário:** {ev.impact_summary}")
+            if item.candidate_payload:
+                lines.append(f"- **Payload:** `{item.candidate_payload}`")
+            lines.append(f"- **Sumário/Resultado:** {ev.impact_summary}")
             if ev.artifacts:
                 lines.append(f"- **Log:** `{ev.artifacts[0]}`")
             lines.append("")
+
+        return "\n".join(lines)
+
+    def _section_queued(self, state: WorkflowState) -> str:
+        ev_queue_ids = {e.queue_item_id for e in state.evidences}
+        queued_items = [i for i in state.queue_items if i.id not in ev_queue_ids]
+        
+        if not queued_items:
+            return ""
+
+        lines = [
+            "## 🔵 Findings Validados (Aguardando Teste / Sem Exploit Bem-Sucedido)\n",
+            "Estes findings passaram pela triagem, mas ainda não tiveram impacto provado.\n",
+            "| Categoria | Endpoint | Parâmetro | Payload | Prioridade |",
+            "|-----------|----------|-----------|---------|------------|",
+        ]
+
+        for item in queued_items:
+            payload = item.candidate_payload.replace('|', '&#124;') if item.candidate_payload else "-"
+            lines.append(f"| {item.category} | `{item.endpoint}` | `{item.parameter}` | `{payload}` | {item.priority} |")
 
         return "\n".join(lines)
 
@@ -229,16 +258,17 @@ class StageReport(StageBase):
         items_by_id = {i.id: i for i in state.queue_items}
         lines = [
             "## ⚪ Findings Sem Confirmação\n",
-            "| Categoria | Endpoint | Parâmetro | Sumário |",
-            "|-----------|----------|-----------|---------|",
+            "| Categoria | Endpoint | Parâmetro | Payload | Resultado |",
+            "|-----------|----------|-----------|---------|-----------|",
         ]
 
         for ev in none_evs:
             item = items_by_id.get(ev.queue_item_id)
             if not item:
                 continue
-            summary = ev.impact_summary[:80].replace("|", "/")
-            lines.append(f"| {item.category} | `{item.endpoint[:50]}` | `{item.parameter}` | {summary} |")
+            payload = item.candidate_payload.replace('|', '&#124;') if item.candidate_payload else "-"
+            summary = ev.impact_summary.replace("|", "/")
+            lines.append(f"| {item.category} | `{item.endpoint}` | `{item.parameter}` | `{payload}` | {summary} |")
 
         return "\n".join(lines)
 
@@ -249,19 +279,16 @@ class StageReport(StageBase):
 
         lines = [
             "## 🔴 Findings Descartados (ValidationGate)\n",
-            "| Categoria | Endpoint | Parâmetro | Motivo |",
-            "|-----------|----------|-----------|--------|",
+            "| Categoria | Endpoint | Parâmetro | Payload | Motivo |",
+            "|-----------|----------|-----------|---------|--------|",
         ]
 
-        for f in rejected[:50]:  # Limitar a 50 para não explodir o relatório
-            motivo = f.raw_evidence[:80].replace("|", "/") if f.raw_evidence else "threshold"
+        for f in rejected:
+            payload = f.candidate_payload.replace('|', '&#124;') if f.candidate_payload else "-"
+            motivo = f.raw_evidence.replace('|', '/') if f.raw_evidence else "threshold"
             lines.append(
-                f"| {f.category} | `{f.endpoint[:40]}` | "
-                f"`{f.parameter}` | {motivo} |"
+                f"| {f.category} | `{f.endpoint}` | `{f.parameter}` | `{payload}` | {motivo} |"
             )
-
-        if len(rejected) > 50:
-            lines.append(f"\n_... e mais {len(rejected) - 50} descartados._")
 
         return "\n".join(lines)
 
@@ -272,37 +299,44 @@ class StageReport(StageBase):
         techs = d.get("technologies", [])
         subdomains = d.get("subdomains", [])
         forms = d.get("forms", [])
+        endpoints = d.get("endpoints", [])
         request_nodes = d.get("request_nodes", [])
         interactions = d.get("interactions", [])
 
-        if not (hosts or ports or techs or subdomains or forms or request_nodes or interactions):
+        if not (hosts or ports or techs or subdomains or forms or request_nodes or interactions or endpoints):
             return ""
 
         lines = ["## 🔍 Descobertas de Reconhecimento\n"]
 
         if hosts:
-            lines.append(f"**Hosts:** {', '.join(str(h) for h in hosts[:20])}")
+            lines.append(f"**Hosts:** {', '.join(str(h) for h in hosts)}")
 
         if ports:
-            ports_str = ", ".join(str(p) for p in sorted(set(int(p) for p in ports if str(p).isdigit()))[:30])
+            ports_str = ", ".join(str(p) for p in sorted(set(int(p) for p in ports if str(p).isdigit())))
             lines.append(f"\n**Portas abertas:** {ports_str}")
 
         if techs:
             tech_names = []
-            for t in techs[:15]:
+            for t in techs:
                 name = t.get("name") if isinstance(t, dict) else str(t)
                 if name and name not in tech_names:
                     tech_names.append(name)
             lines.append(f"\n**Tecnologias:** {', '.join(tech_names)}")
 
         if subdomains:
-            lines.append(f"\n**Subdomínios:** {', '.join(str(s) for s in subdomains[:20])}")
+            lines.append(f"\n**Subdomínios:** {', '.join(str(s) for s in subdomains)}")
 
         if forms or request_nodes or interactions:
             lines.append(
                 "\n**Entradas Web Mapeadas:** "
                 f"forms={len(forms)}, requests={len(request_nodes)}, interactions={len(interactions)}"
             )
+
+        if endpoints:
+            lines.append(f"\n**Endpoints Mapeados ({len(endpoints)}):**")
+            for ep in endpoints:
+                url = ep["url"] if isinstance(ep, dict) and "url" in ep else str(ep)
+                lines.append(f"- `{url}`")
 
         return "\n".join(lines)
 
