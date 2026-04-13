@@ -144,6 +144,7 @@ class PortScannerPlugin(NetworkPlugin):
                     'services': services,
                     'hosts': sorted(hosts_with_open_ports),
                     'tor_mode': use_tor,
+                    'command': f"PortScanner(target={target}, ports={len(ports)} items, timeout={self.timeout}, threads={self.max_workers}, tor={use_tor})"
                 }
             )
 

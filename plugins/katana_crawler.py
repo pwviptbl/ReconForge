@@ -74,10 +74,23 @@ class KatanaCrawlerPlugin(WebPlugin):
             # Katana can accept a list file in newer versions; use per-seed execution
             # to keep compatibility across installs.
             env = build_proxy_env(use_tor=resolve_use_tor(self.config))
+            
+            # Determinar o dominio base do alvo para filtrar dominios externos
+            target_host = urlparse(seeds[0]).hostname.lower()
+
+            ignored_extensions = {
+                ".jpg", ".jpeg", ".png", ".gif", ".ico", ".svg", ".webp",
+                ".css", ".scss", ".less", ".js",
+                ".woff", ".woff2", ".ttf", ".eot", ".otf",
+                ".mp4", ".webm", ".avi", ".mp3", ".wav",
+                ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+                ".zip", ".tar", ".gz", ".7z", ".rar"
+            }
 
             endpoints: List[str] = []
             seen = set()
             raw_json: List[Dict[str, Any]] = []
+            commands: List[str] = []
 
             for seed in seeds:
                 cmd = [
@@ -89,6 +102,7 @@ class KatanaCrawlerPlugin(WebPlugin):
                     "-d",
                     str(depth),
                 ]
+                commands.append(" ".join(cmd))
 
                 # Run and parse JSONL output.
                 result = subprocess.run(
@@ -121,11 +135,25 @@ class KatanaCrawlerPlugin(WebPlugin):
                         raw_json.append(entry)
                         url = entry.get("url") or entry.get("request") or entry.get("endpoint")
                         if isinstance(url, str) and url.startswith(("http://", "https://")):
-                            if url not in seen:
-                                seen.add(url)
-                                endpoints.append(url)
-                                if len(endpoints) >= max_urls:
-                                    break
+                            if url in seen:
+                                continue
+                            
+                            parsed = urlparse(url)
+                            host = (parsed.hostname or parsed.netloc or "").lower()
+                            
+                            # Filtrar dominios externos
+                            if target_host and host != target_host and not host.endswith("." + target_host):
+                                continue
+                            
+                            # Filtrar extensoes estaticas
+                            path = parsed.path.lower()
+                            if any(path.endswith(ext) for ext in ignored_extensions):
+                                continue
+
+                            seen.add(url)
+                            endpoints.append(url)
+                            if len(endpoints) >= max_urls:
+                                break
                 if len(endpoints) >= max_urls:
                     break
 
@@ -138,6 +166,7 @@ class KatanaCrawlerPlugin(WebPlugin):
                     "endpoints": endpoints,
                     "endpoints_count": len(endpoints),
                     "raw": raw_json[:200],  # keep report size bounded
+                    "command": commands
                 },
                 summary=f"katana descobriu {len(endpoints)} endpoints (depth={depth}).",
             )

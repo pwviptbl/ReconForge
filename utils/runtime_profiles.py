@@ -14,7 +14,7 @@ PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "KatanaCrawlerPlugin",
             "WebFlowMapperPlugin",
         ],
-        "detect_plugins": [],
+        "detect_plugins": ["PassiveScannerPlugin"],
         "classic_plugins": [
             "PortScannerPlugin",
             "WhatWebScannerPlugin",
@@ -22,6 +22,7 @@ PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "KatanaCrawlerPlugin",
             "WebFlowMapperPlugin",
             "HeaderAnalyzerPlugin",
+            "PassiveScannerPlugin",
         ],
     },
     "web-test": {
@@ -44,6 +45,7 @@ PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "SSTIScannerPlugin",
             "HeaderAnalyzerPlugin",
             "NucleiScannerPlugin",
+            "PassiveScannerPlugin",
         ],
         "classic_plugins": [
             "PortScannerPlugin",
@@ -60,6 +62,7 @@ PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "SSTIScannerPlugin",
             "HeaderAnalyzerPlugin",
             "NucleiScannerPlugin",
+            "PassiveScannerPlugin",
         ],
     },
     "infra": {

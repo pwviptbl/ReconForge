@@ -64,6 +64,7 @@ class NmapScannerPlugin(NetworkPlugin):
             # Processar resultados
             processed_results = self._process_nmap_results(nmap_results, target)
             processed_results['tor_mode'] = use_tor
+            processed_results['command'] = nmap_results.get('command', [])
 
             execution_time = time.time() - start_time
 
@@ -159,6 +160,8 @@ class NmapScannerPlugin(NetworkPlugin):
         if use_tor:
             self.logger.debug(f"[Nmap] Comando com Tor: {' '.join(cmd)}")
 
+        executed_command = ' '.join(cmd)
+
         try:
             result = subprocess.run(
                 cmd,
@@ -176,7 +179,8 @@ class NmapScannerPlugin(NetworkPlugin):
                     'stdout': result.stdout,
                     'stderr': result.stderr,
                     'xml_content': xml_content,
-                    'scan_type': scan_type
+                    'scan_type': scan_type,
+                    'command': [executed_command]
                 }
             else:
                 return {
@@ -184,7 +188,8 @@ class NmapScannerPlugin(NetworkPlugin):
                     'stdout': result.stdout,
                     'stderr': result.stderr,
                     'xml_content': None,
-                    'scan_type': scan_type
+                    'scan_type': scan_type,
+                    'command': [executed_command]
                 }
 
         except subprocess.TimeoutExpired:

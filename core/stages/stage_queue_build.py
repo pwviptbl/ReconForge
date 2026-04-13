@@ -81,6 +81,33 @@ class StageQueueBuild(StageBase):
         expanded: List[Finding] = []
 
         for finding in findings:
+            # Se for um finding passivo, explodir em categorias de teste reais
+            if finding.category == "passive":
+                target_categories = ["xss", "sqli", "ssrf", "lfi", "idor"]
+                for cat in target_categories:
+                    clone = Finding.from_dict(finding.to_dict())
+                    clone.category = cat
+                    # Re-processar para encontrar RequestNode original se possível
+                    matches = find_request_template_matches(
+                        clone.endpoint,
+                        request_nodes,
+                        parameter=clone.parameter,
+                    )
+                    if matches:
+                        match = matches[0] # Pegar o melhor match
+                        request_node = match["request_node"]
+                        injection_point = match["injection_point"]
+                        clone.method = str(request_node.get("method") or clone.method or "GET").upper()
+                        clone.endpoint = str(request_node.get("url") or clone.endpoint)
+                        clone.parameter = str(injection_point.get("parameter_name") or clone.parameter)
+                        original_value = injection_point.get("original_value")
+                        if original_value not in (None, ""):
+                            clone.candidate_payload = str(original_value)
+                    
+                    expanded.append(clone)
+                continue
+
+            # Comportamento padrão para findings já categorizados
             matches = find_request_template_matches(
                 finding.endpoint,
                 request_nodes,

@@ -53,6 +53,7 @@ class WhatWebScannerPlugin(WebPlugin):
             findings = []
             technologies = []
             errors = []
+            commands = []
 
             for url in urls:
                 result = self._run_whatweb(url, aggression, timeout)
@@ -63,6 +64,8 @@ class WhatWebScannerPlugin(WebPlugin):
                 error = result.get('errors')
                 if error:
                     errors.append(error)
+                if result.get('command'):
+                    commands.append(result.get('command'))
 
             execution_time = time.time() - start_time
 
@@ -75,6 +78,7 @@ class WhatWebScannerPlugin(WebPlugin):
                     'technologies': technologies,
                     'findings': findings,
                     'errors': errors,
+                    'command': commands
                 },
                 error="; ".join(errors) if errors and not (findings or technologies) else None,
             )
@@ -137,6 +141,7 @@ class WhatWebScannerPlugin(WebPlugin):
         ]
 
         env = build_proxy_env(use_tor=resolve_use_tor(self.config))
+        executed_command = ' '.join(cmd)
         try:
             result = subprocess.run(
                 cmd,
@@ -153,7 +158,8 @@ class WhatWebScannerPlugin(WebPlugin):
             return {
                 'findings': [],
                 'technologies': [],
-                'errors': f"WhatWeb timeout em {url} apos {timeout}s"
+                'errors': f"WhatWeb timeout em {url} apos {timeout}s",
+                'command': executed_command
             }
 
         if result.returncode != 0:
@@ -161,7 +167,8 @@ class WhatWebScannerPlugin(WebPlugin):
             return {
                 'findings': [],
                 'technologies': [],
-                'errors': result.stderr.strip()
+                'errors': result.stderr.strip(),
+                'command': executed_command
             }
 
         findings = []
@@ -202,5 +209,6 @@ class WhatWebScannerPlugin(WebPlugin):
 
         return {
             'findings': findings,
-            'technologies': technologies
+            'technologies': technologies,
+            'command': executed_command
         }

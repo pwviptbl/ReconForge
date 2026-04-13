@@ -71,10 +71,11 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                     error=details,
                 )
             
-            # Processar resultados
-            processed_results = self._process_nuclei_results(nuclei_results, target)
-            
-            execution_time = time.time() - start_time
+        # Processar resultados
+        processed_results = self._process_nuclei_results(nuclei_results, target)
+        processed_results['command'] = nuclei_results.get('command', [])
+        
+        execution_time = time.time() - start_time
             
             return PluginResult(
                 success=True,
@@ -143,10 +144,10 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
             use_tor = resolve_use_tor(self.config)
             env = build_proxy_env(use_tor=use_tor)
 
-            # Ler timeout do config — default 600s (10 min) para cobrir medium+high+critical
+            # Ler timeout do config — default 3600s (60 min) para cobrir medium+high+critical
             timeout_seconds = int(
                 self.config.get("timeout")
-                or context.get("config", {}).get("plugins", {}).get("default_timeout", 600)
+                or context.get("config", {}).get("plugins", {}).get("default_timeout", 3600)
             )
             # Garantir mínimo razoável
             if timeout_seconds < 120:

@@ -71,6 +71,8 @@ class GauCollectorPlugin(WebPlugin):
                 cmd.append("--subs")
             cmd.append(domain)
 
+            executed_command = " ".join(cmd)
+
             env = build_proxy_env(use_tor=resolve_use_tor(self.config))
             result = subprocess.run(
                 cmd,
@@ -85,21 +87,36 @@ class GauCollectorPlugin(WebPlugin):
                     success=False,
                     plugin_name=self.name,
                     execution_time=time.time() - start_time,
-                    data={"stdout": result.stdout, "stderr": result.stderr},
+                    data={"stdout": result.stdout, "stderr": result.stderr, "command": [executed_command]},
                     error=result.stderr.strip() or "Falha ao executar gau",
                 )
 
             endpoints = []
             seen = set()
+            ignored_extensions = {
+                ".jpg", ".jpeg", ".png", ".gif", ".ico", ".svg", ".webp",
+                ".css", ".scss", ".less", ".js",
+                ".woff", ".woff2", ".ttf", ".eot", ".otf",
+                ".mp4", ".webm", ".avi", ".mp3", ".wav",
+                ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+                ".zip", ".tar", ".gz", ".7z", ".rar"
+            }
+
             for line in (result.stdout or "").splitlines():
                 url = line.strip()
                 if not url or url in seen:
                     continue
                 if not url.startswith(("http://", "https://")):
                     continue
-                host = urlparse(url).hostname or ""
+                parsed = urlparse(url)
+                host = parsed.hostname or ""
                 if domain not in host:
                     continue
+                
+                path = parsed.path.lower()
+                if any(path.endswith(ext) for ext in ignored_extensions):
+                    continue
+
                 seen.add(url)
                 endpoints.append(url)
                 if len(endpoints) >= max_urls:
@@ -113,6 +130,7 @@ class GauCollectorPlugin(WebPlugin):
                     "domain": domain,
                     "endpoints": endpoints,
                     "endpoints_count": len(endpoints),
+                    "command": [executed_command]
                 },
                 summary=f"gau coletou {len(endpoints)} URLs para {domain}.",
             )

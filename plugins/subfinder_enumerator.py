@@ -52,6 +52,8 @@ class SubfinderPlugin(NetworkPlugin):
             if silent:
                 cmd.append("-silent")
 
+            executed_command = " ".join(cmd)
+
             env = build_proxy_env(use_tor=use_tor)
             result = subprocess.run(
                 cmd,
@@ -66,7 +68,7 @@ class SubfinderPlugin(NetworkPlugin):
                     success=False,
                     plugin_name=self.name,
                     execution_time=time.time() - start_time,
-                    data={},
+                    data={"command": [executed_command]},
                     error=result.stderr.strip() or "Falha ao executar subfinder"
                 )
 
@@ -99,6 +101,7 @@ class SubfinderPlugin(NetworkPlugin):
                     'hosts': ips,
                     'raw_output': result.stdout.strip(),
                     'resolution_skipped_for_tor': bool(resolve_ips and use_tor),
+                    'command': [executed_command]
                 }
             )
 

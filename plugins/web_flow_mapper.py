@@ -194,6 +194,7 @@ class WebFlowMapperPlugin(WebPlugin):
         visited: Set[str] = set()
         errors: List[Dict[str, Any]] = []
         origin = urlparse(start_url).netloc
+        self._target_netloc = origin.lower()
 
         auth_profile = self._resolve_auth_profile(context_data, kwargs)
 
@@ -674,8 +675,16 @@ class WebFlowMapperPlugin(WebPlugin):
                     continue
             elif field_type == "radio":
                 locator.check()
+            elif field_type == "hidden":
+                # Nao preencher via Playwright fill (gera timeout), apenas registrar o valor original
+                value = field.get("value", "")
             else:
-                locator.fill(value)
+                # Apenas preencher se nao for hidden
+                try:
+                    locator.fill(value, timeout=2000)
+                except Exception:
+                    # Se falhar (ex: invisivel), ignorar acao de fill
+                    pass
 
             field["value"] = value
             prepared["data"][name] = value
@@ -1151,6 +1160,34 @@ class WebFlowMapperPlugin(WebPlugin):
         url = str(record.get("url") or "")
         if not url.startswith(("http://", "https://")):
             return False
+
+        # 1. Filtrar dominios externos (evitar google-analytics, cloudflare, etc.)
+        # Extrair dominio base do alvo (armazenado no plugin durante a execucao)
+        parsed_url = urlparse(url)
+        host = (parsed_url.hostname or parsed_url.netloc or "").lower()
+        
+        # Se temos o dominio do alvo mapeado (netloc da start_url)
+        if hasattr(self, "_target_netloc") and self._target_netloc:
+            if host != self._target_netloc and not host.endswith("." + self._target_netloc):
+                return False
+
+        # 2. Filtrar extensoes irrelevantes para seguranca web ativa
+        path = parsed_url.path.lower()
+        ignored_extensions = {
+            ".jpg", ".jpeg", ".png", ".gif", ".ico", ".svg", ".webp",
+            ".css", ".scss", ".less",
+            ".woff", ".woff2", ".ttf", ".eot", ".otf",
+            ".mp4", ".webm", ".avi", ".mp3", ".wav",
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".zip", ".tar", ".gz", ".7z", ".rar"
+        }
+        if any(path.endswith(ext) for ext in ignored_extensions):
+            return False
+            
+        # Opcional: Ignorar .js se nao for um scanner de seguranca de bibliotecas
+        if path.endswith(".js"):
+             return False
+
         resource_type = str(record.get("resource_type") or "").lower()
         if resource_type in {"image", "media", "font", "stylesheet"}:
             return False
@@ -1163,8 +1200,9 @@ class WebFlowMapperPlugin(WebPlugin):
         if callable(value):
             try:
                 return value(*args)
-            except TypeError:
-                return value
+            except (TypeError, Exception):
+                # Captura TargetClosedError e outros problemas de timing do Playwright
+                return None
         return value
 
     def _valid_cpf(self) -> str:

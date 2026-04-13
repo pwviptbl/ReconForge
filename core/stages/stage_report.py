@@ -110,6 +110,7 @@ class StageReport(StageBase):
         sections.append(self._section_partial(state))
         sections.append(self._section_queued(state))
         sections.append(self._section_no_proof(state))
+        sections.append(self._section_all_attempts(state))
         sections.append(self._section_rejected(state))
         sections.append(self._section_recon(state))
         sections.append(self._section_web_mapping(state))
@@ -272,6 +273,48 @@ class StageReport(StageBase):
             payload = item.candidate_payload.replace('|', '&#124;') if item.candidate_payload else "-"
             summary = ev.impact_summary.replace("|", "/")
             lines.append(f"| {item.category} | `{item.endpoint}` | `{item.parameter}` | `{payload}` | {summary} |")
+
+        return "\n".join(lines)
+
+    def _section_all_attempts(self, state: WorkflowState) -> str:
+        """Exibe o histórico completo de tentativas para transparência total."""
+        if not state.attempts:
+            return ""
+
+        items_by_id = {i.id: i for i in state.queue_items}
+        
+        lines = [
+            "## 🧪 Log de Exploração (Transparência Total)\n",
+            "> Lista de cada payload enviado e seu resultado direto observado pelo pipeline.\n",
+            "| Item ID | Endpoint | Parâmetro | Payload | Status | Executor |",
+            "|---------|----------|-----------|---------|--------|----------|",
+        ]
+
+        # Ordenar por item e número de tentativa
+        sorted_attempts = sorted(
+            state.attempts, 
+            key=lambda a: (a.queue_item_id, a.attempt_number)
+        )
+
+        for att in sorted_attempts:
+            item = items_by_id.get(att.queue_item_id)
+            endpoint = item.endpoint if item else "?"
+            parameter = item.parameter if item else "?"
+            
+            # Limpar payload para não quebrar a tabela markdown
+            payload = str(att.payload_used or "").replace('|', '&#124;').replace('\n', ' ')
+            if len(payload) > 50:
+                payload = payload[:47] + "..."
+            
+            status_icon = {
+                "impact_proven": "✅",
+                "partial": "🟡",
+                "failed": "❌",
+            }.get(att.status, "⚪")
+            
+            lines.append(
+                f"| `{att.queue_item_id[:8]}` | `{endpoint}` | `{parameter}` | `{payload}` | {status_icon} {att.status} | {att.executor} |"
+            )
 
         return "\n".join(lines)
 
@@ -598,6 +641,17 @@ class StageReport(StageBase):
 
         # Conteúdo principal — vem em data['data'] se vier de PluginResult.to_dict()
         payload: Dict[str, Any] = data.get("data", data)
+
+        # --- Comando Executado ---
+        command = payload.get("command")
+        if command:
+            lines.append("## 💻 Comando Executado\n")
+            lines.append("```bash")
+            if isinstance(command, list):
+                lines.append(" ".join(str(c) for c in command))
+            else:
+                lines.append(str(command))
+            lines.append("```\n")
 
         # --- Saídas textuais de ferramentas CLI ---
         raw_output = payload.get("raw_output") or payload.get("stdout") or payload.get("output")

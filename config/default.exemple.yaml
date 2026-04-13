@@ -56,7 +56,7 @@ plugins:
       - medium
       - high
       - critical
-      timeout: 300
+      timeout: 3600
     PortScannerPlugin:
       common_ports_only: false
       max_threads: 500             # Muitas threads para scan rápido
@@ -150,7 +150,7 @@ plugins:
     PortExposureAudit:
       allow_ports: []
       allow_services: []
-  default_timeout: 300
+  default_timeout: 3600
   directory: plugins
   enabled:
     DNSResolverPlugin: true
