@@ -1,6 +1,7 @@
 """
 Plugin de Scanner de Portas
-Baseado no scanner_portas_python.py do projeto original
+Baseado no scanner_portas_python.py do projeto original.
+Suporta roteamento via Tor usando PySocks (sockets SOCKS5).
 """
 
 import socket
@@ -16,65 +17,88 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.config import get_config
+from utils.http_session import resolve_use_tor
+from utils.tor import tor_proxy_url, ensure_tor_ready
+from utils.logger import get_logger
 
 
 class PortScannerPlugin(NetworkPlugin):
-    """Plugin para scanning de portas TCP"""
-    
+    """Plugin para scanning de portas TCP (com suporte a Tor via PySocks)"""
+
     def __init__(self):
         super().__init__()
-        self.description = "Scanner de portas TCP eficiente"
-        self.version = "1.0.0"
-        
+        self.description = "Scanner de portas TCP eficiente (suporte a Tor)"
+        self.version = "1.1.0"
+        self.logger = get_logger("PortScannerPlugin")
+
         # Configurações
         self.timeout = 1.0
         self.max_workers = 100
-        
+
         # Portas comuns para scan rápido
         self.common_ports = [
             21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445,
-            993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 
+            993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379,
             8000, 8080, 8096, 8443, 8085, 8090
         ]
-        
+
         # Serviços conhecidos
         self.known_services = {
             21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
             80: 'HTTP', 110: 'POP3', 135: 'RPC', 139: 'NetBIOS', 143: 'IMAP',
             443: 'HTTPS', 445: 'SMB', 993: 'IMAPS', 995: 'POP3S',
             1433: 'MSSQL', 1521: 'Oracle', 3306: 'MySQL', 3389: 'RDP',
-            5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis', 
+            5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis',
             8000: 'HTTP-Alt', 8080: 'HTTP-Proxy', 8096: 'Jellyfin/Media', 8443: 'HTTPS-Alt'
         }
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        """Executa scanning de portas"""
+        """Executa scanning de portas (com suporte a Tor via PySocks)"""
         start_time = time.time()
-        
+
         try:
+            # Configurar modo Tor
+            use_tor = resolve_use_tor(self.config)
+            if use_tor:
+                ensure_tor_ready(use_tor=True)
+                self.logger.info(
+                    "[PortScanner] Modo Tor ativo — sockets TCP roteados via SOCKS5. "
+                    "AVISO: scan via Tor é lento. Recomenda-se limitar portas."
+                )
+                # Tor não suporta UDP; reduzir concorrência para evitar sobrecarga
+                self.max_workers = min(self.max_workers, 10)
+                self.timeout = max(self.timeout, 5.0)
+
             # Ler configurações do YAML
             common_ports_only = get_config('plugins.config.PortScannerPlugin.common_ports_only', False)
             max_ports = get_config('plugins.config.PortScannerPlugin.max_ports', 1024)
             default_scan_type = get_config('plugins.config.PortScannerPlugin.scan_type', 'full')
             self.timeout = float(get_config('plugins.config.PortScannerPlugin.timeout', self.timeout))
             self.max_workers = int(get_config('plugins.config.PortScannerPlugin.max_threads', self.max_workers))
-            
+
             # Determinar tipo de scan baseado na configuração
             if common_ports_only:
                 scan_type = kwargs.get('scan_type', 'quick')
             else:
                 scan_type = kwargs.get('scan_type', default_scan_type)
-            
+
             # Determinar portas a escanear
             if scan_type == 'quick':
                 ports = self.common_ports
             elif scan_type == 'full':
-                ports = list(range(1, 1024))  # Well-known ports
+                ports = list(range(1, 1024))
             elif scan_type == 'extended':
-                ports = list(range(1, max_ports + 1))  # Extended range based on config
+                ports = list(range(1, max_ports + 1))
             else:
                 ports = kwargs.get('ports', self.common_ports)
-            
+
+            # Via Tor, limitar a portas comuns se range grande
+            if use_tor and len(ports) > len(self.common_ports) * 2:
+                self.logger.warning(
+                    f"[PortScanner] Limitando scan a {len(self.common_ports)} portas comuns no modo Tor."
+                )
+                ports = self.common_ports
+
             # Resolver target para IP(s)
             target_ips = self._resolve_targets(target)
             if not target_ips:
@@ -85,13 +109,13 @@ class PortScannerPlugin(NetworkPlugin):
                     data={},
                     error=f"Não foi possível resolver: {target}"
                 )
-            
+
             # Executar scan por IP
             open_ports = []
             services = []
             hosts_with_open_ports = set()
             for ip in target_ips:
-                ip_open_ports = self._scan_ports(ip, ports)
+                ip_open_ports = self._scan_ports(ip, ports, use_tor=use_tor)
                 if ip_open_ports:
                     hosts_with_open_ports.add(ip)
                 open_ports.extend(ip_open_ports)
@@ -103,9 +127,9 @@ class PortScannerPlugin(NetworkPlugin):
                         'host': ip
                     })
             open_ports = sorted(set(open_ports))
-            
+
             execution_time = time.time() - start_time
-            
+
             return PluginResult(
                 success=True,
                 plugin_name=self.name,
@@ -118,10 +142,11 @@ class PortScannerPlugin(NetworkPlugin):
                     'total_ports_scanned': len(ports),
                     'open_ports': open_ports,
                     'services': services,
-                    'hosts': sorted(hosts_with_open_ports)
+                    'hosts': sorted(hosts_with_open_ports),
+                    'tor_mode': use_tor,
                 }
             )
-            
+
         except Exception as e:
             return PluginResult(
                 success=False,
@@ -164,27 +189,54 @@ class PortScannerPlugin(NetworkPlugin):
             except socket.error:
                 return []
     
-    def _scan_ports(self, ip: str, ports: List[int]) -> List[int]:
-        """Escaneia portas usando múltiplas threads"""
+    def _scan_ports(self, ip: str, ports: List[int], use_tor: bool = False) -> List[int]:
+        """Escaneia portas usando múltiplas threads (suporte a Tor via PySocks)"""
         open_ports = []
         lock = threading.Lock()
-        
+
+        # Configurar proxy SOCKS5 se Tor estiver habilitado
+        socks_proxy = None
+        if use_tor:
+            try:
+                import socks as pysocks
+                from urllib.parse import urlsplit
+                proxy_url = tor_proxy_url()
+                parsed = urlsplit(proxy_url)
+                socks_proxy = {
+                    'host': parsed.hostname or '127.0.0.1',
+                    'port': parsed.port or 9050,
+                }
+            except ImportError:
+                self.logger.warning("[PortScanner] PySocks não instalado. Tor não será usado para sockets raw.")
+
         def scan_port(port: int):
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                if socks_proxy:
+                    # Usar socket SOCKS5 via PySocks
+                    import socks as pysocks
+                    sock = pysocks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.set_proxy(
+                        pysocks.SOCKS5,
+                        socks_proxy['host'],
+                        socks_proxy['port'],
+                        rdns=True  # resolver DNS no proxy (evita DNS leak)
+                    )
+                else:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
                 sock.settimeout(self.timeout)
                 result = sock.connect_ex((ip, port))
-                
+
                 if result == 0:
                     with lock:
                         open_ports.append(port)
-                
+
                 sock.close()
-            except:
+            except Exception:
                 pass
-        
+
         # Usar ThreadPoolExecutor para controlar concorrência
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             executor.map(scan_port, ports)
-        
+
         return sorted(open_ports)

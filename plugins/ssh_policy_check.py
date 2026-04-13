@@ -1,6 +1,7 @@
 """
 Plugin para avaliacao de politicas SSH.
 Analisa algoritmos anunciados e identifica opcoes fracas.
+Suporta roteamento via Tor passando --proxies ao nmap.
 """
 
 import subprocess
@@ -13,22 +14,26 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from utils.http_session import resolve_use_tor
+from utils.tor import tor_proxy_url, ensure_tor_ready
+from utils.logger import get_logger
 
 
 class SSHPolicyCheck(NetworkPlugin):
-    """Verifica algoritmos SSH e sinaliza politicas fracas."""
+    """Verifica algoritmos SSH e sinaliza politicas fracas (com suporte a Tor)."""
 
     def __init__(self):
         super().__init__()
         self.name = "SSHPolicyCheck"
         self.description = "Avalia algoritmos SSH (KEX, cifragem, MAC e chaves) e detecta opcoes fracas."
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.requirements = ["nmap"]
         self.supported_targets = ["ip", "domain"]
         self.config = {
             "nmap_timeout": 180,
             "timing": "T3"
         }
+        self.logger = get_logger("SSHPolicyCheck")
 
         self.weak_algorithms = {
             "kex": {
@@ -65,6 +70,12 @@ class SSHPolicyCheck(NetworkPlugin):
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         start_time = time.time()
 
+        # Verificar modo Tor
+        use_tor = resolve_use_tor(self.config)
+        if use_tor:
+            ensure_tor_ready(use_tor=True)
+            self.logger.info("[SSHPolicyCheck] Modo Tor ativo — nmap usará --proxies")
+
         ssh_ports = self._detect_ssh_ports(context)
         if not ssh_ports:
             return PluginResult(
@@ -79,7 +90,7 @@ class SSHPolicyCheck(NetworkPlugin):
         recommendations = []
 
         for port in ssh_ports:
-            data = self._run_nmap(target, port)
+            data = self._run_nmap(target, port, use_tor=use_tor)
             if not data:
                 continue
 
@@ -111,7 +122,8 @@ class SSHPolicyCheck(NetworkPlugin):
                 "ssh_ports": ssh_ports,
                 "results": results,
                 "summary": summary,
-                "recommendations": recommendations
+                "recommendations": recommendations,
+                "tor_mode": use_tor,
             },
             summary=f"Portas analisadas: {summary.get('ports_checked', 0)}."
         )
@@ -140,21 +152,29 @@ class SSHPolicyCheck(NetworkPlugin):
 
         return sorted(ssh_ports)
 
-    def _run_nmap(self, target: str, port: int) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    def _run_nmap(self, target: str, port: int, use_tor: bool = False) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+        """Executa nmap para enumerar algoritmos SSH (com suporte a Tor via --proxies)"""
         timing = self.config.get("timing", "T3")
         timeout = int(self.config.get("nmap_timeout", 180))
-        cmd = [
-            "nmap",
-            f"-{timing}",
-            "-sV",
-            "-p",
-            str(port),
-            "--script",
-            "ssh2-enum-algos",
-            "-oX",
-            "-",
+
+        cmd = ["nmap", f"-{timing}"]
+
+        # Adicionar proxy Tor se habilitado
+        if use_tor:
+            proxy_url = tor_proxy_url()
+            nmap_proxy = proxy_url.replace("socks5h://", "socks5://").replace("socks4a://", "socks4://")
+            cmd.extend(["--proxies", nmap_proxy])
+            # Forcar TCP connect (compatível com proxy)
+            cmd.append("-sT")
+        else:
+            cmd.append("-sV")
+
+        cmd.extend([
+            "-p", str(port),
+            "--script", "ssh2-enum-algos",
+            "-oX", "-",
             target
-        ]
+        ])
 
         try:
             result = subprocess.run(

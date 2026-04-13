@@ -1,6 +1,7 @@
 """
 Plugin de varredura Nmap
-Utiliza o Nmap para varreduras completas de rede e detecção de serviços
+Utiliza o Nmap para varreduras completas de rede e detecção de serviços.
+Suporta roteamento via Tor usando `--proxies socks5://127.0.0.1:9050`.
 """
 
 import subprocess
@@ -17,24 +18,28 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
+from utils.http_session import resolve_use_tor
+from utils.tor import tor_proxy_url, ensure_tor_ready
+from utils.logger import get_logger
 
 
 class NmapScannerPlugin(NetworkPlugin):
-    """Plugin para varreduras Nmap avançadas"""
-    
+    """Plugin para varreduras Nmap avançadas com suporte a Tor"""
+
     def __init__(self):
         super().__init__()
-        self.description = "Varredura Nmap completa com detecção de serviços e scripts NSE"
-        self.version = "1.1.0"
+        self.description = "Varredura Nmap completa com detecção de serviços e scripts NSE (suporte a Tor)"
+        self.version = "1.2.0"
         self.requirements = ["nmap"]
         self.supported_targets = ["ip", "cidr", "domain"]
+        self.logger = get_logger("NmapScannerPlugin")
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        """Executa varredura Nmap"""
+        """Executa varredura Nmap (com suporte a Tor via --proxies)"""
         start_time = time.time()
-        
+
         try:
-            # Verificar se nmap está disponível
+            # Verificar se Nmap está disponível
             if not self._check_nmap_available():
                 return PluginResult(
                     success=False,
@@ -43,25 +48,32 @@ class NmapScannerPlugin(NetworkPlugin):
                     data={},
                     error="Nmap não está instalado ou não está no PATH"
                 )
-            
+
+            # Verificar modo Tor
+            use_tor = resolve_use_tor(self.config)
+            if use_tor:
+                ensure_tor_ready(use_tor=True)
+                self.logger.info("[Nmap] Modo Tor ativo — usando --proxies socks5://127.0.0.1:9050")
+
             # Determinar tipo de varredura baseado no contexto
             scan_type = self._determine_scan_type(target, context)
-            
+
             # Executar varredura
-            nmap_results = self._run_nmap_scan(target, scan_type, context)
-            
+            nmap_results = self._run_nmap_scan(target, scan_type, context, use_tor=use_tor)
+
             # Processar resultados
             processed_results = self._process_nmap_results(nmap_results, target)
-            
+            processed_results['tor_mode'] = use_tor
+
             execution_time = time.time() - start_time
-            
+
             return PluginResult(
                 success=True,
                 plugin_name=self.name,
                 execution_time=execution_time,
                 data=processed_results
             )
-            
+
         except Exception as e:
             return PluginResult(
                 success=False,
@@ -102,57 +114,63 @@ class NmapScannerPlugin(NetworkPlugin):
         # Varredura padrão
         return 'standard'
     
-    def _run_nmap_scan(self, target: str, scan_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Executa varredura Nmap específica"""
+    def _run_nmap_scan(self, target: str, scan_type: str, context: Dict[str, Any], use_tor: bool = False) -> Dict[str, Any]:
+        """Executa varredura Nmap específica (com suporte a Tor via --proxies)"""
         # Definir comando baseado no tipo
         base_cmd = ['nmap', '-T4']
-        
+
+        # Adicionar suporte a Tor via proxy SOCKS5 nativo do Nmap
+        if use_tor:
+            # Nmap suporta --proxies para rotear TCP via SOCKS5
+            # NOTA: scans SYN (-sS) não funcionam via proxy; usar -sT (TCP connect)
+            proxy_url = tor_proxy_url()
+            # Nmap aceita socks4:// ou socks5:// (sem o 'h' do socks5h://)
+            nmap_proxy = proxy_url.replace("socks5h://", "socks5://").replace("socks4a://", "socks4://")
+            base_cmd.extend(['--proxies', nmap_proxy])
+            # Forçar TCP connect scan (compatível com proxy)
+            base_cmd = [c for c in base_cmd if c not in ('-sS',)]
+
         if scan_type == 'host_discovery':
             cmd = base_cmd + ['-sn', target]
             timeout = 180
         elif scan_type == 'service_detection':
-            # Scan aprofundado com detecção de SO, serviços, scripts padrão e de vulnerabilidade
-            cmd = base_cmd + [
-                '-sS', '-sU', '-sV', '-O',
-                '--script', 'default,vuln'
-            ]
-            # Otimização: se já conhecemos as portas, escanear apenas elas
+            # Para scan via Tor, usar -sT em vez de -sS
+            flags = ['-sT', '-sV'] if use_tor else ['-sS', '-sU', '-sV', '-O']
+            cmd = base_cmd + flags + ['--script', 'default,vuln']
             open_ports = context.get('discoveries', {}).get('open_ports')
             if open_ports:
                 ports_str = ','.join(map(str, open_ports))
                 cmd.extend(['-p', ports_str])
             else:
                 cmd.extend(['--top-ports', '1000'])
-
             cmd.append(target)
-            timeout = 1200  # Aumentar timeout para scan aprofundado
+            timeout = 1200
         else:  # standard
-            cmd = base_cmd + ['-sS', '-sV', '--top-ports', '100', target]
+            flags = ['-sT', '-sV'] if use_tor else ['-sS', '-sV']
+            cmd = base_cmd + flags + ['--top-ports', '100', target]
             timeout = 120
-        
+
         # Adicionar output XML
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
             xml_file = f.name
-        
+
         cmd.extend(['-oX', xml_file])
-        
+
+        if use_tor:
+            self.logger.debug(f"[Nmap] Comando com Tor: {' '.join(cmd)}")
+
         try:
-            # Executar comando
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout
             )
-            
-            # Ler resultado XML
+
             if Path(xml_file).exists():
                 with open(xml_file, 'r') as f:
                     xml_content = f.read()
-                
-                # Limpar arquivo temporário
                 Path(xml_file).unlink(missing_ok=True)
-                
                 return {
                     'returncode': result.returncode,
                     'stdout': result.stdout,
@@ -168,7 +186,7 @@ class NmapScannerPlugin(NetworkPlugin):
                     'xml_content': None,
                     'scan_type': scan_type
                 }
-                
+
         except subprocess.TimeoutExpired:
             Path(xml_file).unlink(missing_ok=True)
             raise Exception(f"Nmap timeout após {timeout} segundos")

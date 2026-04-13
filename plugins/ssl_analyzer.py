@@ -1,6 +1,7 @@
 """
 Plugin de Análise SSL/TLS
-Analisa certificados e configurações SSL/TLS
+Analisa certificados e configurações SSL/TLS.
+Suporta roteamento via Tor: socket SOCKS5 (PySocks) + ssl.wrap_socket.
 """
 
 import ssl
@@ -19,26 +20,36 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.config import get_config
+from utils.http_session import resolve_use_tor
+from utils.tor import tor_proxy_url, ensure_tor_ready
+from utils.logger import get_logger
 
 
 class SSLAnalyzerPlugin(NetworkPlugin):
-    """Plugin para análise de SSL/TLS e certificados"""
-    
+    """Plugin para análise de SSL/TLS e certificados (com suporte a Tor)"""
+
     def __init__(self):
         super().__init__()
-        self.description = "Análise completa de SSL/TLS e certificados digitais"
-        self.version = "1.0.0"
+        self.description = "Análise completa de SSL/TLS e certificados digitais (suporte a Tor via PySocks)"
+        self.version = "1.1.0"
         self.supported_targets = ["domain", "url", "ip"]
-        
+        self.logger = get_logger("SSLAnalyzerPlugin")
+
         # Configurações padrão
         self.timeout = 10
         self.check_vulnerabilities = True
         self.verify_chain = True
         
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        """Executa análise SSL/TLS"""
+        """Executa análise SSL/TLS (com suporte a Tor via PySocks)"""
         start_time = time.time()
-        
+
+        # Configurar modo Tor
+        use_tor = resolve_use_tor(self.config)
+        if use_tor:
+            ensure_tor_ready(use_tor=True)
+            self.logger.info("[SSLAnalyzer] Modo Tor ativo — socket SSL roteado via SOCKS5")
+
         try:
             # Ler configurações do YAML
             self.check_vulnerabilities = get_config('plugins.config.SSLAnalyzerPlugin.check_vulnerabilities', True)
@@ -67,9 +78,9 @@ class SSLAnalyzerPlugin(NetworkPlugin):
             hosts = []
             
             # Verificar se o serviço SSL está disponível
-            ssl_available = self._check_ssl_availability(hostname, port)
+            ssl_available = self._check_ssl_availability(hostname, port, use_tor=use_tor)
             results['ssl_available'] = ssl_available
-            
+
             if not ssl_available:
                 return PluginResult(
                     success=True,
@@ -81,38 +92,38 @@ class SSLAnalyzerPlugin(NetworkPlugin):
                         'message': 'SSL/TLS não está disponível neste target'
                     }
                 )
-            
+
             # Análise do certificado
-            results['certificate_analysis'] = self._analyze_certificate(hostname, port)
-            
+            results['certificate_analysis'] = self._analyze_certificate(hostname, port, use_tor=use_tor)
+
             # Análise de configuração SSL/TLS
-            results['ssl_configuration'] = self._analyze_ssl_configuration(hostname, port)
-            
+            results['ssl_configuration'] = self._analyze_ssl_configuration(hostname, port, use_tor=use_tor)
+
             # Análise de cifras
             if analyze_ciphers:
-                results['cipher_analysis'] = self._analyze_ciphers(hostname, port)
-            
+                results['cipher_analysis'] = self._analyze_ciphers(hostname, port, use_tor=use_tor)
+
             # Verificação de vulnerabilidades
             if self.check_vulnerabilities:
-                results['vulnerability_scan'] = self._scan_ssl_vulnerabilities(hostname, port)
-            
+                results['vulnerability_scan'] = self._scan_ssl_vulnerabilities(hostname, port, use_tor=use_tor)
+
             # Verificação HSTS
             if check_hsts:
                 results['hsts_analysis'] = self._check_hsts_header(hostname, port)
-            
+
             # Verificação de revogação
             if check_revocation:
                 results['revocation_check'] = self._check_certificate_revocation(hostname, port)
-            
+
             # Adicionar hostname aos hosts descobertos
             try:
                 host_ip = socket.gethostbyname(hostname)
                 hosts.append(host_ip)
-            except:
+            except Exception:
                 pass
-            
+
             execution_time = time.time() - start_time
-            
+
             return PluginResult(
                 success=True,
                 plugin_name=self.name,
@@ -120,7 +131,8 @@ class SSLAnalyzerPlugin(NetworkPlugin):
                 data={
                     **results,
                     'ssl_enabled': True,
-                    'hosts': hosts
+                    'hosts': hosts,
+                    'tor_mode': use_tor,
                 }
             )
             
@@ -177,79 +189,102 @@ class SSLAnalyzerPlugin(NetworkPlugin):
         except Exception:
             return None, None
     
-    def _check_ssl_availability(self, hostname: str, port: int) -> bool:
-        """Verifica se SSL está disponível no target"""
+    def _check_ssl_availability(self, hostname: str, port: int, use_tor: bool = False) -> bool:
+        """Verifica se SSL está disponível no target (via Tor se habilitado)"""
         try:
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
-            
-            with socket.create_connection((hostname, port), timeout=self.timeout) as sock:
-                with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+
+            if use_tor:
+                try:
+                    import socks as pysocks
+                    from utils.tor import tor_proxy_url
+                    from urllib.parse import urlsplit
+                    parsed = urlsplit(tor_proxy_url())
+                    raw = pysocks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+                    raw.set_proxy(pysocks.SOCKS5, parsed.hostname or '127.0.0.1', parsed.port or 9050, rdns=True)
+                    raw.settimeout(self.timeout)
+                    raw.connect((hostname, port))
+                    context.wrap_socket(raw, server_hostname=hostname).close()
                     return True
-                    
+                except Exception:
+                    return False
+            else:
+                with socket.create_connection((hostname, port), timeout=self.timeout) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname):
+                        return True
+
         except Exception:
             return False
     
-    def _analyze_certificate(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Analisa o certificado SSL"""
+    def _analyze_certificate(self, hostname: str, port: int, use_tor: bool = False) -> Dict[str, Any]:
+        """Analisa o certificado SSL (via Tor se habilitado)"""
         try:
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
-            
-            with socket.create_connection((hostname, port), timeout=self.timeout) as sock:
-                with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                    cert = ssock.getpeercert()
-                    cert_der = ssock.getpeercert(binary_form=True)
-                    
-                    # Informações básicas do certificado
-                    cert_info = {
-                        'subject': dict(x[0] for x in cert.get('subject', [])),
-                        'issuer': dict(x[0] for x in cert.get('issuer', [])),
-                        'version': cert.get('version'),
-                        'serial_number': cert.get('serialNumber'),
-                        'not_before': cert.get('notBefore'),
-                        'not_after': cert.get('notAfter'),
-                        'signature_algorithm': cert.get('signatureAlgorithm'),
-                        'public_key_info': self._analyze_public_key(cert),
-                        'extensions': self._analyze_extensions(cert),
-                        'san_list': cert.get('subjectAltName', []),
-                        'is_self_signed': self._is_self_signed(cert),
-                        'validation_status': self._validate_certificate_chain(hostname, port)
-                    }
-                    
-                    # Análise de validade
-                    cert_info['validity_analysis'] = self._analyze_certificate_validity(cert)
-                    
-                    # Análise de segurança
-                    cert_info['security_analysis'] = self._analyze_certificate_security(cert)
-                    
-                    return cert_info
-                    
+
+            if use_tor:
+                import socks as pysocks
+                from utils.tor import tor_proxy_url
+                from urllib.parse import urlsplit
+                parsed = urlsplit(tor_proxy_url())
+                raw = pysocks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+                raw.set_proxy(pysocks.SOCKS5, parsed.hostname or '127.0.0.1', parsed.port or 9050, rdns=True)
+                raw.settimeout(self.timeout)
+                raw.connect((hostname, port))
+                ssock = context.wrap_socket(raw, server_hostname=hostname)
+            else:
+                _conn = socket.create_connection((hostname, port), timeout=self.timeout)
+                ssock = context.wrap_socket(_conn, server_hostname=hostname)
+
+            try:
+                cert = ssock.getpeercert()
+                cert_der = ssock.getpeercert(binary_form=True)
+
+                cert_info = {
+                    'subject': dict(x[0] for x in cert.get('subject', [])),
+                    'issuer': dict(x[0] for x in cert.get('issuer', [])),
+                    'version': cert.get('version'),
+                    'serial_number': cert.get('serialNumber'),
+                    'not_before': cert.get('notBefore'),
+                    'not_after': cert.get('notAfter'),
+                    'signature_algorithm': cert.get('signatureAlgorithm'),
+                    'public_key_info': self._analyze_public_key(cert),
+                    'extensions': self._analyze_extensions(cert),
+                    'san_list': cert.get('subjectAltName', []),
+                    'is_self_signed': self._is_self_signed(cert),
+                    'validation_status': self._validate_certificate_chain(hostname, port)
+                }
+                cert_info['validity_analysis'] = self._analyze_certificate_validity(cert)
+                cert_info['security_analysis'] = self._analyze_certificate_security(cert)
+                return cert_info
+            finally:
+                ssock.close()
+
         except Exception as e:
             return {'error': str(e)}
     
-    def _analyze_ssl_configuration(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Analisa configuração SSL/TLS"""
+    def _analyze_ssl_configuration(self, hostname: str, port: int, use_tor: bool = False) -> Dict[str, Any]:
+        """Analisa configuração SSL/TLS (use_tor propagado para sub-métodos)"""
         try:
             config_info = {
-                'supported_protocols': self._get_supported_protocols(hostname, port),
-                'preferred_cipher': self._get_preferred_cipher(hostname, port),
+                'supported_protocols': self._get_supported_protocols(hostname, port, use_tor=use_tor),
+                'preferred_cipher': self._get_preferred_cipher(hostname, port, use_tor=use_tor),
                 'compression_support': self._check_compression_support(hostname, port),
                 'renegotiation_support': self._check_renegotiation_support(hostname, port),
                 'session_resumption': self._check_session_resumption(hostname, port)
             }
-            
+
             return config_info
-            
+
         except Exception as e:
             return {'error': str(e)}
     
-    def _analyze_ciphers(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Analisa cifras suportadas"""
+    def _analyze_ciphers(self, hostname: str, port: int, use_tor: bool = False) -> Dict[str, Any]:
+        """Analisa cifras suportadas (propaga use_tor para _test_cipher_support)"""
         try:
-            # Lista de cifras para testar
             cipher_suites = [
                 'ECDHE-RSA-AES256-GCM-SHA384',
                 'ECDHE-RSA-AES128-GCM-SHA256',
@@ -259,22 +294,20 @@ class SSLAnalyzerPlugin(NetworkPlugin):
                 'AES128-GCM-SHA256',
                 'AES256-SHA256',
                 'AES128-SHA256',
-                'DES-CBC3-SHA',  # Weak
-                'RC4-SHA',       # Weak
-                'NULL-SHA'       # Very weak
+                'DES-CBC3-SHA',  # Fraca
+                'RC4-SHA',       # Fraca
+                'NULL-SHA'       # Muito fraca
             ]
-            
+
             supported_ciphers = []
             weak_ciphers = []
-            
+
             for cipher in cipher_suites:
-                if self._test_cipher_support(hostname, port, cipher):
+                if self._test_cipher_support(hostname, port, cipher, use_tor=use_tor):
                     supported_ciphers.append(cipher)
-                    
-                    # Identificar cifras fracas
                     if any(weak in cipher for weak in ['DES', 'RC4', 'NULL', 'MD5']):
                         weak_ciphers.append(cipher)
-            
+
             return {
                 'supported_ciphers': supported_ciphers,
                 'total_supported': len(supported_ciphers),
@@ -282,55 +315,48 @@ class SSLAnalyzerPlugin(NetworkPlugin):
                 'security_level': self._assess_cipher_security(supported_ciphers),
                 'perfect_forward_secrecy': any('ECDHE' in cipher for cipher in supported_ciphers)
             }
-            
+
         except Exception as e:
             return {'error': str(e)}
     
-    def _scan_ssl_vulnerabilities(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Escaneia vulnerabilidades SSL conhecidas"""
+    def _scan_ssl_vulnerabilities(self, hostname: str, port: int, use_tor: bool = False) -> Dict[str, Any]:
+        """Escaneia vulnerabilidades SSL conhecidas (use_tor propagado para sub-checagens)"""
         try:
             vulnerabilities = {
-                'heartbleed': self._check_heartbleed(hostname, port),
-                'poodle': self._check_poodle(hostname, port),
+                'heartbleed': self._check_heartbleed(hostname, port, use_tor=use_tor),
+                'poodle': self._check_poodle(hostname, port, use_tor=use_tor),
                 'beast': self._check_beast(hostname, port),
                 'freak': self._check_freak(hostname, port),
                 'logjam': self._check_logjam(hostname, port),
                 'drown': self._check_drown(hostname, port),
                 'weak_rsa': self._check_weak_rsa(hostname, port)
             }
-            
-            # Contar vulnerabilidades encontradas
-            vuln_count = sum(1 for vuln in vulnerabilities.values() 
-                           if isinstance(vuln, dict) and vuln.get('vulnerable', False))
-            
+
+            vuln_count = sum(
+                1 for vuln in vulnerabilities.values()
+                if isinstance(vuln, dict) and vuln.get('vulnerable', False)
+            )
+
             vulnerabilities['summary'] = {
                 'total_vulnerabilities': vuln_count,
                 'risk_level': self._assess_vulnerability_risk(vulnerabilities)
             }
-            
+
             return vulnerabilities
-            
+
         except Exception as e:
             return {'error': str(e)}
     
     def _check_hsts_header(self, hostname: str, port: int) -> Dict[str, Any]:
-        """Verifica cabeçalho HSTS"""
+        """Verifica cabeçalho HSTS via requests (suporta Tor via sessão global)"""
         try:
-            import http.client
-            
-            # Fazer requisição HTTPS
-            if port == 443:
-                conn = http.client.HTTPSConnection(hostname, timeout=self.timeout)
-            else:
-                conn = http.client.HTTPSConnection(hostname, port, timeout=self.timeout)
-            
-            conn.request("HEAD", "/")
-            response = conn.getresponse()
-            
-            hsts_header = response.getheader('Strict-Transport-Security')
-            
+            from utils.http_session import create_requests_session
+            session = create_requests_session(plugin_config=self.config)
+            url = f"https://{hostname}:{port}/" if port != 443 else f"https://{hostname}/"
+            resp = session.head(url, timeout=self.timeout, verify=False, allow_redirects=True)
+            hsts_header = resp.headers.get('Strict-Transport-Security')
+
             if hsts_header:
-                # Parsear cabeçalho HSTS
                 hsts_info = self._parse_hsts_header(hsts_header)
                 hsts_info['present'] = True
                 return hsts_info
@@ -339,7 +365,7 @@ class SSLAnalyzerPlugin(NetworkPlugin):
                     'present': False,
                     'recommendation': 'Implementar cabeçalho HSTS para maior segurança'
                 }
-                
+
         except Exception as e:
             return {'error': str(e)}
         finally:

@@ -1,6 +1,7 @@
 """
 Plugin de Análise de Tráfego
-Analisa padrões de tráfego de rede e detecta anomalias
+Analisa padrões de tráfego de rede e detecta anomalias.
+Suporta roteamento via Tor quando habilitado na config.
 """
 
 import time
@@ -19,22 +20,26 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.config import get_config
+from utils.http_session import create_requests_session, resolve_use_tor
+from utils.tor import ensure_tor_ready
+from utils.logger import get_logger
 
 
 class TrafficAnalyzerPlugin(NetworkPlugin):
-    """Plugin para análise de tráfego de rede"""
-    
+    """Plugin para análise de tráfego de rede (com suporte a Tor)"""
+
     def __init__(self):
         super().__init__()
-        self.description = "Análise de padrões de tráfego de rede e detecção de anomalias"
-        self.version = "1.0.0"
+        self.description = "Análise de padrões de tráfego de rede e detecção de anomalias (suporte a Tor)"
+        self.version = "1.1.0"
         self.supported_targets = ["ip", "domain", "url"]
-        
+        self.logger = get_logger("TrafficAnalyzerPlugin")
+
         # Configurações padrão
         self.capture_duration = 60
         self.analysis_window = 300
         self.anomaly_threshold = 2.5
-        
+
         # Dados coletados
         self.traffic_data = []
         self.connection_stats = defaultdict(int)
@@ -43,9 +48,18 @@ class TrafficAnalyzerPlugin(NetworkPlugin):
         self.response_times = []
         
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        """Executa análise de tráfego"""
+        """Executa análise de tráfego (com suporte a Tor)"""
         start_time = time.time()
-        
+
+        # Configurar modo Tor
+        use_tor = resolve_use_tor(self.config)
+        if use_tor:
+            ensure_tor_ready(use_tor=True)
+            self.logger.info("[TrafficAnalyzer] Modo Tor ativo — requisições HTTP via SOCKS5")
+
+        # Sessão requests com proxy Tor
+        session = create_requests_session(plugin_config=self.config)
+
         try:
             # Ler configurações do YAML
             self.capture_duration = get_config('plugins.config.TrafficAnalyzerPlugin.capture_duration', 60)

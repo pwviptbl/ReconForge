@@ -1,6 +1,7 @@
 """
 Plugin de Analise de Headers HTTP
 Verifica headers de seguranca e informacoes de servidor.
+Suporta roteamento via Tor quando habilitado na config.
 """
 
 import ssl
@@ -15,20 +16,30 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import WebPlugin, PluginResult
+from utils.http_session import create_requests_session, resolve_use_tor
+from utils.tor import ensure_tor_ready
+from utils.logger import get_logger
 
 
 class HeaderAnalyzerPlugin(WebPlugin):
-    """Analisa headers HTTP/HTTPS para boas praticas de seguranca."""
+    """Analisa headers HTTP/HTTPS para boas praticas de seguranca (com suporte a Tor)."""
 
     def __init__(self):
         super().__init__()
         self.name = "HeaderAnalyzerPlugin"
         self.description = "Analisa headers HTTP/HTTPS para boas praticas de seguranca."
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.supported_targets = ["ip", "domain", "url"]
+        self.logger = get_logger("HeaderAnalyzerPlugin")
 
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
         start_time = time.time()
+
+        # Configurar modo Tor
+        use_tor = resolve_use_tor(self.config)
+        if use_tor:
+            ensure_tor_ready(use_tor=True)
+            self.logger.info("[HeaderAnalyzer] Modo Tor ativo — headers serão coletados via SOCKS5")
 
         actual_target = context.get('original_target', target)
         endpoints = self._build_endpoints(actual_target, context)
@@ -41,11 +52,14 @@ class HeaderAnalyzerPlugin(WebPlugin):
                 summary="Nenhum endpoint HTTP/HTTPS encontrado para analisar."
             )
 
+        # Criar sessão com proxy Tor (se habilitado)
+        session = create_requests_session(plugin_config=self.config)
+
         analyzed = []
         findings = []
 
         for scheme, host, port in endpoints:
-            result = self._fetch_headers(scheme, host, port)
+            result = self._fetch_headers_requests(session, scheme, host, port)
             if not result:
                 continue
 
@@ -86,7 +100,8 @@ class HeaderAnalyzerPlugin(WebPlugin):
             data={
                 'targets': [f"{s}://{h}:{p}" for s, h, p in endpoints],
                 'analyzed': analyzed,
-                'findings': findings
+                'findings': findings,
+                'tor_mode': use_tor,
             },
             summary=f"Analisados {len(analyzed)} endpoints, {len(findings)} achados."
         )
@@ -152,36 +167,47 @@ class HeaderAnalyzerPlugin(WebPlugin):
         return endpoints
 
     def _can_connect(self, host: str, port: int) -> bool:
+        """Verifica conectividade básica (sem proxy — apenas para descoberta de endpoints)"""
         try:
-            with socket.create_connection((host, port), timeout=1):
+            with socket.create_connection((host, port), timeout=2):
                 return True
         except OSError:
             return False
 
-    def _fetch_headers(self, scheme: str, host: str, port: int) -> Optional[Dict[str, Any]]:
+    def _fetch_headers_requests(self, session, scheme: str, host: str, port: int) -> Optional[Dict[str, Any]]:
+        """Busca headers HTTP/HTTPS via requests (suporta proxy Tor automaticamente)"""
         try:
-            if scheme == 'https':
-                context = ssl.create_default_context()
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
-                conn = http.client.HTTPSConnection(host, port, timeout=10, context=context)
-            else:
-                conn = http.client.HTTPConnection(host, port, timeout=10)
-
-            conn.request("HEAD", "/")
-            response = conn.getresponse()
-
-            headers = {}
-            for header, value in response.getheaders():
-                headers[header.lower()] = value
-
-            conn.close()
+            url = f"{scheme}://{host}:{port}/"
+            resp = session.head(
+                url,
+                timeout=10,
+                verify=False,
+                allow_redirects=True,
+            )
+            headers = {k.lower(): v for k, v in resp.headers.items()}
             return {
-                'status_code': response.status,
-                'headers': headers
+                'status_code': resp.status_code,
+                'headers': headers,
             }
         except Exception:
-            return None
+            # Fallback para GET se HEAD não funcionar
+            try:
+                url = f"{scheme}://{host}:{port}/"
+                resp = session.get(
+                    url,
+                    timeout=10,
+                    verify=False,
+                    allow_redirects=True,
+                    stream=True,           # não baixar body
+                )
+                resp.close()
+                headers = {k.lower(): v for k, v in resp.headers.items()}
+                return {
+                    'status_code': resp.status_code,
+                    'headers': headers,
+                }
+            except Exception:
+                return None
 
     def _missing_security_headers(self, headers: Dict[str, str], is_https: bool) -> List[str]:
         required = [

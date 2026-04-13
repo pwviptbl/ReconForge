@@ -1,6 +1,7 @@
 """
 Plugin de Detecção de Firewall/WAF
-Detecta presença e tipo de firewalls e WAFs
+Detecta presença e tipo de firewalls e WAFs.
+Suporta roteamento via Tor (requests via SOCKS5, nmap com --proxies).
 """
 
 import socket
@@ -19,21 +20,26 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.config import get_config
+from utils.http_session import create_requests_session, resolve_use_tor
+from utils.tor import tor_proxy_url, ensure_tor_ready
+from utils.logger import get_logger
 
 
 class FirewallDetectorPlugin(NetworkPlugin):
-    """Plugin para detecção de firewalls e WAFs"""
-    
+    """Plugin para detecção de firewalls e WAFs (com suporte a Tor)"""
+
     def __init__(self):
         super().__init__()
         self.description = "Detecta firewalls, WAFs e sistemas de proteção"
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.supported_targets = ["ip", "domain", "url"]
-        
+        self.logger = get_logger("FirewallDetectorPlugin")
+
         # Configurações padrão
         self.timeout = 10
         self.max_retries = 3
         self.stealth_mode = True
+        self._session = None  # session requests compartilhada
         
         # Assinaturas de WAF conhecidos
         self.waf_signatures = {
@@ -100,16 +106,25 @@ class FirewallDetectorPlugin(NetworkPlugin):
         ]
     
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        """Executa detecção de firewall/WAF"""
+        """Executa detecção de firewall/WAF (com suporte a Tor)"""
         start_time = time.time()
-        
+
         try:
+            # Configurar modo Tor
+            use_tor = resolve_use_tor(self.config)
+            if use_tor:
+                ensure_tor_ready(use_tor=True)
+                self.logger.info("[FirewallDetector] Modo Tor ativo — requisições HTTP via SOCKS5")
+
             # Ler configurações do YAML
             self.stealth_mode = get_config('plugins.config.FirewallDetectorPlugin.stealth_mode', True)
             self.max_retries = get_config('plugins.config.FirewallDetectorPlugin.max_retries', 3)
             detect_waf = get_config('plugins.config.FirewallDetectorPlugin.detect_waf', True)
             suggest_bypasses = get_config('plugins.config.FirewallDetectorPlugin.suggest_bypasses', True)
-            
+
+            # Criar sessão requests com proxy Tor (se habilitado)
+            self._session = create_requests_session(plugin_config=self.config)
+
             # Preparar target
             hostname, port, is_https = self._parse_target(target)
             if not hostname:
@@ -120,33 +135,33 @@ class FirewallDetectorPlugin(NetworkPlugin):
                     data={},
                     error=f"Target inválido: {target}"
                 )
-            
+
             results = {
                 'target': target,
                 'hostname': hostname,
                 'port': port,
-                'is_https': is_https
+                'is_https': is_https,
+                'tor_mode': use_tor,
             }
-            
+
             hosts = []
-            
-            # Detecção de firewall de rede
-            results['network_firewall'] = self._detect_network_firewall(hostname, port)
-            
-            # Detecção de WAF (Web Application Firewall)
+
+            # Detecção de firewall de rede (nmap via Tor se habilitado)
+            results['network_firewall'] = self._detect_network_firewall(hostname, port, use_tor=use_tor)
+
+            # Detecção de WAF
             if detect_waf and (port in [80, 443, 8080, 8443] or is_https):
                 results['waf_detection'] = self._detect_waf(hostname, port, is_https)
-                
-                # Teste de bypasses se WAF detectado
+
                 if suggest_bypasses and results['waf_detection'].get('detected'):
                     results['bypass_suggestions'] = self._suggest_bypass_techniques(
                         hostname, port, is_https, results['waf_detection']
                     )
-            
+
             # Análise de filtros de porta
             results['port_filtering'] = self._analyze_port_filtering(hostname)
 
-            # Ajuste de sinal para firewall de rede com base em filtragem direta
+            # Ajuste de sinal para firewall de rede
             port_filtering_summary = results.get('port_filtering', {}).get('summary', {})
             if port_filtering_summary.get('filtering_detected'):
                 network_firewall = results.get('network_firewall', {})
@@ -162,19 +177,19 @@ class FirewallDetectorPlugin(NetworkPlugin):
                         f"Filtragem direta detectada (abertas {open_ports}, filtradas {filtered}, fechadas {closed_ports})."
                     )
                     results['network_firewall'] = network_firewall
-            
+
             # Detecção de rate limiting
             results['rate_limiting'] = self._detect_rate_limiting(hostname, port, is_https)
-            
+
             # Adicionar hostname aos hosts
             try:
                 host_ip = socket.gethostbyname(hostname)
                 hosts.append(host_ip)
-            except:
+            except Exception:
                 pass
-            
+
             execution_time = time.time() - start_time
-            
+
             return PluginResult(
                 success=True,
                 plugin_name=self.name,
@@ -184,7 +199,7 @@ class FirewallDetectorPlugin(NetworkPlugin):
                     'hosts': hosts
                 }
             )
-            
+
         except Exception as e:
             return PluginResult(
                 success=False,
@@ -238,12 +253,11 @@ class FirewallDetectorPlugin(NetworkPlugin):
         except Exception:
             return None, None, None
     
-    def _detect_network_firewall(self, hostname: str, port: int) -> Dict[str, Any]:
+    def _detect_network_firewall(self, hostname: str, port: int, use_tor: bool = False) -> Dict[str, Any]:
         """Detecta firewall de rede usando técnicas avançadas de Nmap"""
         try:
-            # Executar scans Nmap especializados para firewall
-            ack_scan_results = self._run_nmap_firewall_scan(hostname, 'ack')
-            window_scan_results = self._run_nmap_firewall_scan(hostname, 'window')
+            ack_scan_results = self._run_nmap_firewall_scan(hostname, 'ack', use_tor=use_tor)
+            window_scan_results = self._run_nmap_firewall_scan(hostname, 'window', use_tor=use_tor)
 
             # Analisar resultados
             filtered_ports_ack = self._parse_nmap_filtered_ports(ack_scan_results)
@@ -456,14 +470,20 @@ class FirewallDetectorPlugin(NetworkPlugin):
     
     # Métodos auxiliares de detecção
     
-    def _run_nmap_firewall_scan(self, hostname: str, scan_type: str) -> str:
-        """Executa scans Nmap específicos para detecção de firewall"""
+    def _run_nmap_firewall_scan(self, hostname: str, scan_type: str, use_tor: bool = False) -> str:
+        """Executa scans Nmap específicos para detecção de firewall (suporte a Tor)"""
         if scan_type == 'ack':
             cmd = ['nmap', '-sA', '-T4', '-p', '1-1024', hostname]
         elif scan_type == 'window':
             cmd = ['nmap', '-sW', '-T4', '-p', '1-1024', hostname]
         else:
             raise ValueError("Tipo de scan Nmap inválido para detecção de firewall")
+
+        # Adicionar proxy Tor se habilitado
+        if use_tor:
+            proxy_url = tor_proxy_url()
+            nmap_proxy = proxy_url.replace("socks5h://", "socks5://").replace("socks4a://", "socks4://")
+            cmd.extend(['--proxies', nmap_proxy])
 
         try:
             result = subprocess.run(
@@ -589,41 +609,34 @@ class FirewallDetectorPlugin(NetworkPlugin):
             return {'error': str(e)}
     
     def _make_http_request(self, hostname: str, port: int, is_https: bool, path: str) -> Optional[Dict[str, Any]]:
-        """Faz requisição HTTP/HTTPS"""
+        """Faz requisição HTTP/HTTPS via requests (suporta proxy Tor automaticamente)"""
         try:
             start_time = time.time()
-            
-            if is_https:
-                conn = http.client.HTTPSConnection(hostname, port, timeout=self.timeout)
-            else:
-                conn = http.client.HTTPConnection(hostname, port, timeout=self.timeout)
-            
+            scheme = 'https' if is_https else 'http'
+            url = f"{scheme}://{hostname}:{port}{path}"
+
+            session = self._session or create_requests_session(plugin_config=self.config)
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
-            
-            conn.request("GET", path, headers=headers)
-            response = conn.getresponse()
-            
+            resp = session.get(
+                url,
+                headers=headers,
+                timeout=self.timeout,
+                verify=False,
+                allow_redirects=False,
+            )
             response_time = time.time() - start_time
-            body = response.read().decode('utf-8', errors='ignore')
-            
-            # Capturar cabeçalhos
-            response_headers = {}
-            for header, value in response.getheaders():
-                response_headers[header.lower()] = value
-            
-            result = {
-                'status_code': response.status,
+            body = resp.text
+            response_headers = {k.lower(): v for k, v in resp.headers.items()}
+
+            return {
+                'status_code': resp.status_code,
                 'headers': response_headers,
                 'body': body,
                 'response_time': response_time
             }
-            
-            conn.close()
-            return result
-            
-        except Exception as e:
+        except Exception:
             return None
     
     def _identify_waf_from_response(self, response: Dict[str, Any]) -> Optional[str]:

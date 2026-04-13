@@ -1,6 +1,7 @@
 """
 Plugin de Mapeamento de Rede
-Mapeia topologia de rede e infraestrutura de conectividade
+Mapeia topologia de rede e infraestrutura de conectividade.
+Suporta roteamento via Tor: proxy env vars para subprocessos e PySocks para sockets.
 """
 
 import socket
@@ -19,26 +20,42 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.plugin_base import NetworkPlugin, PluginResult
 from core.config import get_config
+from utils.http_session import resolve_use_tor
+from utils.proxy_env import build_proxy_env
+from utils.tor import ensure_tor_ready
+from utils.logger import get_logger
 
 
 class NetworkMapperPlugin(NetworkPlugin):
-    """Plugin para mapeamento de topologia de rede"""
-    
+    """Plugin para mapeamento de topologia de rede (com suporte a Tor)"""
+
     def __init__(self):
         super().__init__()
-        self.description = "Mapeamento de topologia e infraestrutura de rede"
-        self.version = "1.0.0"
+        self.description = "Mapeamento de topologia e infraestrutura de rede (suporte a Tor)"
+        self.version = "1.1.0"
         self.supported_targets = ["ip", "domain", "cidr"]
-        
+        self.logger = get_logger("NetworkMapperPlugin")
+
         # Configurações padrão
         self.max_hops = 30
         self.timeout = 5
         self.parallel_threads = 10
         
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        """Executa mapeamento de rede"""
+        """Executa mapeamento de rede (com suporte a Tor)"""
         start_time = time.time()
-        
+
+        # Configurar modo Tor
+        use_tor = resolve_use_tor(self.config)
+        if use_tor:
+            ensure_tor_ready(use_tor=True)
+            # Traceroute e ping não são nativamente compatíveis com Tor (ICMP/UDP)
+            # Usamos proxy env vars para subprocessos que suportam HTTP_PROXY
+            self.logger.info(
+                "[NetworkMapper] Modo Tor ativo. AVISO: traceroute/ping usam ICMP/UDP e "
+                "geralmente não passam pelo Tor. Desabilitando traceroute no modo Tor."
+            )
+
         try:
             # Ler configurações do YAML
             self.max_hops = get_config('plugins.config.NetworkMapperPlugin.max_hops', 30)
@@ -47,10 +64,15 @@ class NetworkMapperPlugin(NetworkPlugin):
             enable_traceroute = get_config('plugins.config.NetworkMapperPlugin.enable_traceroute', True)
             enable_host_discovery = get_config('plugins.config.NetworkMapperPlugin.enable_host_discovery', True)
             enable_topology_mapping = get_config('plugins.config.NetworkMapperPlugin.enable_topology_mapping', True)
-            
+
+            # Desabilitar traceroute via Tor (ICMP/UDP não passa pelo SOCKS5)
+            if use_tor:
+                enable_traceroute = False
+
             results = {
                 'target': target,
-                'target_type': self._detect_target_type(target)
+                'target_type': self._detect_target_type(target),
+                'tor_mode': use_tor,
             }
             
             # Resolver target para IP se necessário
