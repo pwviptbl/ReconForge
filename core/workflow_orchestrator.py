@@ -176,10 +176,12 @@ class WorkflowOrchestrator:
             StageRecon(
                 plugin_manager=self.plugin_manager,
                 plugin_names=self._recon_plugins,
+                storage=self.storage,
             ),
             StageDetect(
                 plugin_manager=self.plugin_manager,
                 plugin_names=self._detect_plugins,
+                storage=self.storage,
             ),
             # ── Fase 2 ─────────────────────────────────────────────────────
             StageValidate(storage=self.storage),

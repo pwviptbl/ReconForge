@@ -15,6 +15,7 @@ from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
 from utils.http_session import build_request_node_headers, create_requests_session
 from utils.web_discovery import build_request_nodes, iter_request_node_parameters
+from utils.probe_logger import ProbeLogger
 
 class HeaderInjectionScannerPlugin(VulnerabilityPlugin):
     """
@@ -40,6 +41,7 @@ class HeaderInjectionScannerPlugin(VulnerabilityPlugin):
         start_time = time.time()
         vulns = []
         tested_count = 0
+        self._probe_logger = ProbeLogger()
         
         # Preferir alvo original com porta/protocolo se disponível
         actual_target = context.get('original_target', target)
@@ -78,7 +80,12 @@ class HeaderInjectionScannerPlugin(VulnerabilityPlugin):
             execution_time=execution_time,
             data={
                 'vulnerabilities': [v.to_dict() for v in vulns],
-                'tested_count': tested_count
+                'tested_count': tested_count,
+                'probe_log': self._probe_logger.to_list(),
+                'probe_summary': {
+                    'total': self._probe_logger.total,
+                    'hits': len(self._probe_logger.hits),
+                },
             }
         )
 
@@ -93,10 +100,18 @@ class HeaderInjectionScannerPlugin(VulnerabilityPlugin):
                 continue
 
             for payload in self.payloads:
+                response = None
                 try:
                     prepared = rebuild_attack_request(request_node, injection_point, payload)
                     response = session.send(prepared, timeout=self.timeout)
-                    if 'X-Injected-Header' in response.headers:
+                    hit = 'X-Injected-Header' in response.headers
+                    self._probe_logger.record(
+                        url=prepared.url, method=prepared.method,
+                        param=param_name, location=location,
+                        payload=payload, response=response,
+                        indicator='X-Injected-Header', hit=hit,
+                    )
+                    if hit:
                         found_vulns.append(
                             Vulnerability(
                                 name="HTTP Header Injection (CRLF)",
@@ -112,8 +127,11 @@ class HeaderInjectionScannerPlugin(VulnerabilityPlugin):
                             )
                         )
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    self._probe_logger.record_error(
+                        url=request_node.get('url',''), method=request_node.get('method','GET'),
+                        param=param_name, location=location, payload=payload, error=str(e),
+                    )
         return found_vulns
 
     def _test_get_param(self, session: requests.Session, url: str, param_name: str) -> Optional[Vulnerability]:

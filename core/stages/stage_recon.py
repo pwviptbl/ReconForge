@@ -59,9 +59,11 @@ class StageRecon(ReconStageBase):
         self,
         plugin_manager=None,
         plugin_names: Optional[List[str]] = None,
+        storage=None,
     ):
         super().__init__()
         self.plugin_manager = plugin_manager
+        self.storage = storage  # Storage opcional para persistência de raw outputs
         # Se não especificado, usa a lista padrão de recon
         self.plugin_names = plugin_names or RECON_PLUGIN_NAMES
 
@@ -98,7 +100,17 @@ class StageRecon(ReconStageBase):
                 return
 
             state.executed_plugins.append(plugin_name)
-            state.plugin_results[plugin_name] = result.to_dict() if hasattr(result, "to_dict") else result
+            result_dict = result.to_dict() if hasattr(result, "to_dict") else result
+            state.plugin_results[plugin_name] = result_dict
+
+            # Persistir resultado bruto no banco para análise posterior
+            if self.storage:
+                try:
+                    # Chave: run_id:plugin_name para preservar histórico por run
+                    cache_key = f"run_{state.run_id}:{plugin_name}"
+                    self.storage.set_cached_result(state.target, cache_key, result_dict)
+                except Exception as cache_err:
+                    self.logger.debug(f"Cache de plugin não persistido: {cache_err}")
 
             # Incorporar descobertas ao state.discoveries
             self._merge_discoveries(result, state)

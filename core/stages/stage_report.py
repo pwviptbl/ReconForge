@@ -70,6 +70,9 @@ class StageReport(StageBase):
         json_path = run_dir / f"{safe_target}_{ts}.json"
         self._save_json_report(state, json_path)
 
+        # Salvar resultados brutos de cada plugin para análise manual
+        self._save_plugin_raw_outputs(state, run_dir)
+
         return state
 
     def gate_passes(self, state: WorkflowState) -> bool:
@@ -493,3 +496,369 @@ class StageReport(StageBase):
             "partial": sum(1 for e in state.evidences if e.proof_level == "partial"),
             "ai_report_generated": bool(ai_meta.get("generated", False)),
         }
+
+    # -----------------------------------------------------------------------
+    # Exportação de resultados brutos por plugin
+    # -----------------------------------------------------------------------
+
+    def _save_plugin_raw_outputs(self, state: WorkflowState, run_dir: Path) -> None:
+        """
+        Persiste o resultado bruto de cada plugin executado em arquivos
+        individuais dentro de run_N/plugins_raw/.
+
+        Para cada plugin são gerados dois arquivos:
+          - <plugin_name>.json  →  dados completos em JSON
+          - <plugin_name>.md    →  versão legível por humanos para análise manual
+        """
+        if not state.plugin_results:
+            self.logger.info("Nenhum plugin_result disponível para exportar")
+            return
+
+        raw_dir = run_dir / "plugins_raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+
+        # Índice de todos os plugins exportados
+        index_lines: List[str] = [
+            f"# Resultados Brutos dos Plugins — Run {state.run_id}\n",
+            f"**Alvo:** `{state.target}`  \n",
+            f"**Plugins executados:** {len(state.plugin_results)}  \n",
+            f"**Gerado em:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}  \n",
+            "\n---\n",
+            "| Plugin | Status | Arquivo JSON | Arquivo MD |",
+            "|--------|--------|--------------|------------|",
+        ]
+
+        for plugin_name, raw_result in state.plugin_results.items():
+            try:
+                # Garantir que temos um dicionário
+                if hasattr(raw_result, "to_dict"):
+                    result_dict = raw_result.to_dict()
+                elif isinstance(raw_result, dict):
+                    result_dict = raw_result
+                else:
+                    result_dict = {"raw": str(raw_result)}
+
+                # --- JSON bruto completo ---
+                json_file = raw_dir / f"{plugin_name}.json"
+                json_file.write_text(
+                    json.dumps(result_dict, indent=2, ensure_ascii=False, default=str),
+                    encoding="utf-8",
+                )
+
+                # --- Markdown legível para análise manual ---
+                md_file = raw_dir / f"{plugin_name}.md"
+                md_content = self._build_plugin_md(plugin_name, result_dict, state.target)
+                md_file.write_text(md_content, encoding="utf-8")
+
+                success = result_dict.get("success", True)
+                status_icon = "✅" if success else "❌"
+                index_lines.append(
+                    f"| {plugin_name} | {status_icon} | "
+                    f"`plugins_raw/{plugin_name}.json` | "
+                    f"`plugins_raw/{plugin_name}.md` |"
+                )
+
+            except Exception as exc:
+                self.logger.warning(f"Falha ao exportar raw output de {plugin_name}: {exc}")
+                index_lines.append(f"| {plugin_name} | ⚠️ erro | - | - |")
+
+        # Salvar índice
+        index_path = raw_dir / "_index.md"
+        index_path.write_text("\n".join(index_lines), encoding="utf-8")
+        self.logger.info(
+            f"Resultados brutos de {len(state.plugin_results)} plugins "
+            f"salvos em: {raw_dir}"
+        )
+
+    def _build_plugin_md(self, plugin_name: str, data: Dict[str, Any], target: str) -> str:
+        """
+        Constrói um documento Markdown legível com os dados brutos de um plugin.
+        Formata campos comuns de forma estruturada e preserva saídas textuais
+        (ex: saída CLI do nmap, nuclei, etc.) em blocos de código.
+        """
+        lines: List[str] = [
+            f"# Resultado Bruto — {plugin_name}\n",
+            f"**Alvo:** `{target}`  \n",
+            f"**Plugin:** `{plugin_name}`  \n",
+            f"**Gerado em:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}  \n",
+        ]
+
+        # Status e tempo de execução
+        success = data.get("success")
+        exec_time = data.get("execution_time")
+        error = data.get("error")
+        if success is not None:
+            lines.append(f"**Status:** {'✅ Sucesso' if success else '❌ Falhou'}  \n")
+        if exec_time is not None:
+            lines.append(f"**Tempo de execução:** {exec_time:.2f}s  \n")
+        if error:
+            lines.append(f"\n> ⚠️ **Erro:** {error}\n")
+
+        lines.append("\n---\n")
+
+        # Conteúdo principal — vem em data['data'] se vier de PluginResult.to_dict()
+        payload: Dict[str, Any] = data.get("data", data)
+
+        # --- Saídas textuais de ferramentas CLI ---
+        raw_output = payload.get("raw_output") or payload.get("stdout") or payload.get("output")
+        if raw_output and str(raw_output).strip():
+            lines.append("## 📄 Saída Bruta (CLI / Ferramenta)\n")
+            lines.append("```text")
+            lines.append(str(raw_output).strip())
+            lines.append("```\n")
+
+        # Stderr / erros da ferramenta
+        stderr = payload.get("stderr") or payload.get("errors")
+        if stderr and str(stderr).strip():
+            lines.append("## ⚠️ Stderr / Erros da Ferramenta\n")
+            lines.append("```text")
+            lines.append(str(stderr).strip())
+            lines.append("```\n")
+
+        # --- Hosts / Portas (nmap, port_scanner, etc.) ---
+        hosts = payload.get("hosts", [])
+        if hosts:
+            lines.append(f"## 🖥️ Hosts Detectados ({len(hosts)})\n")
+            for host in hosts:
+                if isinstance(host, dict):
+                    ip = host.get("ip", "?")
+                    status = host.get("status", "?")
+                    hostnames = ", ".join(host.get("hostnames", []))
+                    os_info = host.get("os_detection", {})
+                    lines.append(f"### {ip} ({status})")
+                    if hostnames:
+                        lines.append(f"- **Hostnames:** {hostnames}")
+                    if os_info:
+                        os_name = os_info.get("name", "?")
+                        os_acc = os_info.get("accuracy", "?")
+                        lines.append(f"- **OS detectado:** {os_name} (accuracy: {os_acc}%)")
+                    # Portas do host
+                    ports = host.get("ports", [])
+                    if ports:
+                        lines.append("")
+                        lines.append("| Porta | Proto | Estado | Serviço | Versão |")
+                        lines.append("|-------|-------|--------|---------|--------|") 
+                        for p in ports:
+                            state_p = p.get("state", "?")
+                            svc = p.get("service", "?")
+                            ver = p.get("version", "") or p.get("product", "")
+                            proto = p.get("protocol", "tcp")
+                            lines.append(
+                                f"| {p.get('port', '?')} | {proto} | {state_p} | {svc} | {ver} |"
+                            )
+                        # Scripts NSE
+                        for p in ports:
+                            scripts = p.get("scripts", [])
+                            if scripts:
+                                lines.append(f"\n**Scripts NSE — porta {p.get('port')}:**")
+                                for script in scripts:
+                                    sid = script.get("id", "?")
+                                    sout = script.get("output", "").strip()
+                                    lines.append(f"\n*{sid}:*")
+                                    if sout:
+                                        lines.append("```")
+                                        lines.append(sout)
+                                        lines.append("```")
+                else:
+                    lines.append(f"- {host}")
+            lines.append("")
+
+        # --- Portas abertas (lista plana) ---
+        open_ports = payload.get("open_ports", [])
+        if open_ports:
+            ports_str = ", ".join(str(p) for p in sorted(
+                set(int(p) for p in open_ports if str(p).isdigit())
+            ))
+            lines.append(f"## 🔓 Portas Abertas\n\n`{ports_str}`\n")
+
+        # --- Serviços ---
+        services = payload.get("services", [])
+        if services:
+            lines.append(f"## 🔧 Serviços Detectados ({len(services)})\n")
+            lines.append("| Host | Porta | Proto | Serviço | Versão |")
+            lines.append("|------|-------|-------|---------|--------|") 
+            for svc in services:
+                if isinstance(svc, dict):
+                    lines.append(
+                        f"| {svc.get('host','?')} | {svc.get('port','?')} "
+                        f"| {svc.get('protocol','tcp')} | {svc.get('service','?')} "
+                        f"| {svc.get('version','') or svc.get('product','')} |"
+                    )
+            lines.append("")
+
+        # --- Vulnerabilidades encontradas pelo plugin ---
+        vulns = payload.get("vulnerabilities", [])
+        if vulns:
+            lines.append(f"## 🔴 Vulnerabilidades Reportadas pelo Plugin ({len(vulns)})\n")
+            for v in vulns:
+                if isinstance(v, dict):
+                    title = v.get("title") or v.get("name") or v.get("id", "?")
+                    sev = v.get("severity", "?")
+                    cvss = v.get("cvss") or v.get("score", "")
+                    cve = v.get("cve", "")
+                    host_v = v.get("host", "")
+                    port_v = v.get("port", "")
+                    desc = v.get("description") or v.get("output", "")
+                    url_v = v.get("url", "")
+                    exploit_flag = v.get("exploit", False)
+                    lines.append(f"### {title}")
+                    lines.append(f"- **Severidade:** {sev}")
+                    if cvss:
+                        lines.append(f"- **CVSS:** {cvss}")
+                    if cve:
+                        lines.append(f"- **CVE:** [{cve}](https://nvd.nist.gov/vuln/detail/{cve})")
+                    if host_v:
+                        lines.append(f"- **Host:** {host_v}:{port_v}")
+                    if url_v:
+                        lines.append(f"- **Referência:** {url_v}")
+                    if exploit_flag:
+                        lines.append("- **⚠️ Exploit público disponível**")
+                    if desc:
+                        lines.append(f"- **Detalhe:** {str(desc)[:500]}")
+                    lines.append("")
+
+        # --- Findings (plugins de detecção web) ---
+        findings = payload.get("findings", [])
+        if findings:
+            lines.append(f"## 🎯 Findings do Plugin ({len(findings)})\n")
+            lines.append("| Severidade | Nome | URL | Parâmetro | Payload |")
+            lines.append("|------------|------|-----|-----------|---------|")
+            for f in findings:
+                if isinstance(f, dict):
+                    sev = f.get("severity", "-")
+                    name = f.get("name") or f.get("title", "-")
+                    url_f = f.get("url") or f.get("endpoint", "-")
+                    param = f.get("parameter") or f.get("param", "-")
+                    payload_f = str(f.get("payload") or f.get("evidence", "-"))[:80]
+                    lines.append(f"| {sev} | {name} | `{url_f}` | `{param}` | `{payload_f}` |")
+            lines.append("")
+
+        # --- Subdomínios ---
+        subdomains = payload.get("subdomains", [])
+        if subdomains:
+            lines.append(f"## 🌐 Subdomínios ({len(subdomains)})\n")
+            for sub in subdomains:
+                lines.append(f"- `{sub}`")
+            lines.append("")
+
+        # --- Endpoints / URLs ---
+        endpoints = payload.get("endpoints", []) or payload.get("urls", [])
+        if endpoints:
+            lines.append(f"## 🔗 Endpoints/URLs ({len(endpoints)})\n")
+            for ep in endpoints[:200]:  # Limitar a 200 para não gerar arquivo gigante
+                url_ep = ep.get("url") if isinstance(ep, dict) else str(ep)
+                lines.append(f"- `{url_ep}`")
+            if len(endpoints) > 200:
+                lines.append(f"\n*... e mais {len(endpoints) - 200} endpoints (ver arquivo JSON)*")
+            lines.append("")
+
+        # --- Tecnologias ---
+        technologies = payload.get("technologies", [])
+        if technologies:
+            lines.append(f"## 💻 Tecnologias Detectadas ({len(technologies)})\n")
+            for tech in technologies:
+                if isinstance(tech, dict):
+                    name_t = tech.get("name", "?")
+                    ver_t = tech.get("version", "")
+                    cat_t = tech.get("category", "")
+                    lines.append(f"- **{name_t}** {ver_t} _{cat_t}_")
+                else:
+                    lines.append(f"- {tech}")
+            lines.append("")
+
+        # --- Headers HTTP (HeaderAnalyzerPlugin) ---
+        headers = payload.get("headers") or payload.get("response_headers", {})
+        if headers and isinstance(headers, dict):
+            lines.append("## 📋 Headers HTTP Analisados\n")
+            lines.append("| Header | Valor |")
+            lines.append("|--------|-------|") 
+            for k, v in headers.items():
+                v_str = str(v).replace("|", "/")[:120]
+                lines.append(f"| `{k}` | {v_str} |")
+            lines.append("")
+
+        # --- Probe Log (tentativas de ataque detalhadas) ---
+        probe_log = payload.get("probe_log", [])
+        probe_summary = payload.get("probe_summary", {})
+        if probe_log:
+            total_p = probe_summary.get("total", len(probe_log))
+            hits_p = probe_summary.get("hits", sum(1 for p in probe_log if p.get("hit")))
+            lines.append(f"## 🧪 Log de Tentativas (Probe Log) — {total_p} requests | {hits_p} hits\n")
+
+            # Separar hits dos demais
+            hits = [p for p in probe_log if p.get("hit")]
+            misses = [p for p in probe_log if not p.get("hit")]
+
+            if hits:
+                lines.append(f"### ✅ Hits Encontrados ({len(hits)})\n")
+                for p in hits:
+                    status = p.get("status_code", "?")
+                    rlen = p.get("response_length", "?")
+                    lines.append(f"**{p.get('method','?')} {p.get('url','')}**")
+                    lines.append(f"- **Parâmetro:** `{p.get('param','')}` | **Localização:** `{p.get('location','')}`")
+                    lines.append(f"- **Payload:** `{p.get('payload','')}`")
+                    lines.append(f"- **Status:** `{status}` | **Tamanho resposta:** {rlen} bytes")
+                    rh = p.get("response_headers", {})
+                    if rh:
+                        rh_str = " | ".join(f"`{k}: {v}`" for k, v in list(rh.items())[:5])
+                        lines.append(f"- **Headers resposta:** {rh_str}")
+                    snippet = p.get("response_snippet", "")
+                    if snippet:
+                        lines.append("- **Snippet da resposta (contexto do hit):**")
+                        lines.append("```html")
+                        lines.append(snippet[:800])
+                        lines.append("```")
+                    lines.append("")
+
+            # Tabela resumo de todos os probes (hits + misses)
+            lines.append(f"### 📋 Todas as Tentativas ({len(probe_log)} probes)\n")
+            lines.append("| Método | URL | Parâmetro | Payload | Status | Bytes | Hit |")
+            lines.append("|--------|-----|-----------|---------|--------|-------|-----|")
+            for p in probe_log:
+                url_short = p.get("url", "")
+                if len(url_short) > 80:
+                    url_short = url_short[:77] + "..."
+                payload_short = str(p.get("payload", ""))
+                if len(payload_short) > 50:
+                    payload_short = payload_short[:47] + "..."
+                hit_icon = "✅" if p.get("hit") else "—"
+                status = p.get("status_code", "err")
+                rlen = p.get("response_length", "?")
+                lines.append(
+                    f"| `{p.get('method','?')}` | `{url_short}` "
+                    f"| `{p.get('param','')}` | `{payload_short}` "
+                    f"| {status} | {rlen} | {hit_icon} |"
+                )
+            lines.append("")
+
+        # --- Dados adicionais não cobertos acima ---
+        # Campos que não foram tratados explicitamente — dump resumido
+        campos_tratados = {
+            "success", "execution_time", "error", "data", "plugin_name", "timestamp",
+            "summary", "raw_output", "stdout", "stderr", "output", "errors",
+            "hosts", "open_ports", "services", "vulnerabilities", "findings",
+            "subdomains", "endpoints", "urls", "technologies", "headers",
+            "response_headers", "target", "scan_type",
+            "probe_log", "probe_summary", "tested_count",
+        }
+        extras = {k: v for k, v in payload.items() if k not in campos_tratados and v}
+        if extras:
+            lines.append("## 📦 Dados Adicionais\n")
+            for k, v in extras.items():
+                if isinstance(v, (list, dict)):
+                    lines.append(f"**{k}** ({type(v).__name__}, {len(v)} itens):")
+                    lines.append("```json")
+                    try:
+                        snippet = json.dumps(v, ensure_ascii=False, default=str, indent=2)
+                        # Limitar a 2000 chars por campo
+                        if len(snippet) > 2000:
+                            snippet = snippet[:2000] + "\n... (truncado — ver JSON completo)"
+                        lines.append(snippet)
+                    except Exception:
+                        lines.append(str(v)[:500])
+                    lines.append("```")
+                else:
+                    lines.append(f"**{k}:** {str(v)[:300]}")
+            lines.append("")
+
+        return "\n".join(lines)

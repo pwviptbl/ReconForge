@@ -143,6 +143,30 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
             use_tor = resolve_use_tor(self.config)
             env = build_proxy_env(use_tor=use_tor)
 
+            # Ler timeout do config — default 600s (10 min) para cobrir medium+high+critical
+            timeout_seconds = int(
+                self.config.get("timeout")
+                or context.get("config", {}).get("plugins", {}).get("default_timeout", 600)
+            )
+            # Garantir mínimo razoável
+            if timeout_seconds < 120:
+                timeout_seconds = 120
+
+            # Parâmetros de desempenho — adaptar para Tor (latência alta)
+            if use_tor:
+                # Via Tor: menos concorrência, rate limit menor, só severos
+                concurrency = 5
+                rate_limit = 20
+                # Forçar apenas critical+high via Tor para respeitar o timeout
+                severity_filter = ["critical", "high"]
+            else:
+                concurrency = int(self.config.get("concurrency", 25))
+                rate_limit = int(self.config.get("rate_limit", 150))
+                # Usar filtro de severidade do config
+                severity_filter = list(
+                    self.config.get("severity_filter") or ["critical", "high", "medium"]
+                )
+
             # Comando nuclei
             cmd = [
                 'nuclei',
@@ -150,15 +174,13 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                 '-j',  # JSON output
                 '-o', output_file,
                 '-silent',
-                '-c', '25',  # concurrency
-                '-rl', '150',  # rate limit
-                '-timeout', '10',
+                '-c', str(concurrency),
+                '-rl', str(rate_limit),
+                '-timeout', '10',   # timeout por request individual (segundos)
                 '-retries', '1'
             ]
 
             if use_tor:
-                # Nuclei possui suporte nativo a proxy; use flags explicitas
-                # para evitar depender apenas de variaveis de ambiente.
                 cmd.extend([
                     '-p', _nuclei_proxy_url(),
                     '-proxy-internal',
@@ -173,20 +195,17 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                     headers["Cookie"] = cookie_header
                 for header_name, header_value in headers.items():
                     cmd.extend(["-H", f"{header_name}: {header_value}"])
+
+            # Aplicar filtro de severidade
+            cmd.extend(['-s', ','.join(severity_filter)])
             
-            # Adicionar severidades baseadas no contexto
-            if context.get('mode') == 'quick':
-                cmd.extend(['-s', 'critical,high'])
-            else:
-                cmd.extend(['-s', 'critical,high,medium'])
-            
-            # Executar comando
+            # Executar comando com timeout lido do config
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=300  # 5 minutos
+                timeout=timeout_seconds
             )
             
             # Ler resultados JSON
@@ -211,11 +230,17 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                 'stdout': result.stdout,
                 'stderr': result.stderr,
                 'results': results,
-                'targets': targets
+                'targets': targets,
+                'timeout_used': timeout_seconds,
+                'tor_mode': use_tor,
             }
             
         except subprocess.TimeoutExpired:
-            raise Exception("Nuclei timeout após 5 minutos")
+            raise Exception(
+                f"Nuclei timeout após {timeout_seconds}s. "
+                f"Aumente 'plugins.config.NucleiScannerPlugin.timeout' no config "
+                f"ou reduza 'severity_filter' para apenas critical,high."
+            )
         finally:
             # Limpar arquivos temporários
             Path(targets_file).unlink(missing_ok=True)

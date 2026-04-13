@@ -15,7 +15,8 @@ from .config import get_config
 from utils.logger import get_logger
 
 _TOR_INCOMPATIBLE_PLUGINS = {
-    "PortScannerPlugin": "usa sockets TCP diretos e nao pode ser roteado com seguranca via proxy Tor.",
+    # PortScannerPlugin foi removido desta lista — o plugin usa PySocks para
+    # rotear sockets TCP via SOCKS5 quando Tor está ativo, portanto é compatível.
     "NmapScannerPlugin": "usa varredura de rede de baixo nivel e nao pode ser roteado com seguranca via proxy Tor.",
     "FirewallDetectorPlugin": "usa tecnicas de fingerprinting/scan de rede de baixo nivel fora do escopo de um proxy Tor.",
     "NetworkMapperPlugin": "usa ferramentas e rotinas de rede locais que nao respeitam proxy Tor.",
