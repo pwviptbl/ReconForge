@@ -118,7 +118,6 @@ plugins:
       timeout: 120
       max_urls: 2000
       include_subdomains: true
-    # Novos plugins de análise de rede
     NetworkMapperPlugin:
       max_hops: 30
       timeout: 5
