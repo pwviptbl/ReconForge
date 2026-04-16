@@ -1,266 +1,146 @@
 """
 Plugin de Scanner de IDOR (Insecure Direct Object Reference)
 Detecta vulnerabilidades de IDOR alterando identificadores numéricos em parâmetros e URLs.
-Migrado do módulo legado src/scanners/idor_module.py
 """
 
-from typing import List, Dict, Any, Optional
+import re
 import requests
 import time
-import re
-from urllib.parse import urlparse, parse_qs
+from typing import List, Dict, Any, Optional, Tuple
+from urllib.parse import urlparse
 
-from core.plugin_base import VulnerabilityPlugin, PluginResult
+from core.parameterized_vulnerability_plugin import ParameterizedVulnerabilityPlugin
 from core.models import Vulnerability
-from utils.logger import get_logger
 from utils.request_utils import rebuild_attack_request
-from utils.http_session import build_request_node_headers, create_requests_session
-from utils.web_discovery import build_request_nodes, iter_request_node_parameters
-from utils.probe_logger import ProbeLogger
 
-class IDORScannerPlugin(VulnerabilityPlugin):
+
+class IDORScannerPlugin(ParameterizedVulnerabilityPlugin):
     """
     Scanner de IDOR (Insecure Direct Object Reference).
-    Tenta acessar objetos de outros usuários incrementando/decrementando IDs numéricos.
     """
-    
-    def __init__(self, config: Dict[str, Any] = None):
-        config = config or {}
-        super().__init__(config)
-        self.config = config or {}
-        self.logger = get_logger("IDORScanner")
-        self.timeout = config.get('timeout', 10)
-        self.verify_ssl = config.get('verify_ssl', False)
+
+    def get_default_payloads(self) -> List[Any]:
+        # IDOR não usa payloads fixos, ele transmuta o valor original.
+        return ["+1"] 
+
+    def should_test_injection_point(self, injection_point: Dict[str, Any]) -> bool:
+        original_val = injection_point.get('original_value')
+        return str(original_val).isdigit()
+
+    def _perform_injection(
+        self, session: requests.Session, request_node: Dict[str, Any], injection_point: Dict[str, Any], payload: Any
+    ) -> Tuple[bool, Optional[str], Optional[requests.Response]]:
+        original_val = injection_point.get('original_value')
+        new_val = str(int(original_val) + 1)
         
-    def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:
-        start_time = time.time()
-        vulns = []
-        tested_count = 0
-        self._probe_logger = ProbeLogger()
+        # 1. Request Original para Baseline
+        self.rate_limiter.wait()
+        req_orig = rebuild_attack_request(request_node, injection_point, original_val)
+        resp_orig = session.send(req_orig, timeout=self.timeout)
+        self.rate_limiter.record_request()
         
-        # Preferir alvo original com porta/protocolo se disponível
-        actual_target = context.get('original_target', target)
-        self.logger.info(f"🚀 Iniciando varredura IDOR em: {actual_target}")
+        # 2. Request Modificada
+        self.rate_limiter.wait()
+        req_mod = rebuild_attack_request(request_node, injection_point, new_val)
+        resp_mod = session.send(req_mod, timeout=self.timeout)
+        self.rate_limiter.record_request()
         
-        discoveries = context.get('discoveries', {})
-        session = create_requests_session(
-            plugin_config=self.config,
-            session_file=context.get("auth_session_file"),
-        )
-        session.verify = self.verify_ssl
-        session.headers.update({
-            'User-Agent': 'ReconForge/IDORScanner'
-        })
-        request_nodes = build_request_nodes(
-            discoveries,
-            actual_target,
-            default_headers=build_request_node_headers(session),
-        )
+        hit, indicator = self._evaluate_idor_hit(resp_orig, resp_mod)
+        return hit, indicator, resp_mod
 
-        self.logger.info(f"🔍 Testando {len(request_nodes)} requests para IDOR...")
-        for request_node in request_nodes:
-            try:
-                candidates = self._test_request_node(session, request_node)
-                if candidates:
-                    vulns.extend(candidates)
-                tested_count += len(iter_request_node_parameters(request_node))
-                if request_node.get('url'):
-                    tested_count += len(re.findall(r'/(\d+)(?=/|$)', urlparse(request_node['url']).path))
-            except Exception as e:
-                self.logger.debug(f"Erro ao testar request {request_node.get('url')}: {e}")
+    def _evaluate_idor_hit(self, resp_orig: requests.Response, resp_mod: requests.Response) -> Tuple[bool, Optional[str]]:
+        """Avalia se houve IDOR comparando as respostas."""
+        if resp_orig.status_code != resp_mod.status_code:
+            return False, None
 
-        execution_time = time.time() - start_time
+        # Tentar diff semântico JSON
+        try:
+            data_orig = resp_orig.json()
+            data_mod = resp_mod.json()
+            if isinstance(data_orig, dict) and isinstance(data_mod, dict):
+                if set(data_orig.keys()) == set(data_mod.keys()):
+                    sensitive_keys = {'email', 'cpf', 'phone', 'name', 'address', 'id', 'user_id', 'username'}
+                    for key in sensitive_keys:
+                        if key in data_orig and data_orig[key] != data_mod.get(key):
+                            return True, f"JSON diff: '{key}'"
+        except:
+            pass
+
+        # Fallback: diff de tamanho com threshold dinâmico
+        orig_len = len(resp_orig.content)
+        mod_len = len(resp_mod.content)
+        diff = abs(mod_len - orig_len)
+        threshold = max(100, orig_len * 0.1)
+        if diff > threshold:
+            return True, f"Size diff: {diff} (thr {int(threshold)})"
+
+        return False, None
+
+    def evaluate_hit(self, response: requests.Response, payload: Any, injection_point: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        # Implementado via _perform_injection para IDOR
+        return False, None
+
+    def _test_request_node(self, session: requests.Session, request_node: Dict[str, Any], probe_logger: Any) -> List[Vulnerability]:
+        # Estendemos para testar Path também
+        vulns = super()._test_request_node(session, request_node, probe_logger)
         
-        return PluginResult(
-            success=True,
-            plugin_name=self.name,
-            execution_time=execution_time,
-            data={
-                'vulnerabilities': [v.to_dict() for v in vulns],
-                'tested_count': tested_count,
-                'probe_log': self._probe_logger.to_list(),
-                'probe_summary': {
-                    'total': self._probe_logger.total,
-                    'hits': len(self._probe_logger.hits),
-                },
-            }
-        )
-
-    def _test_request_node(self, session: requests.Session, request_node: Dict[str, Any]) -> List[Vulnerability]:
-        found_vulns = []
-
-        for injection_point in iter_request_node_parameters(request_node):
-            original_val = injection_point.get('original_value')
-            if not str(original_val).isdigit():
-                continue
-            param_name = injection_point.get('parameter_name')
-            if not param_name:
-                continue
-            vuln = self._test_idor_injection(session, request_node, injection_point, str(original_val))
-            if vuln:
-                found_vulns.append(vuln)
-
+        # Testar segmentos de PATH se for GET
         if str(request_node.get('method', 'GET')).upper() == 'GET':
             parsed = urlparse(request_node.get('url', ''))
             for match in re.finditer(r'/(\d+)(?=/|$)', parsed.path):
                 original_id = match.group(1)
-                vuln = self._test_idor_path(session, request_node.get('url', ''), original_id)
+                vuln = self._test_idor_path(session, request_node.get('url', ''), original_id, probe_logger)
                 if vuln:
-                    found_vulns.append(vuln)
-        return found_vulns
+                    vulns.append(vuln)
+        return vulns
 
-    def _test_idor_injection(
-        self,
-        session: requests.Session,
-        request_node: Dict[str, Any],
-        injection_point: Dict[str, Any],
-        original_val: str,
-    ) -> Optional[Vulnerability]:
-        try:
-            req_orig = rebuild_attack_request(request_node, injection_point, original_val)
-            resp_orig = session.send(req_orig, timeout=self.timeout)
-
-            new_val = str(int(original_val) + 1)
-            req_mod = rebuild_attack_request(request_node, injection_point, new_val)
-            resp_mod = session.send(req_mod, timeout=self.timeout)
-
-            param_name = injection_point.get('parameter_name', '')
-            location = injection_point.get('location', 'QUERY')
-            hit = (resp_mod.status_code == resp_orig.status_code
-                   and abs(len(resp_mod.content) - len(resp_orig.content)) > 50)
-
-            # Registrar request original
-            self._probe_logger.record(
-                url=req_orig.url, method=req_orig.method,
-                param=param_name, location=location,
-                payload=original_val, response=resp_orig,
-                indicator='', hit=False,
-            )
-            # Registrar request modificada
-            self._probe_logger.record(
-                url=req_mod.url, method=req_mod.method,
-                param=param_name, location=location,
-                payload=new_val, response=resp_mod,
-                indicator=f'len_diff>{50}', hit=hit,
-            )
-
-            if hit:
-                return Vulnerability(
-                    name="Insecure Direct Object Reference (IDOR)",
-                    severity="High",
-                    description=(
-                        f"Alteracao de ID '{original_val}' -> '{new_val}' no parametro "
-                        f"'{injection_point.get('parameter_name')}' retornou resposta diferente com mesmo status."
-                    ),
-                    url=request_node.get('url'),
-                    evidence=(
-                        f"Original Len: {len(resp_orig.content)}, Modified Len: {len(resp_mod.content)}\n"
-                        f"Param: {injection_point.get('parameter_name')}\n"
-                        f"Location: {injection_point.get('location')}"
-                    ),
-                    cve="CWE-639",
-                    plugin_source="IDORScannerPlugin"
-                )
-        except Exception as e:
-            self._probe_logger.record_error(
-                url=request_node.get('url', ''),
-                method=request_node.get('method', 'GET'),
-                param=injection_point.get('parameter_name', ''),
-                location=injection_point.get('location', 'QUERY'),
-                payload=original_val,
-                error=str(e),
-            )
-        return None
-
-    def _test_idor_param(self, session: requests.Session, url: str, param_name: str, original_val: str) -> Optional[Vulnerability]:
-        """Testa IDOR em parâmetro GET numérico"""
-        request_node = {
-            'method': 'GET',
-            'url': url,
-            'headers': dict(session.headers),
-            'params': {}
-        }
-        
-        injection_point = {
-            'location': 'QUERY',
-            'parameter_name': param_name,
-            'original_value': original_val
-        }
-
-        try:
-            # Requisitar original para baseline
-            req_orig = rebuild_attack_request(request_node, injection_point, original_val)
-            resp_orig = session.send(req_orig, timeout=self.timeout)
-
-            # Tentar ID + 1 (ou -1)
-            new_val = str(int(original_val) + 1)
-            req_mod = rebuild_attack_request(request_node, injection_point, new_val)
-            resp_mod = session.send(req_mod, timeout=self.timeout)
-
-            # Análise: mesmo status code, conteúdo diferente?
-            if resp_mod.status_code == resp_orig.status_code:
-                # Se o tamanho muda significativamente ou se o conteúdo original_val não está lá mas algo novo está
-                if len(resp_mod.content) != len(resp_orig.content) and abs(len(resp_mod.content) - len(resp_orig.content)) > 50:
-                     return Vulnerability(
-                        name="Insecure Direct Object Reference (IDOR)",
-                        severity="High",
-                        description=f"Alteração de ID '{original_val}' -> '{new_val}' no parâmetro '{param_name}' retornou resposta diferente com mesmo status.",
-                        url=url,
-                        evidence=f"Original Len: {len(resp_orig.content)}, Modified Len: {len(resp_mod.content)}\nParam: {param_name}",
-                        cve="CWE-639",
-                        plugin_source="IDORScannerPlugin"
-                    )
-
-        except Exception:
-            pass
-        return None
-
-    def _test_idor_path(self, session: requests.Session, url: str, original_id: str) -> Optional[Vulnerability]:
-        """Testa IDOR em segmento de path numérico"""
-        # Aqui request_utils.rebuild_attack_request suporta 'PATH' se passarmos original_value
-        
-        request_node = {
-            'method': 'GET',
-            'url': url,
-            'headers': dict(session.headers),
-        }
-        
-        injection_point = {
-            'location': 'PATH',
-            'parameter_name': 'path_segment', # Dummy name
-            'original_value': original_id
-        }
+    def _test_idor_path(self, session: requests.Session, url: str, original_id: str, probe_logger: Any) -> Optional[Vulnerability]:
+        request_node = {'method': 'GET', 'url': url, 'headers': dict(session.headers)}
+        injection_point = {'location': 'PATH', 'parameter_name': 'path_segment', 'original_value': original_id}
         
         try:
-            # Tentar ID diferente
             new_id = str(int(original_id) + 1)
-            
-            # Request Modificado
+            self.rate_limiter.wait()
             req_mod = rebuild_attack_request(request_node, injection_point, new_id)
             resp_mod = session.send(req_mod, timeout=self.timeout)
-            
-            # Comparar com original (precisamos fazer request original também)
-            # Como rebuild_path substitui, o original é só o request normal
+            self.rate_limiter.record_request()
+
+            self.rate_limiter.wait()
             resp_orig = session.get(url, headers=session.headers, timeout=self.timeout)
+            self.rate_limiter.record_request()
 
-            if resp_mod.status_code == resp_orig.status_code:
-                 if len(resp_mod.content) != len(resp_orig.content) and abs(len(resp_mod.content) - len(resp_orig.content)) > 50:
-                     return Vulnerability(
-                        name="Insecure Direct Object Reference (IDOR) in Path",
-                        severity="High",
-                        description=f"Alteração de ID '{original_id}' -> '{new_id}' na URL retornou resposta diferente com mesmo status.",
-                        url=url,
-                        evidence=f"Original URL: {url}\nModified URL: {req_mod.url}\nOriginal Len: {len(resp_orig.content)}, Modified Len: {len(resp_mod.content)}",
-                        cve="CWE-639",
-                        plugin_source="IDORScannerPlugin"
-                    )
-
-        except Exception:
+            hit, indicator = self._evaluate_idor_hit(resp_orig, resp_mod)
+            if hit:
+                return self.build_vulnerability(request_node, injection_point, new_id, resp_mod, indicator or "")
+        except:
             pass
         return None
 
-    def get_info(self) -> Dict[str, Any]:
-        info = super().get_info()
-        info['category'] = 'vulnerability'
-        info['requires'] = ['WebFlowMapperPlugin']
-        return info
+    def build_vulnerability(
+        self,
+        request_node: Dict[str, Any],
+        injection_point: Dict[str, Any],
+        payload: Any,
+        response: requests.Response,
+        indicator: str,
+    ) -> Vulnerability:
+        param_name = injection_point.get("parameter_name")
+        location = injection_point.get("location")
+        original_val = injection_point.get("original_value")
+        
+        vuln_name = "Insecure Direct Object Reference (IDOR)"
+        if location == "PATH":
+            vuln_name += " in Path"
+
+        return Vulnerability(
+            name=vuln_name,
+            severity="High",
+            description=(
+                f"Alteracao de ID '{original_val}' no parametro '{param_name}' "
+                f"retornou resposta diferente com mesmo status."
+            ),
+            url=request_node.get("url"),
+            evidence=f"Indicator: {indicator}\nLocation: {location}",
+            cve="CWE-639",
+            plugin_source=self.name,
+        )

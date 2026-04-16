@@ -14,6 +14,7 @@ import requests
 from core.config import get_config
 from utils.auth_session import apply_session_profile_to_requests_session, request_node_default_headers
 from utils.tor import ensure_tor_ready, get_requests_proxies as _tor_requests_proxies
+from utils.user_agents import get_random_user_agent
 
 
 def resolve_use_tor(plugin_config: Optional[Dict[str, Any]] = None, use_tor: Optional[bool] = None) -> bool:
@@ -63,6 +64,7 @@ def create_requests_session(
     Note: timeouts still need to be passed per-request.
     """
     session = requests.Session()
+    session.headers.update({'User-Agent': get_random_user_agent()})
 
     enabled = resolve_use_tor(plugin_config=plugin_config, use_tor=use_tor)
     proxies = get_requests_proxies(use_tor=enabled)

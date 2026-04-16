@@ -36,11 +36,12 @@ DEFAULT_TIMEOUT = 15   # segundos por tentativa
 # ---------------------------------------------------------------------------
 
 class _HttpResult:
-    def __init__(self, status: int, body: str, headers: Dict[str, str], raw_request: str):
+    def __init__(self, status: int, body: str, headers: Dict[str, str], raw_request: str, elapsed_time: float = 0.0):
         self.status = status
         self.body = body
         self.headers = headers
         self.raw_request = raw_request
+        self.elapsed_time = elapsed_time
 
 
 def _http_send(
@@ -82,6 +83,7 @@ def _http_send(
         raw_req += f"\n\n{body_bytes.decode('utf-8', errors='replace')}"
 
     session = create_requests_session(headers=default_headers)
+    start_time = time.time()
     try:
         response = session.request(
             method.upper(),
@@ -90,18 +92,22 @@ def _http_send(
             timeout=timeout,
             allow_redirects=True,
         )
+        elapsed = time.time() - start_time
         return raw_req, _HttpResult(
             status=response.status_code,
             body=response.text[:65536],
             headers=dict(response.headers),
             raw_request=raw_req,
+            elapsed_time=elapsed,
         )
     except requests.RequestException as exc:
+        elapsed = time.time() - start_time
         return raw_req, _HttpResult(
             status=0,
             body=f"[ERRO: {exc}]",
             headers={},
             raw_request=raw_req,
+            elapsed_time=elapsed,
         )
 
 
@@ -135,8 +141,10 @@ def _http_send_prepared(
     )
     raw_req = _prepared_to_raw_request(prepared)
     session = create_requests_session()
+    start_time = time.time()
     try:
         response = session.send(prepared, timeout=timeout, allow_redirects=True)
+        elapsed = time.time() - start_time
         body = response.text[:65536]
         headers = dict(response.headers)
         return raw_req, _HttpResult(
@@ -144,13 +152,16 @@ def _http_send_prepared(
             body=body,
             headers=headers,
             raw_request=raw_req,
+            elapsed_time=elapsed,
         )
     except requests.RequestException as exc:
+        elapsed = time.time() - start_time
         return raw_req, _HttpResult(
             status=0,
             body=f"[ERRO: {exc}]",
             headers={},
             raw_request=raw_req,
+            elapsed_time=elapsed,
         )
 
 

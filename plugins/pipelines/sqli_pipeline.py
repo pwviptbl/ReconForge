@@ -76,11 +76,12 @@ class SqliPipeline(BasePipeline):
             if re.search(pattern, body_lower):
                 return "impact_proven"
 
-        # Time-based: verificar se a resposta demorou (rudimentar via payload check)
+        # Time-based: verificar se a resposta demorou (medição real de tempo)
         if "SLEEP" in payload or "pg_sleep" in payload or "WAITFOR" in payload:
-            # O próprio timeout indica sucesso se não retornou erro
-            if result.status in (200, 302) and result.body:
-                return "partial"  # Não confirmado sem medir tempo real
+            if result.elapsed_time >= 4.5:
+                return "impact_proven"
+            elif result.elapsed_time >= 2.0:
+                return "partial"
 
         # Comportamento inesperado (500 com erro genérico pode indicar SQLi)
         if result.status == 500:
