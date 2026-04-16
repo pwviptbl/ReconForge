@@ -23,15 +23,11 @@ class SSTIScannerPlugin(ParameterizedVulnerabilityPlugin):
             "{{7*'7'}}": "7777777",
         }
 
-    @property
-    def payload_list(self) -> List[str]:
-        return list(self.get_default_payloads().keys())
-
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
-        self.indicators = self.get_default_payloads()
-        if not self.config.get("payloads"):
-            self.payloads = self.payload_list
+        self.indicators = self.payloads if isinstance(self.payloads, dict) else self.get_default_payloads()
+        if isinstance(self.payloads, dict):
+            self.payloads = list(self.payloads.keys())
 
     def evaluate_hit(
         self, response: requests.Response, payload: Any, injection_point: Dict[str, Any]

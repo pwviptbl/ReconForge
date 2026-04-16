@@ -1,0 +1,3 @@
+payloads:
+  - "test\r\nX-Injected-Header: ReconForge"
+  - "test%0d%0aX-Injected-Header: ReconForge"

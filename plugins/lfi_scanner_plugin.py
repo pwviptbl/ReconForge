@@ -16,7 +16,7 @@ class LFIScannerPlugin(ParameterizedVulnerabilityPlugin):
     """
 
     def get_default_payloads(self) -> Dict[str, str]:
-        # Usamos dict para mapear payload -> indicador
+        # Mapeamento padrão payload -> indicador
         return {
             "/etc/passwd": "root:x:0:0:",
             "../../../../../../../../etc/passwd": "root:x:0:0:",
@@ -24,18 +24,15 @@ class LFIScannerPlugin(ParameterizedVulnerabilityPlugin):
             "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\win.ini": "[extensions]",
         }
 
-    @property
-    def payload_list(self) -> List[str]:
-        return list(self.get_default_payloads().keys())
-
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
-        # Se payloads vierem da config, podem ser uma lista simples. 
-        # Aqui garantimos que temos acesso aos indicadores.
-        self.indicators = self.get_default_payloads()
-        # Sobrescrevemos self.payloads para ser a lista de chaves
-        if not self.config.get("payloads"):
-            self.payloads = self.payload_list
+        # Se os payloads vierem de um YAML como lista, não teremos indicadores.
+        # Mas para LFI, os arquivos YAML devem seguir o formato de dicionário
+        # ou a subclasse deve prover o mapeamento.
+        self.indicators = self.payloads if isinstance(self.payloads, dict) else self.get_default_payloads()
+        # Se for um dicionário, extraímos as chaves para a lista de payloads a testar
+        if isinstance(self.payloads, dict):
+            self.payloads = list(self.payloads.keys())
 
     def evaluate_hit(
         self, response: requests.Response, payload: Any, injection_point: Dict[str, Any]

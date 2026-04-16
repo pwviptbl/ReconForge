@@ -1,0 +1,5 @@
+payloads:
+  - "https://example.com"
+  - "//example.com"
+  - "/\\example.com"
+  - "/%09/example.com"

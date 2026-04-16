@@ -109,7 +109,9 @@ def build_request_nodes(
         if normalized:
             nodes.append(normalized)
 
-    if actual_target.startswith(("http://", "https://")):
+    # Nota: actual_target sozinho nao tem parametros conhecidos, entao as vezes e' redundante se endpoints ja o contem
+    # Mas mantemos para garantir cobertura do alvo principal.
+    if actual_target and actual_target.startswith(("http://", "https://")):
         nodes.append(
             normalize_request_node(
                 {
@@ -144,6 +146,9 @@ def build_request_nodes(
                             "method": endpoint.get("method", "GET"),
                             "url": url,
                             "headers": dict(default_headers or {}),
+                            "params": endpoint.get("params", {}),
+                            "data": endpoint.get("data"),
+                            "json": endpoint.get("json"),
                             "observed_via": endpoint.get("observed_via", "endpoint"),
                         },
                         default_headers=default_headers,
@@ -315,8 +320,10 @@ def iter_request_node_parameters(
 ) -> List[Dict[str, Any]]:
     injection_points: List[Dict[str, Any]] = []
 
-    for name, value in _normalize_mapping(request_node.get("params")).items():
-        injection_points.append(_mk_injection_point("QUERY", name, value))
+    params = request_node.get("params") or {}
+    if isinstance(params, dict):
+        for name, value in params.items():
+            injection_points.append(_mk_injection_point("QUERY", name, value))
 
     json_body = request_node.get("json")
     if isinstance(json_body, dict):
@@ -407,7 +414,7 @@ def extract_path_segments(url: str) -> List[str]:
 
 def collect_candidate_urls(actual_target: str, discoveries: Dict[str, Any]) -> List[str]:
     urls: List[str] = []
-    if actual_target.startswith(("http://", "https://")):
+    if actual_target and actual_target.startswith(("http://", "https://")):
         urls.append(actual_target)
 
     for endpoint in as_list((discoveries or {}).get("endpoints")):
