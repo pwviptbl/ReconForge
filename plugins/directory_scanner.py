@@ -226,6 +226,7 @@ class DirectoryScannerPlugin(WebPlugin):
             else:
                 target_url = f"{base_url.rstrip('/')}/FUZZ"
 
+            maxtime_sec = int(options.get("maxtime", 120))
             cmd = [
                 ffuf_bin,
                 "-u", target_url,
@@ -234,8 +235,9 @@ class DirectoryScannerPlugin(WebPlugin):
                 "-o", output_json,
                 "-t", str(options.get("max_workers", 40)),
                 "-timeout", str(self.timeout),
+                "-maxtime", str(maxtime_sec),
                 "-s",   # modo silencioso
-                "-ac",  # autocalibração para filtrar falsos 200/404 customizados
+                "-ac",  # autocalibração nativa do ffuf
             ]
 
             # Códigos de exclusão
@@ -243,10 +245,9 @@ class DirectoryScannerPlugin(WebPlugin):
             if exclude_codes:
                 cmd.extend(["-fc", ",".join(str(c) for c in exclude_codes)])
 
-            # Extensões
-            extensions = options.get("extensions")
-            if extensions and not options.get("no_extensions") and not fuzz_pattern:
-                ext_str = ",".join("." + ext.lstrip(".") for ext in extensions if ext)
+            # Extensões apenas se explicitamente especificadas pelo usuário
+            if options.get("custom_extensions"):
+                ext_str = ",".join("." + ext.lstrip(".") for ext in options["custom_extensions"] if ext)
                 if ext_str:
                     cmd.extend(["-e", ext_str])
 
@@ -269,15 +270,15 @@ class DirectoryScannerPlugin(WebPlugin):
                         proxy_url = "socks5://" + proxy_url[len("socks5h://"):]
                     cmd.extend(["-x", proxy_url])
 
-            # Seguir redirecionamentos
+            # Seguir redirecionamentos (apenas se explicitamente habilitado)
             if options.get("follow_redirects"):
                 cmd.append("-r")
 
-            # Recursão de diretórios
-            if options.get("recursive") and not fuzz_pattern:
+            # Recursão apenas se explicitamente habilitada
+            if options.get("recursive") and options.get("enable_recursion"):
                 cmd.extend(["-recursion", "-recursion-depth", str(options.get("max_depth", 2))])
 
-            timeout_sec = max(60, min(600, len(wordlist) // 5))
+            timeout_sec = maxtime_sec + 30
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
 
             if not os.path.exists(output_json) or os.path.getsize(output_json) == 0:
