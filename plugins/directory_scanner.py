@@ -264,6 +264,9 @@ class DirectoryScannerPlugin(WebPlugin):
             if self._proxies:
                 proxy_url = self._proxies.get("http") or self._proxies.get("https")
                 if proxy_url:
+                    # ffuf aceita socks5://, http:// ou https:// (não aceita a convenção socks5h://)
+                    if proxy_url.startswith("socks5h://"):
+                        proxy_url = "socks5://" + proxy_url[len("socks5h://"):]
                     cmd.extend(["-x", proxy_url])
 
             # Seguir redirecionamentos
