@@ -52,6 +52,10 @@ class SqliPipeline(BasePipeline):
     name = "SqliPipeline"
     MAX_ATTEMPTS = 6
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._endpoint_baselines: dict[str, list[float]] = {}
+
     def _get_payloads(self, item: QueueItem) -> List[str]:
         return _PAYLOADS_ERROR + _PAYLOADS_BLIND_TIME
 
@@ -63,7 +67,13 @@ class SqliPipeline(BasePipeline):
         return _PAYLOADS_BLIND_TIME[idx]
 
     def _execute(self, item: QueueItem, payload: str) -> Tuple[str, _HttpResult]:
-        return _http_send_item(item, payload, fallback_param="q", timeout=20)
+        raw_req, res = _http_send_item(item, payload, fallback_param="q", timeout=20)
+        # Se for teste inicial (não sleep), registrar tempo para compor a baseline de latência do endpoint
+        if not ("SLEEP" in payload or "pg_sleep" in payload or "WAITFOR" in payload):
+            if item.endpoint not in self._endpoint_baselines:
+                self._endpoint_baselines[item.endpoint] = []
+            self._endpoint_baselines[item.endpoint].append(res.elapsed_time)
+        return raw_req, res
 
     def _verify(self, result: _HttpResult, payload: str, item: QueueItem) -> str:
         if result.status == 0:
@@ -76,11 +86,14 @@ class SqliPipeline(BasePipeline):
             if re.search(pattern, body_lower):
                 return "impact_proven"
 
-        # Time-based: verificar se a resposta demorou (medição real de tempo)
+        # Time-based: verificar se a resposta demorou em relação à baseline do endpoint
         if "SLEEP" in payload or "pg_sleep" in payload or "WAITFOR" in payload:
-            if result.elapsed_time >= 4.5:
+            baselines = self._endpoint_baselines.get(item.endpoint, [])
+            avg_baseline = (sum(baselines) / len(baselines)) if baselines else 0.5
+
+            if result.elapsed_time >= 4.5 and result.elapsed_time >= (avg_baseline + 3.5):
                 return "impact_proven"
-            elif result.elapsed_time >= 2.0:
+            elif result.elapsed_time >= 2.5 and result.elapsed_time >= (avg_baseline + 1.8):
                 return "partial"
 
         # Comportamento inesperado (500 com erro genérico pode indicar SQLi)

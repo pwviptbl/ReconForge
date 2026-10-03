@@ -1,180 +1,21 @@
-# Dependências principais
-google-genai>=1.0.0
+# ReconForge - Dependências Principais
 pyyaml>=6.0
 python-dotenv>=1.0.0
-dnspython>=2.4.0
 requests>=2.28.0
-pysocks>=1.7.1  # Suporte a proxy SOCKS (Tor) via requests
-lxml>=4.9.0
-psutil>=5.9.0
-
-# Reconhecimento avançado
-ipwhois>=1.2.0  # Para consultas WHOIS e ASN
-geoip2>=4.7.0   # Para GeoIP com banco MaxMind
-tldextract>=3.4.0  # Para extração de domínios/subdomínios
-python-whois>=0.8.0  # Para consultas WHOIS tradicionais
-
-# IA e agentes autônomos (Fase 1)
-langchain>=0.1.0
-langchain-google-genai>=0.0.6
-autogen>=0.2.0
-
-# Interface CLI e argumentos
-argparse
-click>=8.1.0
-rich>=13.0.0
-coloredlogs>=15.0
-
-# Processamento de dados
-pathlib2>=2.3.0
-python-dateutil>=2.8.0
-jsonschema>=4.0.0
-pandas>=1.5.0
-numpy>=1.24.0
-
-# Aprendizado de Máquina (Fase 2)
-scikit-learn>=1.7.0
-joblib>=1.5.0
-ray>=2.49.0
-scipy>=1.15.0
-threadpoolctl>=3.6.0
-
-# Para relatórios HTML
-jinja2>=3.1.0
-markdown>=3.4.0
-
-# Segurança e criptografia
-cryptography>=40.0.0
-pyopenssl>=23.0.0  # Para análise avançada de certificados SSL
-
-# Análise de Rede (Novos plugins)
-scapy>=2.4.5       # Manipulação de pacotes de rede
-python-nmap>=0.7.1 # Interface Python para Nmap
-pyshark>=0.5.3     # Análise de tráfego de rede
-netaddr>=0.8.0     # Manipulação de endereços de rede
-
-# Configuração e validação
-pydantic>=1.10.0
-toml>=0.10.0
-
-# Análise web e parsing
-beautifulsoup4>=4.11.0
 urllib3>=1.26.0
-xmltodict>=0.13.0  # Para parsing de XML (Cordova config.xml)
+pysocks>=1.7.1  # Suporte a proxy SOCKS (Tor) via requests
+dnspython>=2.4.0
+tldextract>=3.4.0
+python-whois>=0.8.0
+ipwhois>=1.2.0
+rich>=13.0.0
 
-# Simulação de navegador e automação web
-selenium>=4.15.0
-webdriver-manager>=4.0.0
+# Automação Web (Playwright para WebFlowMapper)
 playwright>=1.40.0
-requests-html>=0.10.0
-mechanicalsoup>=1.3.0
 
-# SSH e protocolos de rede
-paramiko>=3.0.0
+# IA / Resumo executivo (Opcional - Gemini)
+google-genai>=1.0.0
 
-# Conectores de banco (opcionais - removidos para evitar erros)
-# mysql-connector-python>=8.0.0
-# psycopg2-binary>=2.9.0
-
-# Visualização de dados
-graphviz>=0.20.0
-
-# Para testes (desenvolvimento)
+# Testes e Qualidade de Código (Desenvolvimento)
 pytest>=7.0.0
 pytest-cov>=4.0.0
-
-# NOTA: As ferramentas externas (Nmap, RustScan, Nuclei, etc.) 
-# devem ser instaladas separadamente no sistema operacional.
-# Este arquivo contém apenas as dependências Python necessárias.
-
-# Nuclei Integration
-# Nota: Nuclei deve ser instalado separadamente do sistema
-# Go: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-# Ubuntu/Debian: wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.1.0/nuclei_3.1.0_linux_amd64.zip && unzip nuclei_3.1.0_linux_amd64.zip && sudo mv nuclei /usr/local/bin/
-# Homebrew: brew install nuclei
-# Docker: docker pull projectdiscovery/nuclei:latest
-
-# Nikto Integration
-# Nota: Nikto deve ser instalado separadamente do sistema
-# Ubuntu/Debian: sudo apt-get install nikto
-# CentOS/RHEL: sudo yum install nikto
-# Manual: git clone https://github.com/sullo/nikto.git && cd nikto/program && perl nikto.pl
-# Docker: docker pull sullo/nikto
-
-# Feroxbuster Integration
-# Nota: Feroxbuster deve ser instalado separadamente do sistema
-# Cargo: cargo install feroxbuster
-# Ubuntu/Debian: wget -q https://github.com/epi052/feroxbuster/releases/download/v2.10.1/feroxbuster_amd64.deb && sudo dpkg -i feroxbuster_amd64.deb
-# Docker: docker pull epi052/feroxbuster
-
-# WhatWeb Integration
-# Nota: WhatWeb deve ser instalado separadamente do sistema
-# Ubuntu/Debian: sudo apt-get install whatweb
-# Ruby Gem: gem install whatweb
-# Manual: git clone https://github.com/urbanadventurer/WhatWeb.git
-
-# Sublist3r Integration
-# Nota: Sublist3r deve ser instalado separadamente do sistema
-# Pip: pip install sublist3r
-# Manual: git clone https://github.com/aboul3la/Sublist3r.git && cd Sublist3r && pip install -r requirements.txt
-
-# SearchSploit Integration
-# Nota: SearchSploit faz parte do Exploit Database
-# Ubuntu/Debian: sudo apt-get install exploitdb
-# Manual: git clone https://github.com/offensive-security/exploitdb.git && ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit
-
-# Subfinder Integration
-# Nota: Subfinder deve ser instalado separadamente do sistema
-# Go: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-# Ubuntu/Debian: wget -q https://github.com/projectdiscovery/subfinder/releases/download/v2.6.3/subfinder_2.6.3_linux_amd64.zip && unzip subfinder_2.6.3_linux_amd64.zip && sudo mv subfinder /usr/local/bin/
-
-# Scanners Python Nativos - Substituem ZAP e OpenVAS
-# Todas as funcionalidades implementadas em Python puro
-# Ubuntu/Debian: sudo apt-get install zaproxy
-# Manual: wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.sh && chmod +x ZAP_2_14_0_unix.sh && ./ZAP_2_14_0_unix.sh
-# Docker: docker pull zaproxy/zap-stable
-
-# Amass Integration
-# Nota: Amass deve ser instalado separadamente do sistema
-# Go: go install -v github.com/owasp-amass/amass/v4/...@master
-# Ubuntu/Debian: sudo apt-get install amass
-# Docker: docker pull caffix/amass
-
-# XSStrike Integration
-# Nota: XSStrike deve ser instalado separadamente do sistema
-# Manual: git clone https://github.com/s0md3v/XSStrike.git && cd XSStrike && pip install -r requirements.txt
-
-# Dalfox Integration
-# Nota: Dalfox deve ser instalado separadamente do sistema
-# Go: go install github.com/hahwul/dalfox/v2@latest
-# Docker: docker pull hahwul/dalfox
-
-# Commix Integration
-# Nota: Commix deve ser instalado separadamente do sistema
-# Manual: git clone https://github.com/commixproject/commix.git && cd commix && python commix.py
-# Docker: docker pull commixproject/commix
-
-# Retire.js Integration
-# Nota: Retire.js deve ser instalado separadamente do sistema
-# NPM: npm install -g retire
-# Docker: docker pull retirejs/retire.js
-
-# Arjun Integration
-# Nota: Arjun deve ser instalado separadamente do sistema
-# Pip: pip install arjun
-# Manual: git clone https://github.com/s0md3v/Arjun.git && cd Arjun && pip install -r requirements.txt
-
-# LFISuite Integration
-# Nota: LFISuite deve ser instalado separadamente do sistema
-# Manual: git clone https://github.com/D35m0nd142/LFISuite.git && cd LFISuite && python lfisuite.py
-
-# Metasploit Integration
-# Nota: Metasploit deve ser instalado separadamente do sistema
-# Ubuntu/Debian: curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > msfinstall && chmod 755 msfinstall && ./msfinstall
-# Docker: docker pull metasploitframework/metasploit-framework
-
-# Graphviz Integration (para visualização de dados)
-# Ubuntu/Debian: sudo apt-get install graphviz
-# Python: pip install graphviz
-graphviz>=0.20.0
-PyYAML

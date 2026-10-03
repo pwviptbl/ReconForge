@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # ReconForge launcher for Linux/Mac
-# Cria/ativa venv, instala dependências e inicia o app.
+# Cria/ativa venv, instala dependências (sob demanda) e inicia o app.
 
 set -e
-
-echo "Iniciando ReconForge..."
 
 # Verifica suporte a venv/ensurepip
 if ! python3 -c "import ensurepip" >/dev/null 2>&1; then
@@ -24,32 +22,35 @@ if ! python3 -c "import ensurepip" >/dev/null 2>&1; then
   fi
 fi
 
-# Modo seguro para problemas de renderização (opcional)
-if [ "${RECONFORGE_SAFE_MODE}" = "1" ]; then
-  echo "Modo seguro ativado: forçando renderização por software..."
-  export QT_OPENGL=software
-  export LIBGL_ALWAYS_SOFTWARE=1
-fi
-
 # Cria venv se não existir
+NEED_INSTALL=0
 if [ ! -d ".venv" ]; then
   echo "Criando ambiente virtual (.venv)..."
   python3 -m venv .venv
+  NEED_INSTALL=1
 fi
 
-echo "Ativando ambiente virtual..."
+# Ativa o ambiente virtual
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-echo "Atualizando pip..."
-python -m pip install --upgrade pip
+# Instala dependências se for a primeira vez ou se chamado com --update
+if [ "$1" = "--update" ] || [ "$NEED_INSTALL" = "1" ]; then
+  echo "Instalando/atualizando dependências no .venv..."
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt
 
-echo "Instalando/atualizando dependências..."
-pip install -r requirements.txt
+  echo "Garantindo browser do Playwright..."
+  python -m playwright install chromium 2>/dev/null || true
 
-echo "Garantindo que o Chromium do Playwright esteja instalado..."
-python -m playwright install chromium
+  if [ "$1" = "--update" ]; then
+    echo "Dependências atualizadas com sucesso."
+    shift
+    if [ $# -eq 0 ]; then
+      exit 0
+    fi
+  fi
+fi
 
-# Inicia o aplicativo
-echo "Iniciando ReconForge..."
+# Inicia o ReconForge CLI
 python scripts/main.py "$@"
