@@ -20,6 +20,8 @@ Plugins típicos deste estágio:
 - SSLAnalyzerPlugin
 """
 
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 
 from core.models import Finding, Vulnerability, _new_id, _now_iso
@@ -110,10 +112,59 @@ class StageDetect(ReconStageBase):
 
         self.logger.info(f"Plugins de detecção a executar: {to_run}")
 
-        for plugin_name in to_run:
-            if state.aborted:
-                break
-            self._run_plugin(plugin_name, state)
+        # Se houver apenas 1 plugin ou se abortado, executa sequencialmente
+        if len(to_run) <= 1:
+            for plugin_name in to_run:
+                if state.aborted:
+                    break
+                self._run_plugin(plugin_name, state)
+        else:
+            # Execução concorrente para scanners de vulnerabilidade independentes
+            max_workers = min(3, len(to_run))
+            state_lock = threading.Lock()
+
+            def _worker(pname: str):
+                if state.aborted:
+                    return
+                try:
+                    with state_lock:
+                        target = state.original_target or state.target
+                        context_dict = state.to_context_dict()
+
+                    result = self.plugin_manager.execute_plugin(pname, target, context_dict)
+                    if not result:
+                        return
+
+                    result_dict = result.to_dict() if hasattr(result, "to_dict") else result
+                    new_findings = self._adapt_to_findings(pname, result, state)
+
+                    with state_lock:
+                        state.executed_plugins.append(pname)
+                        state.plugin_results[pname] = result_dict
+                        if self.storage:
+                            try:
+                                cache_key = f"run_{state.run_id}:{pname}"
+                                self.storage.set_cached_result(state.target, cache_key, result_dict)
+                            except Exception as cache_err:
+                                self.logger.debug(f"Cache de plugin não persistido: {cache_err}")
+
+                        for f in new_findings:
+                            state.add_finding(f)
+
+                        self._merge_legacy_vulns(result, state)
+
+                except Exception as exc:
+                    self.logger.error(f"Erro ao executar {pname}: {exc}")
+                    with state_lock:
+                        state.errors.append(f"[{self.name}] {pname}: {exc}")
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(_worker, pname) for pname in to_run]
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        self.logger.debug(f"Worker detect error: {exc}")
 
         self.logger.info(
             f"Stage detect: {len(state.findings)} findings gerados | "

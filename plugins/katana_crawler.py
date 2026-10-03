@@ -9,15 +9,18 @@ collecting URLs to feed into ReconForge vulnerability plugins.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, List
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 import shutil
 
+import requests
+
 from core.plugin_base import WebPlugin, PluginResult
-from utils.http_session import resolve_use_tor
+from utils.http_session import create_requests_session, resolve_use_tor
 from utils.proxy_env import build_proxy_env
 
 
@@ -44,16 +47,6 @@ class KatanaCrawlerPlugin(WebPlugin):
         start_time = time.time()
 
         try:
-            katana_bin = self._find_katana_bin()
-            if not katana_bin:
-                return PluginResult(
-                    success=False,
-                    plugin_name=self.name,
-                    execution_time=time.time() - start_time,
-                    data={},
-                    error="katana nao encontrado no PATH nem em ~/go/bin/katana",
-                )
-
             actual_target = context.get("original_target", target)
             seeds = self._build_seed_urls(actual_target, context)
             if not seeds:
@@ -62,8 +55,13 @@ class KatanaCrawlerPlugin(WebPlugin):
                     plugin_name=self.name,
                     execution_time=time.time() - start_time,
                     data={},
-                    error="Nenhuma URL semente encontrada para o katana",
+                    error="Nenhuma URL semente encontrada para o crawler",
                 )
+
+            katana_bin = self._find_katana_bin()
+            if not katana_bin:
+                # Fallback nativo: crawler leve em Python usando requests + regex
+                return self._native_crawl_fallback(seeds, context, start_time)
 
             depth = int(self.config.get("depth", 2))
             timeout = int(self.config.get("timeout", 180))
@@ -227,3 +225,61 @@ class KatanaCrawlerPlugin(WebPlugin):
         if fallback.is_file():
             return str(fallback)
         return ""
+
+    def _native_crawl_fallback(
+        self,
+        seeds: List[str],
+        context: Dict[str, Any],
+        start_time: float,
+    ) -> PluginResult:
+        """Fallback leve em Python quando katana não está disponível."""
+        session = create_requests_session(plugin_config=self.config)
+        session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ReconForge/3.0"})
+        max_urls = int(self.config.get("max_urls", 200))
+        depth = int(self.config.get("depth", 2))
+        
+        target_host = urlparse(seeds[0]).hostname.lower()
+        endpoints = []
+        visited = set()
+        queue = [(seed, 0) for seed in seeds]
+
+        link_regex = re.compile(r'(?:href|src|action)=["\']([^"\']+)["\']', re.IGNORECASE)
+
+        while queue and len(endpoints) < max_urls:
+            current_url, cur_depth = queue.pop(0)
+            if current_url in visited or cur_depth > depth:
+                continue
+            visited.add(current_url)
+            endpoints.append(current_url)
+
+            try:
+                resp = session.get(current_url, timeout=5, verify=False, allow_redirects=True)
+                if "text/html" not in resp.headers.get("content-type", "").lower():
+                    continue
+
+                for match in link_regex.finditer(resp.text):
+                    link = match.group(1).strip()
+                    if link.startswith(("#", "javascript:", "mailto:", "tel:")):
+                        continue
+                    full_link = urljoin(current_url, link)
+                    parsed = urlparse(full_link)
+                    host = (parsed.hostname or "").lower()
+
+                    if target_host and host == target_host and full_link not in visited:
+                        queue.append((full_link, cur_depth + 1))
+            except Exception:
+                continue
+
+        return PluginResult(
+            success=True,
+            plugin_name=self.name,
+            execution_time=time.time() - start_time,
+            data={
+                "seeds": seeds,
+                "endpoints": endpoints,
+                "endpoints_count": len(endpoints),
+                "raw": [],
+                "engine": "native_fallback",
+            },
+            summary=f"Crawler nativo descobriu {len(endpoints)} endpoints (modo fallback).",
+        )
