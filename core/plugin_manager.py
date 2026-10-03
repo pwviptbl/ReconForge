@@ -85,7 +85,9 @@ class PluginManager:
         for name, obj in inspect.getmembers(module):
             if (inspect.isclass(obj) and 
                 issubclass(obj, BasePlugin) and 
-                obj not in base_classes):
+                obj not in base_classes and
+                not inspect.isabstract(obj) and
+                getattr(obj, "__module__", None) == module.__name__):
                 
                 plugin_instance = obj()
                 plugin_name = plugin_instance.name

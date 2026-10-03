@@ -19,7 +19,7 @@ class OpenRedirectScannerPlugin(ParameterizedVulnerabilityPlugin):
         return [
             "https://example.com",
             "//example.com",
-            "/\example.com",
+            r"/\example.com",
             "/%09/example.com",
         ]
 
