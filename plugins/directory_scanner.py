@@ -9,6 +9,10 @@ import time
 import threading
 import os
 import re
+import json
+import shutil
+import tempfile
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Set, Optional, Tuple
 from urllib.parse import urljoin, urlparse, parse_qs, urlencode
@@ -122,23 +126,36 @@ class DirectoryScannerPlugin(WebPlugin):
             all_findings = []
             
             for base_url in base_urls:
-                if options.get('fuzz_mode') and options.get('fuzz_pattern'):
-                    # Modo fuzzing
-                    findings = self._fuzz_scan(
-                        base_url, 
-                        options['fuzz_pattern'], 
-                        wordlist, 
-                        options
-                    )
-                else:
-                    # Modo normal de diretórios
-                    findings = self._scan_directories(
-                        base_url, 
-                        wordlist, 
+                findings = None
+
+                # 1. Tentar executar via ffuf se habilitado e disponível no sistema
+                if options.get('use_ffuf') and options.get('engine') != 'native':
+                    findings = self._scan_with_ffuf(
+                        base_url,
+                        wordlist,
                         options,
-                        current_depth=0,
-                        max_depth=options.get('max_depth', 3) if options.get('recursive') else 0
+                        fuzz_pattern=options.get('fuzz_pattern') if options.get('fuzz_mode') else None,
                     )
+
+                # 2. Fallback nativo em Python caso ffuf não esteja disponível ou falhe
+                if findings is None:
+                    if options.get('fuzz_mode') and options.get('fuzz_pattern'):
+                        # Modo fuzzing
+                        findings = self._fuzz_scan(
+                            base_url, 
+                            options['fuzz_pattern'], 
+                            wordlist, 
+                            options
+                        )
+                    else:
+                        # Modo normal de diretórios
+                        findings = self._scan_directories(
+                            base_url, 
+                            wordlist, 
+                            options,
+                            current_depth=0,
+                            max_depth=options.get('max_depth', 3) if options.get('recursive') else 0
+                        )
                 
                 if findings:
                     all_findings.extend(findings)
@@ -166,25 +183,180 @@ class DirectoryScannerPlugin(WebPlugin):
                 data={'statistics': self._stats},
                 error=str(e)
             )
+
+    def _scan_with_ffuf(
+        self,
+        base_url: str,
+        wordlist: List[str],
+        options: Dict[str, Any],
+        fuzz_pattern: Optional[str] = None,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Executa varredura de diretórios usando o binário ffuf (Go) de alta velocidade.
+        Retorna lista de findings ou None se o binário não existir ou falhar (ativando fallback).
+        """
+        ffuf_bin = shutil.which("ffuf")
+        if not ffuf_bin:
+            return None
+
+        temp_wordlist = None
+        temp_output = None
+        try:
+            # Wordlist: se for arquivo válido no disco, usa diretamente
+            wordlist_path = options.get("wordlist")
+            if wordlist_path and os.path.exists(wordlist_path) and os.path.isfile(wordlist_path):
+                active_wordlist = wordlist_path
+            else:
+                temp_wordlist = tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8")
+                temp_wordlist.write("\n".join(wordlist))
+                temp_wordlist.flush()
+                temp_wordlist.close()
+                active_wordlist = temp_wordlist.name
+
+            temp_output = tempfile.NamedTemporaryFile("w", delete=False, suffix=".json")
+            temp_output.close()
+            output_json = temp_output.name
+
+            # Construir URL alvo com o placeholder FUZZ
+            if fuzz_pattern:
+                if "FUZZ" in fuzz_pattern:
+                    target_url = urljoin(base_url.rstrip("/") + "/", fuzz_pattern.lstrip("/"))
+                else:
+                    target_url = urljoin(base_url.rstrip("/") + "/", fuzz_pattern.rstrip("/") + "/FUZZ")
+            else:
+                target_url = f"{base_url.rstrip('/')}/FUZZ"
+
+            cmd = [
+                ffuf_bin,
+                "-u", target_url,
+                "-w", active_wordlist,
+                "-of", "json",
+                "-o", output_json,
+                "-t", str(options.get("max_workers", 40)),
+                "-timeout", str(self.timeout),
+                "-s",   # modo silencioso
+                "-ac",  # autocalibração para filtrar falsos 200/404 customizados
+            ]
+
+            # Códigos de exclusão
+            exclude_codes = options.get("exclude_codes")
+            if exclude_codes:
+                cmd.extend(["-fc", ",".join(str(c) for c in exclude_codes)])
+
+            # Extensões
+            extensions = options.get("extensions")
+            if extensions and not options.get("no_extensions") and not fuzz_pattern:
+                ext_str = ",".join("." + ext.lstrip(".") for ext in extensions if ext)
+                if ext_str:
+                    cmd.extend(["-e", ext_str])
+
+            # Headers HTTP customizados
+            for h_name, h_val in options.get("headers", {}).items():
+                cmd.extend(["-H", f"{h_name}: {h_val}"])
+
+            # Cookies
+            cookies = options.get("cookies", {})
+            if cookies:
+                cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
+                cmd.extend(["-b", cookie_str])
+
+            # Suporte a Proxy / Tor
+            if self._proxies:
+                proxy_url = self._proxies.get("http") or self._proxies.get("https")
+                if proxy_url:
+                    cmd.extend(["-x", proxy_url])
+
+            # Seguir redirecionamentos
+            if options.get("follow_redirects"):
+                cmd.append("-r")
+
+            # Recursão de diretórios
+            if options.get("recursive") and not fuzz_pattern:
+                cmd.extend(["-recursion", "-recursion-depth", str(options.get("max_depth", 2))])
+
+            timeout_sec = max(60, min(600, len(wordlist) // 5))
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+
+            if not os.path.exists(output_json) or os.path.getsize(output_json) == 0:
+                if res.returncode != 0:
+                    return None
+                return []
+
+            with open(output_json, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            raw_results = data.get("results", [])
+            findings = []
+
+            for r in raw_results:
+                r_url = r.get("url") or ""
+                p = urlparse(r_url)
+                status_code = r.get("status", 0)
+                length = r.get("length", 0)
+                ctype = r.get("content-type", "")
+
+                finding = {
+                    "url": r_url,
+                    "path": p.path,
+                    "status_code": status_code,
+                    "content_length": length,
+                    "content_type": ctype,
+                    "server": "",
+                    "last_modified": "",
+                    "response_time": float(r.get("duration", 0)) / 1_000_000_000.0,
+                    "word_count": r.get("words", 0),
+                    "line_count": r.get("lines", 0),
+                    "redirect_url": r.get("redirectlocation", ""),
+                    "engine": "ffuf",
+                }
+
+                if (status_code in [200, 301, 302, 307, 308] and 
+                    (p.path.endswith("/") or ctype.startswith("text/html"))):
+                    finding["is_directory"] = True
+
+                findings.append(finding)
+
+            with self._stats_lock:
+                self._stats["requests_made"] += len(wordlist)
+                self._stats["successful"] += len(findings)
+
+            return findings
+
+        except Exception:
+            return None
+        finally:
+            if temp_wordlist and os.path.exists(temp_wordlist.name):
+                try:
+                    os.unlink(temp_wordlist.name)
+                except OSError:
+                    pass
+            if temp_output and os.path.exists(temp_output.name):
+                try:
+                    os.unlink(temp_output.name)
+                except OSError:
+                    pass
     
     def _parse_options(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Parseia e valida opções de configuração"""
-        # Extensões padrão se não especificadas
         default_extensions = ['php', 'html', 'htm', 'txt', 'json', 'js', 'xml', 'bak', 'old', 'zip', 'asp', 'aspx', 'jsp']
+        cfg = self.config if isinstance(getattr(self, "config", None), dict) else {}
         
         return {
-            'wordlist': kwargs.get('wordlist'),
+            'engine': kwargs.get('engine', cfg.get('engine', 'auto')),
+            'use_ffuf': kwargs.get('use_ffuf', cfg.get('use_ffuf', True)),
+            'max_workers': kwargs.get('max_workers', cfg.get('max_threads', self.max_workers)),
+            'wordlist': kwargs.get('wordlist', cfg.get('wordlist')),
             'fuzz_mode': kwargs.get('fuzz_mode', False),
             'fuzz_pattern': kwargs.get('fuzz_pattern'),
-            'recursive': kwargs.get('recursive', False),
-            'max_depth': kwargs.get('max_depth', 3),
+            'recursive': kwargs.get('recursive', cfg.get('recursive', False)),
+            'max_depth': kwargs.get('max_depth', cfg.get('max_depth', 3)),
             'size_filter': kwargs.get('size_filter'),  # (min, max)
-            'exclude_codes': kwargs.get('exclude_codes', [404]),
+            'exclude_codes': kwargs.get('exclude_codes', cfg.get('exclude_codes', [404])),
             'exclude_sizes': kwargs.get('exclude_sizes', []),
             'word_filter': kwargs.get('word_filter'),  # (min, max)
             'line_filter': kwargs.get('line_filter'),  # (min, max)
-            'extensions': kwargs.get('extensions', default_extensions),  # Extensões padrão
-            'no_extensions': kwargs.get('no_extensions', False),  # Desativar extensões
+            'extensions': kwargs.get('extensions', cfg.get('extensions', default_extensions)),
+            'no_extensions': kwargs.get('no_extensions', False),
             'follow_redirects': kwargs.get('follow_redirects', False),
             'headers': kwargs.get('headers', {}),
             'cookies': kwargs.get('cookies', {}),
