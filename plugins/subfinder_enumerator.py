@@ -27,7 +27,7 @@ class SubfinderPlugin(NetworkPlugin):
         super().__init__()
         self.description = "Enumeracao de subdominios usando Subfinder"
         self.version = "1.0.0"
-        self.requirements = ["subfinder"]
+        self.requirements = []  # Possui fallback nativo via crt.sh
         self.supported_targets = ["domain"]
 
     def execute(self, target: str, context: Dict[str, Any], **kwargs) -> PluginResult:

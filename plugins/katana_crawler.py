@@ -33,7 +33,7 @@ class KatanaCrawlerPlugin(WebPlugin):
         self.version = "1.0.0"
         self.category = "web"
         self.supported_targets = ["url", "domain"]
-        self.requirements = ["katana"]
+        self.requirements = []  # Possui fallback nativo em Python
 
     def validate_target(self, target: str) -> bool:
         if not target:
