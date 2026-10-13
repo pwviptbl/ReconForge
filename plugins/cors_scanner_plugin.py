@@ -94,9 +94,9 @@ class CorsScannerPlugin(VulnerabilityPlugin):
 
     def _collect_candidates(self, discoveries: Dict[str, Any], actual_target: str) -> List[str]:
         """URLs de endpoints + request_nodes, dedup e em escopo."""
-        target_netloc = urlparse(
+        target_host = (urlparse(
             actual_target if "://" in actual_target else f"https://{actual_target}"
-        ).netloc.lower()
+        ).hostname or "").lower()
 
         urls: List[str] = []
         if actual_target.startswith(("http://", "https://")):
@@ -116,7 +116,7 @@ class CorsScannerPlugin(VulnerabilityPlugin):
             if not isinstance(url, str) or not url.startswith(("http://", "https://")):
                 continue
             host = (urlparse(url).hostname or "").lower()
-            if target_netloc and host and host != target_netloc and not host.endswith("." + target_netloc):
+            if target_host and host and host != target_host and not host.endswith("." + target_host):
                 continue
             if url in seen:
                 continue
