@@ -65,6 +65,7 @@ Comandos:
 - `CsrfScannerPlugin`
 - `SecretsScannerPlugin`
 - `CorsScannerPlugin`
+- `WordPressScannerPlugin` (condicional: só roda se o alvo for WordPress; requer `wpscan`)
 - `SSLAnalyzerPlugin`
 
 ### Inteligencia de exploit

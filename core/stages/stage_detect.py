@@ -18,6 +18,7 @@ Plugins típicos deste estágio:
 - CsrfScannerPlugin
 - SecretsScannerPlugin
 - CorsScannerPlugin
+- WordPressScannerPlugin
 - NucleiScannerPlugin
 - HeaderAnalyzerPlugin
 - DirectoryScannerPlugin
@@ -48,6 +49,7 @@ DETECT_PLUGIN_NAMES = [
     "CsrfScannerPlugin",
     "SecretsScannerPlugin",
     "CorsScannerPlugin",
+    "WordPressScannerPlugin",
     "NucleiScannerPlugin",
     "PassiveScannerPlugin",
     "HeaderAnalyzerPlugin",
@@ -69,6 +71,7 @@ _PLUGIN_CATEGORY_MAP = {
     "CsrfScannerPlugin":             "csrf",
     "SecretsScannerPlugin":          "secrets",
     "CorsScannerPlugin":             "cors",
+    "WordPressScannerPlugin":        "wordpress",
     "NucleiScannerPlugin":           "nuclei",
     "PassiveScannerPlugin":          "passive",
     "HeaderAnalyzerPlugin":          "header",
