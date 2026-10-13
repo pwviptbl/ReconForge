@@ -60,6 +60,8 @@ Comandos:
 - `SSTIScannerPlugin`
 - `OpenRedirectScannerPlugin`
 - `HeaderInjectionScannerPlugin`
+- `SqliScannerPlugin`
+- `CsrfScannerPlugin`
 - `SSLAnalyzerPlugin`
 
 ### Inteligencia de exploit
