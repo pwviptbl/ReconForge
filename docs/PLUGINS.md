@@ -63,6 +63,7 @@ Comandos:
 - `SqliScannerPlugin`
 - `CsrfScannerPlugin`
 - `SecretsScannerPlugin`
+- `CorsScannerPlugin`
 - `SSLAnalyzerPlugin`
 
 ### Inteligencia de exploit

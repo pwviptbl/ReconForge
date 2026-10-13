@@ -17,6 +17,7 @@ Plugins típicos deste estágio:
 - SqliScannerPlugin
 - CsrfScannerPlugin
 - SecretsScannerPlugin
+- CorsScannerPlugin
 - NucleiScannerPlugin
 - HeaderAnalyzerPlugin
 - DirectoryScannerPlugin
@@ -44,6 +45,7 @@ DETECT_PLUGIN_NAMES = [
     "SqliScannerPlugin",
     "CsrfScannerPlugin",
     "SecretsScannerPlugin",
+    "CorsScannerPlugin",
     "NucleiScannerPlugin",
     "PassiveScannerPlugin",
     "HeaderAnalyzerPlugin",
@@ -64,6 +66,7 @@ _PLUGIN_CATEGORY_MAP = {
     "SqliScannerPlugin":             "sqli",
     "CsrfScannerPlugin":             "csrf",
     "SecretsScannerPlugin":          "secrets",
+    "CorsScannerPlugin":             "cors",
     "NucleiScannerPlugin":           "nuclei",
     "PassiveScannerPlugin":          "passive",
     "HeaderAnalyzerPlugin":          "header",
