@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Type
 import inspect
 
 from .plugin_base import BasePlugin, PluginResult, NetworkPlugin, WebPlugin, VulnerabilityPlugin
+from .parameterized_vulnerability_plugin import ParameterizedVulnerabilityPlugin
 from .config import get_config
 from utils.logger import get_logger
 
@@ -80,14 +81,27 @@ class PluginManager:
         spec.loader.exec_module(module)
         
         # Encontrar classes que herdam de BasePlugin (mas não são classes base)
-        base_classes = {BasePlugin, NetworkPlugin, WebPlugin, VulnerabilityPlugin}
-        
+        base_classes = {
+            BasePlugin, NetworkPlugin, WebPlugin, VulnerabilityPlugin,
+            ParameterizedVulnerabilityPlugin,
+        }
+
         for name, obj in inspect.getmembers(module):
-            if (inspect.isclass(obj) and 
-                issubclass(obj, BasePlugin) and 
+            if (inspect.isclass(obj) and
+                issubclass(obj, BasePlugin) and
                 obj not in base_classes):
-                
-                plugin_instance = obj()
+
+                # Classes importadas por conveniência (ex.: uma base abstrata
+                # reexportada por outro plugin do mesmo arquivo) não devem
+                # derrubar o carregamento das classes concretas vizinhas.
+                if inspect.isabstract(obj):
+                    continue
+
+                try:
+                    plugin_instance = obj()
+                except TypeError as e:
+                    self.logger.debug(f"  ⏭️ {name} não é instanciável diretamente: {e}")
+                    continue
                 plugin_name = plugin_instance.name
                 plugin_class_name = obj.__name__
 
