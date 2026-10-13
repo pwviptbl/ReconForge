@@ -39,6 +39,10 @@ plugins:
       use_custom_dns: false
     ExploitSearcherPlugin:
       use_tor: false               # Normalmente não precisa (APIs e buscas públicas); deixe Tor só se estiver bloqueando/rate-limit
+    SqliScannerPlugin:
+      use_sqlmap: false            # Se true, confirma cada hit da triagem via sqlmap (requer sqlmap instalado; mais lento/invasivo)
+      sqlmap_timeout: 180          # Timeout por confirmação sqlmap (segundos)
+      # sqlmap_args: ["--technique=BEUSTQ"]  # Args extras opcionais repassados ao sqlmap
     # Plugins "barulhentos" (bruteforce/fuzzing): você pode habilitar Tor só neles via `use_tor: true`
     DirectoryScannerPlugin:
       use_tor: false

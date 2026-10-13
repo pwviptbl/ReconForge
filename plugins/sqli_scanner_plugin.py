@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.parameterized_vulnerability_plugin import ParameterizedVulnerabilityPlugin
 from core.models import Vulnerability
+from utils.sqlmap_runner import confirm_sqli, sqlmap_available
 
 # Payloads error-based: testados primeiro (mais baratos, sem custo de tempo).
 _PAYLOADS_ERROR = [
@@ -94,15 +95,30 @@ class SqliScannerPlugin(ParameterizedVulnerabilityPlugin):
         is_time_based = indicator.startswith("time_delay")
         severity = "High" if is_time_based else "Critical"
         vector = "time-based blind" if is_time_based else "error-based"
+        name = "SQL Injection"
+        evidence = f"Payload: {payload}\nIndicator: {indicator}"
+
+        # Confirmação profunda opcional via sqlmap (opt-in). So roda apos um
+        # hit da triagem e so contra este ponto de injecao especifico.
+        confirmation = self._maybe_confirm_with_sqlmap(request_node, injection_point)
+        if confirmation:
+            if confirmation.get("confirmed"):
+                name = "SQL Injection (confirmada via sqlmap)"
+                severity = "Critical"
+                dbms = confirmation.get("dbms") or "n/a"
+                tech = confirmation.get("technique") or "n/a"
+                evidence += f"\nsqlmap: CONFIRMADO | DBMS: {dbms} | Tipo: {tech}"
+            else:
+                evidence += "\nsqlmap: nao confirmou (mantido como suspeita da triagem)"
 
         return Vulnerability(
-            name="SQL Injection",
+            name=name,
             severity=severity,
             description=(
                 f"Possivel SQL Injection ({vector}) no parametro '{param_name}'."
             ),
             url=request_node.get("url"),
-            evidence=f"Payload: {payload}\nIndicator: {indicator}",
+            evidence=evidence,
             cve="CWE-89",
             remediation=(
                 "Utilizar queries parametrizadas/prepared statements e nunca "
@@ -110,6 +126,40 @@ class SqliScannerPlugin(ParameterizedVulnerabilityPlugin):
             ),
             plugin_source=self.name,
         )
+
+    def _maybe_confirm_with_sqlmap(
+        self, request_node: Dict[str, Any], injection_point: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Dispara o sqlmap se habilitado (use_sqlmap) e disponivel."""
+        if not self.config.get("use_sqlmap", False):
+            return None
+        if not sqlmap_available():
+            self.logger.info("use_sqlmap habilitado mas sqlmap nao esta no PATH — pulando confirmacao")
+            return None
+
+        location = (injection_point.get("location") or "").upper()
+        method = (request_node.get("method") or "GET").upper()
+        params = request_node.get("params") if location == "QUERY" else None
+        data = request_node.get("data") if location.startswith("BODY") else None
+
+        try:
+            self.logger.info(
+                f"🔬 Confirmando SQLi com sqlmap em {request_node.get('url')} "
+                f"(param={injection_point.get('parameter_name')})"
+            )
+            return confirm_sqli(
+                url=request_node.get("url", ""),
+                method=method,
+                params=params,
+                data=data if isinstance(data, dict) else None,
+                parameter=injection_point.get("parameter_name", ""),
+                timeout=self.config.get("sqlmap_timeout", 180),
+                extra_args=self.config.get("sqlmap_args"),
+                cookies=request_node.get("cookies"),
+            )
+        except Exception as e:
+            self.logger.debug(f"Confirmacao sqlmap falhou: {e}")
+            return None
 
     def stop_on_first_hit(self) -> bool:
         # Um hit de error-based já é suficiente; evita gastar tempo com
