@@ -23,6 +23,7 @@ from core.models import Evidence, Finding, QueueItem
 from core.stage_base import StageBase
 from core.workflow_state import WorkflowState
 from utils.ai_reporter import AIReportGenerator, AIReportResult
+from utils.sarif_exporter import build_sarif_document
 from utils.web_map import build_web_map_payload
 
 
@@ -69,6 +70,10 @@ class StageReport(StageBase):
         # Também salvar JSON estruturado
         json_path = run_dir / f"{safe_target}_{ts}.json"
         self._save_json_report(state, json_path)
+
+        # Exportar SARIF 2.1.0 (integração com CI/GitHub Code Scanning)
+        sarif_path = run_dir / f"{safe_target}_{ts}.sarif"
+        self._save_sarif_report(state, sarif_path)
 
         # Salvar resultados brutos de cada plugin para análise manual
         self._save_plugin_raw_outputs(state, run_dir)
@@ -530,6 +535,22 @@ class StageReport(StageBase):
             self.logger.info(f"JSON report: {json_path}")
         except Exception as exc:
             self.logger.warning(f"Falha ao salvar JSON report: {exc}")
+
+    def _save_sarif_report(self, state: WorkflowState, sarif_path: Path) -> None:
+        """Exporta os findings validados + rejeitados em SARIF 2.1.0."""
+        try:
+            sarif_doc = build_sarif_document(
+                list(state.findings) + list(state.rejected_findings),
+                target=state.original_target or state.target,
+            )
+            sarif_path.write_text(
+                json.dumps(sarif_doc, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            state.plugin_states["sarif_report_path"] = str(sarif_path.resolve())
+            self.logger.info(f"SARIF report: {sarif_path}")
+        except Exception as exc:
+            self.logger.warning(f"Falha ao salvar SARIF report: {exc}")
 
     def _collect_metrics(self, state: WorkflowState) -> Dict[str, Any]:
         ai_meta = dict(state.plugin_states.get("ai_report", {}))
