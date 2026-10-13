@@ -42,7 +42,11 @@ def test_format_runtime_health_text_reports_tor_status():
 
 
 def test_plugin_manager_blocks_incompatible_plugin_in_tor_mode(monkeypatch):
-    class PortScannerPlugin:
+    # NmapScannerPlugin continua na lista de incompatíveis com Tor (varredura
+    # de rede de baixo nível não roteável via proxy). PortScannerPlugin foi
+    # intencionalmente removido da lista (usa PySocks), por isso este teste
+    # usa o Nmap para exercitar o bloqueio.
+    class NmapScannerPlugin:
         def validate_target(self, target):
             return True
 
@@ -50,7 +54,7 @@ def test_plugin_manager_blocks_incompatible_plugin_in_tor_mode(monkeypatch):
             raise AssertionError("nao deveria executar")
 
     manager = PluginManager.__new__(PluginManager)
-    manager.plugins = {"PortScannerPlugin": PortScannerPlugin()}
+    manager.plugins = {"NmapScannerPlugin": NmapScannerPlugin()}
     manager.logger = SimpleNamespace(info=lambda *a, **k: None)
 
     monkeypatch.setattr(
@@ -58,7 +62,7 @@ def test_plugin_manager_blocks_incompatible_plugin_in_tor_mode(monkeypatch):
         lambda path, default=None: True if path == "network.tor.enabled" else default,
     )
 
-    result = PluginManager.execute_plugin(manager, "PortScannerPlugin", "example.test", {})
+    result = PluginManager.execute_plugin(manager, "NmapScannerPlugin", "example.test", {})
 
     assert result.success is False
     assert "modo Tor estrito" in (result.error or "")

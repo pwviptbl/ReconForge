@@ -9,6 +9,22 @@ playwright = pytest.importorskip("playwright")
 from plugins.web_flow_mapper import WebFlowMapperPlugin
 
 
+def _chromium_launchable() -> bool:
+    """True se o Chromium do Playwright consegue de fato iniciar neste ambiente."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            browser.close()
+        return True
+    except Exception:
+        return False
+
+
+_BROWSER_AVAILABLE = _chromium_launchable()
+
+
 class _FlowHandler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         if self.path == "/":
@@ -64,6 +80,11 @@ def flow_server():
         thread.join(timeout=2)
 
 
+@pytest.mark.skipif(
+    not _BROWSER_AVAILABLE,
+    reason="Chromium do Playwright não instalado/lançável neste ambiente "
+           "(rode `playwright install chromium`)",
+)
 def test_web_flow_mapper_captures_observed_get_route(flow_server):
     plugin = WebFlowMapperPlugin()
     plugin.config.update({"headless": True, "max_depth": 1, "max_pages": 5, "max_actions_per_page": 5})

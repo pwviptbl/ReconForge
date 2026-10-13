@@ -17,7 +17,7 @@ def test_xss_scanner_uses_request_nodes_for_post_body(monkeypatch):
     session.send = fake_send
 
     monkeypatch.setattr(
-        "plugins.xss_scanner_plugin.create_requests_session",
+        "core.parameterized_vulnerability_plugin.create_requests_session",
         lambda plugin_config=None, **kwargs: session,
     )
 
@@ -49,8 +49,10 @@ def test_idor_scanner_uses_numeric_values_from_request_nodes(monkeypatch):
 
     def fake_send(prepared, timeout=None, **kwargs):
         body = prepared.body.decode("utf-8", errors="ignore") if isinstance(prepared.body, bytes) else str(prepared.body)
+        # Resposta do outro objeto (user_id=11) é nitidamente maior, acima do
+        # threshold conservador anti-falso-positivo do scanner (diff > 100 bytes).
         if "user_id=11" in body:
-            content = b"B" * 200
+            content = b"B" * 400
         else:
             content = b"A" * 100
         return SimpleNamespace(status_code=200, content=content, headers={}, text=content.decode("ascii", errors="ignore"))
@@ -58,7 +60,7 @@ def test_idor_scanner_uses_numeric_values_from_request_nodes(monkeypatch):
     session.send = fake_send
 
     monkeypatch.setattr(
-        "plugins.idor_scanner_plugin.create_requests_session",
+        "core.parameterized_vulnerability_plugin.create_requests_session",
         lambda plugin_config=None, **kwargs: session,
     )
 
