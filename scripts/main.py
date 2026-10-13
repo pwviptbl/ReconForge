@@ -189,6 +189,12 @@ def main() -> int:
             metavar="N",
             help="Maximo de tentativas de exploit por item da queue (padrao: 5).",
         )
+        parser.add_argument(
+            "--incremental",
+            action="store_true",
+            help="Reaproveita o ultimo resultado de cada detector para o mesmo alvo "
+                 "(dentro do TTL), evitando re-testar o que ja foi testado.",
+        )
 
         args = parser.parse_args()
 
@@ -289,6 +295,7 @@ def main() -> int:
             max_exploit_attempts=args.max_exploit_attempts,
             exploit_categories=exploit_categories,
             auth_session_file=session_file,
+            incremental=args.incremental,
         )
         _print_pipeline_summary(state)
         return 0 if not state.aborted else 1

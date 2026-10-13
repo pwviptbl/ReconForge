@@ -23,6 +23,7 @@ Comandos:
 ./run.sh alvo --profile infra
 ./run.sh --healthcheck
 ./run.sh --show-web-map 50
+./run.sh alvo --profile web-test --incremental   # reaproveita deteccoes recentes do mesmo alvo
 ```
 
 ## Plugins ativos

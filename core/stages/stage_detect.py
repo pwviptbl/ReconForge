@@ -26,9 +26,11 @@ Plugins típicos deste estágio:
 
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional
 
 from core.models import Finding, Vulnerability, _new_id, _now_iso
+from core.plugin_base import PluginResult
 from core.stage_base import ReconStageBase
 from core.workflow_state import WorkflowState
 
@@ -104,11 +106,22 @@ class StageDetect(ReconStageBase):
         plugin_manager=None,
         plugin_names: Optional[List[str]] = None,
         storage=None,
+        incremental: bool = False,
+        cache_ttl: int = 86400,
     ):
         super().__init__()
         self.plugin_manager = plugin_manager
         self.storage = storage  # Storage opcional para persistência de raw outputs
         self.plugin_names = plugin_names or DETECT_PLUGIN_NAMES
+        # Modo incremental: reaproveita o último resultado de cada plugin para o
+        # mesmo alvo (dentro do TTL), evitando re-testar o que já foi testado.
+        self.incremental = incremental
+        self.cache_ttl = cache_ttl
+
+    @staticmethod
+    def _incremental_cache_key(plugin_name: str) -> str:
+        """Chave estável por (alvo, plugin), independente do run_id."""
+        return f"detect_incremental:{plugin_name}"
 
     def execute(self, state: WorkflowState) -> WorkflowState:
         if not self.plugin_manager:
@@ -139,6 +152,12 @@ class StageDetect(ReconStageBase):
                 if state.aborted:
                     return
                 try:
+                    cached = self._load_from_cache(pname, state)
+                    if cached is not None:
+                        self.logger.info(f"♻️  {pname}: resultado reaproveitado do cache incremental")
+                        self._process_result(pname, cached, state, from_cache=True, lock=state_lock)
+                        return
+
                     with state_lock:
                         target = state.original_target or state.target
                         context_dict = state.to_context_dict()
@@ -147,23 +166,7 @@ class StageDetect(ReconStageBase):
                     if not result:
                         return
 
-                    result_dict = result.to_dict() if hasattr(result, "to_dict") else result
-                    new_findings = self._adapt_to_findings(pname, result, state)
-
-                    with state_lock:
-                        state.executed_plugins.append(pname)
-                        state.plugin_results[pname] = result_dict
-                        if self.storage:
-                            try:
-                                cache_key = f"run_{state.run_id}:{pname}"
-                                self.storage.set_cached_result(state.target, cache_key, result_dict)
-                            except Exception as cache_err:
-                                self.logger.debug(f"Cache de plugin não persistido: {cache_err}")
-
-                        for f in new_findings:
-                            state.add_finding(f)
-
-                        self._merge_legacy_vulns(result, state)
+                    self._process_result(pname, result, state, from_cache=False, lock=state_lock)
 
                 except Exception as exc:
                     self.logger.error(f"Erro ao executar {pname}: {exc}")
@@ -184,9 +187,85 @@ class StageDetect(ReconStageBase):
         )
         return state
 
-    def _run_plugin(self, plugin_name: str, state: WorkflowState):
-        """Executa um plugin de detecção e converte resultados em Findings."""
+    def _load_from_cache(self, plugin_name: str, state: WorkflowState) -> Optional[PluginResult]:
+        """
+        No modo incremental, tenta recuperar o último resultado deste plugin
+        para o mesmo alvo (dentro do TTL). Retorna um PluginResult reconstruído
+        ou None (sem cache / expirado / modo desligado).
+        """
+        if not self.incremental or not self.storage:
+            return None
         try:
+            cached = self.storage.get_cached_result(
+                state.target,
+                self._incremental_cache_key(plugin_name),
+                ttl_seconds=self.cache_ttl,
+            )
+        except Exception as exc:
+            self.logger.debug(f"Falha ao ler cache incremental de {plugin_name}: {exc}")
+            return None
+        if not isinstance(cached, dict):
+            return None
+        try:
+            return PluginResult(
+                success=cached.get("success", True),
+                plugin_name=cached.get("plugin_name", plugin_name),
+                execution_time=cached.get("execution_time", 0.0),
+                data=cached.get("data", {}) or {},
+                error=cached.get("error"),
+                summary=cached.get("summary"),
+                timestamp=cached.get("timestamp"),
+            )
+        except Exception as exc:
+            self.logger.debug(f"Cache incremental de {plugin_name} inválido: {exc}")
+            return None
+
+    def _process_result(
+        self,
+        plugin_name: str,
+        result: Any,
+        state: WorkflowState,
+        *,
+        from_cache: bool,
+        lock: Optional[threading.Lock] = None,
+    ) -> None:
+        """
+        Fluxo comum de pós-execução, compartilhado pelos modos sequencial e
+        concorrente: registra o resultado, persiste caches e gera findings.
+        """
+        result_dict = result.to_dict() if hasattr(result, "to_dict") else result
+        new_findings = self._adapt_to_findings(plugin_name, result, state)
+        guard = lock if lock is not None else nullcontext()
+        with guard:
+            state.executed_plugins.append(plugin_name)
+            state.plugin_results[plugin_name] = result_dict
+
+            if self.storage and not from_cache:
+                # Cache por-run (saída bruta p/ relatório) + cache incremental
+                # estável (reaproveitado em execuções futuras do mesmo alvo).
+                try:
+                    self.storage.set_cached_result(
+                        state.target, f"run_{state.run_id}:{plugin_name}", result_dict
+                    )
+                    self.storage.set_cached_result(
+                        state.target, self._incremental_cache_key(plugin_name), result_dict
+                    )
+                except Exception as cache_err:
+                    self.logger.debug(f"Cache de plugin não persistido: {cache_err}")
+
+            for f in new_findings:
+                state.add_finding(f)
+            self._merge_legacy_vulns(result, state)
+
+    def _run_plugin(self, plugin_name: str, state: WorkflowState):
+        """Executa um plugin de detecção (ou reaproveita cache) e gera Findings."""
+        try:
+            cached = self._load_from_cache(plugin_name, state)
+            if cached is not None:
+                self.logger.info(f"♻️  {plugin_name}: resultado reaproveitado do cache incremental")
+                self._process_result(plugin_name, cached, state, from_cache=True)
+                return
+
             result = self.plugin_manager.execute_plugin(
                 plugin_name,
                 state.original_target or state.target,
@@ -195,25 +274,7 @@ class StageDetect(ReconStageBase):
             if not result:
                 return
 
-            state.executed_plugins.append(plugin_name)
-            result_dict = result.to_dict() if hasattr(result, "to_dict") else result
-            state.plugin_results[plugin_name] = result_dict
-
-            # Persistir resultado bruto no banco para análise posterior
-            if self.storage:
-                try:
-                    cache_key = f"run_{state.run_id}:{plugin_name}"
-                    self.storage.set_cached_result(state.target, cache_key, result_dict)
-                except Exception as cache_err:
-                    self.logger.debug(f"Cache de plugin não persistido: {cache_err}")
-
-            # Converter para Findings padronizados
-            new_findings = self._adapt_to_findings(plugin_name, result, state)
-            for f in new_findings:
-                state.add_finding(f)
-
-            # Manter compatibilidade legada com state.vulnerabilities
-            self._merge_legacy_vulns(result, state)
+            self._process_result(plugin_name, result, state, from_cache=False)
 
         except Exception as exc:
             self.logger.error(f"Erro ao executar {plugin_name}: {exc}")

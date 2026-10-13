@@ -75,6 +75,7 @@ class WorkflowOrchestrator:
         max_exploit_attempts: int = 5,
         exploit_categories: Optional[List[str]] = None,
         auth_session_file: Optional[str] = None,
+        incremental: bool = False,
     ):
         self.logger = get_logger("WorkflowOrchestrator")
         self.verbose = verbose
@@ -95,6 +96,7 @@ class WorkflowOrchestrator:
         self._exploit_categories = exploit_categories
         self._data_dir = _data_dir
         self._auth_session_file = auth_session_file or ""
+        self._incremental = incremental
 
         if not self.quiet:
             self.logger.info(
@@ -188,6 +190,7 @@ class WorkflowOrchestrator:
                 plugin_manager=self.plugin_manager,
                 plugin_names=self._detect_plugins,
                 storage=self.storage,
+                incremental=self._incremental,
             ),
             # ── Fase 2 ─────────────────────────────────────────────────────
             StageValidate(storage=self.storage),
@@ -343,6 +346,7 @@ def run_pipeline(
     max_exploit_attempts: int = 5,
     exploit_categories: Optional[List[str]] = None,
     auth_session_file: Optional[str] = None,
+    incremental: bool = False,
 ) -> WorkflowState:
     """
     Executa o pipeline completo para um alvo.
@@ -358,5 +362,6 @@ def run_pipeline(
         max_exploit_attempts=max_exploit_attempts,
         exploit_categories=exploit_categories,
         auth_session_file=auth_session_file,
+        incremental=incremental,
     )
     return orch.run(normalized, original_target=target)
