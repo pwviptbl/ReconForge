@@ -106,18 +106,24 @@ class WorkflowOrchestrator:
     # Ponto de entrada principal
     # -----------------------------------------------------------------------
 
-    def run(self, target: str, original_target: Optional[str] = None) -> WorkflowState:
+    def run(
+        self,
+        target: str,
+        original_target: Optional[str] = None,
+        state: Optional[WorkflowState] = None,
+    ) -> WorkflowState:
         """
         Executa o pipeline completo de stages para o alvo.
 
         Args:
             target: Alvo normalizado (host, IP ou domínio).
             original_target: URL original antes de normalização (opcional).
+            state: WorkflowState pré-inicializado (opcional).
 
         Returns:
             WorkflowState com o resultado completo do pipeline.
         """
-        state = self._init_state(target, original_target or target)
+        state = state or self._init_state(target, original_target or target)
         self._display_start(state)
 
         stages = self._build_pipeline(state)

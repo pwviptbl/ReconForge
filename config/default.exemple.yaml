@@ -42,6 +42,12 @@ plugins:
     # Plugins "barulhentos" (bruteforce/fuzzing): você pode habilitar Tor só neles via `use_tor: true`
     DirectoryScannerPlugin:
       use_tor: false
+      engine: auto                 # "auto" (ffuf se disponível, senão native), "ffuf" ou "native"
+      use_ffuf: true               # Habilitar binário ffuf (Go) de alta velocidade quando presente
+      max_threads: 40              # Concorrência / threads
+      wordlist: wordlists/medium.txt
+      recursive: false
+      max_depth: 2
     NmapScannerPlugin:
       max_ports: 1000
       scan_type: syn

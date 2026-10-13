@@ -46,6 +46,14 @@ class XSSScannerPlugin(ParameterizedVulnerabilityPlugin):
     def evaluate_hit(
         self, response: requests.Response, payload: Any, injection_point: Dict[str, Any]
     ) -> Tuple[bool, Optional[str]]:
+        # Validar Content-Type: navegadores só executam scripts se o conteúdo for HTML/XML
+        # Respostas JSON, plain text, css, etc. não disparam XSS no cliente
+        content_type = response.headers.get("content-type", "").lower() if hasattr(response, "headers") else ""
+        if content_type:
+            non_executable = ("application/json", "text/plain", "text/css", "application/javascript")
+            if any(net in content_type for net in non_executable):
+                return False, None
+
         hit = self._evaluate_xss_hit(response.text, str(payload))
         return hit, (str(payload) if hit else None)
 

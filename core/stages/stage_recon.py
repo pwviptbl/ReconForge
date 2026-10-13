@@ -14,6 +14,8 @@ Plugins típicos deste estágio:
 - WhatWebScannerPlugin / TechnologyDetectorPlugin
 """
 
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 
 from core.stage_base import ReconStageBase
@@ -81,10 +83,56 @@ class StageRecon(ReconStageBase):
 
         self.logger.info(f"Plugins de recon a executar: {to_run}")
 
-        for plugin_name in to_run:
+        # Se houver apenas 1 plugin ou se abortado, executa sequencialmente
+        if len(to_run) <= 1:
+            for plugin_name in to_run:
+                if state.aborted:
+                    break
+                self._run_plugin(plugin_name, state)
+            return state
+
+        # Execução concorrente para acelerar reconhecimento de rede e web
+        max_workers = min(4, len(to_run))
+        state_lock = threading.Lock()
+
+        def _worker(pname: str):
             if state.aborted:
-                break
-            self._run_plugin(plugin_name, state)
+                return
+            try:
+                # Obter snapshot do contexto no momento do disparo
+                with state_lock:
+                    target = state.target
+                    context_dict = state.to_context_dict()
+
+                result = self.plugin_manager.execute_plugin(pname, target, context_dict)
+                if not result:
+                    return
+
+                result_dict = result.to_dict() if hasattr(result, "to_dict") else result
+
+                with state_lock:
+                    state.executed_plugins.append(pname)
+                    state.plugin_results[pname] = result_dict
+                    if self.storage:
+                        try:
+                            cache_key = f"run_{state.run_id}:{pname}"
+                            self.storage.set_cached_result(target, cache_key, result_dict)
+                        except Exception as cache_err:
+                            self.logger.debug(f"Cache de plugin não persistido: {cache_err}")
+                    self._merge_discoveries(result, state)
+
+            except Exception as exc:
+                self.logger.error(f"Erro ao executar {pname}: {exc}")
+                with state_lock:
+                    state.errors.append(f"[{self.name}] {pname}: {exc}")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_worker, pname) for pname in to_run]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as exc:
+                    self.logger.debug(f"Worker recon error: {exc}")
 
         return state
 

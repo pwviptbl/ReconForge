@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import sys
+import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -26,7 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from core.config import get_config
 from core.plugin_manager import PluginManager
 from core.storage import Storage
-from core.workflow_orchestrator import run_pipeline
+from core.workflow_orchestrator import WorkflowOrchestrator, run_pipeline
 from utils.auth_session import load_session_profile
 from utils.logger import setup_logger
 from utils.runtime_health import collect_runtime_health
@@ -91,9 +92,16 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
         profile_name = payload.get("profile")
         session_file = payload.get("session_file")
         if session_file:
+            path_obj = Path(str(session_file)).expanduser().resolve()
             try:
-                load_session_profile(str(session_file))
-                session_file = str(Path(str(session_file)).expanduser().resolve())
+                path_obj.relative_to(PROJECT_ROOT)
+            except ValueError:
+                return _json_response(self, {"error": "session_file deve estar contido no diretório do projeto"}, status=400)
+            if not path_obj.is_file():
+                return _json_response(self, {"error": f"arquivo de sessão não encontrado: {session_file}"}, status=400)
+            try:
+                load_session_profile(str(path_obj))
+                session_file = str(path_obj)
             except Exception as exc:
                 return _json_response(self, {"error": f"session_file invalido: {exc}"}, status=400)
         if profile_name:
@@ -115,8 +123,12 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
             recon_plugins = resolved.get("recon_plugins") or recon_plugins
             detect_plugins = resolved.get("detect_plugins") or detect_plugins
 
-        state = run_pipeline(
-            target=target,
+        is_async = payload.get("async", True)
+        if str(is_async).lower() in ("false", "0"):
+            is_async = False
+
+        normalized_target = WorkflowOrchestrator.normalize_target(target)
+        orch = WorkflowOrchestrator(
             verbose=bool(payload.get("verbose", False)),
             quiet=bool(payload.get("quiet", True)),
             recon_plugins=recon_plugins,
@@ -126,16 +138,42 @@ class ReconForgeAPIHandler(BaseHTTPRequestHandler):
             auth_session_file=session_file,
         )
 
+        if not is_async:
+            state = orch.run(normalized_target, original_target=target)
+            return _json_response(
+                self,
+                {
+                    "run_id": state.run_id,
+                    "target": state.target,
+                    "summary": state.summary(),
+                    "report_path": state.report_path,
+                    "web_map": build_web_map_payload(state.discoveries),
+                },
+                status=HTTPStatus.CREATED,
+            )
+
+        # Modo assíncrono padrão: inicializa registro e dispara em background
+        state = orch._init_state(normalized_target, target)
+        run_id = state.run_id
+
+        def _worker():
+            try:
+                orch.run(normalized_target, original_target=target, state=state)
+            except Exception as exc:
+                self.server.logger.error("Falha no pipeline em background (run_id=%s): %s", run_id, exc)
+
+        worker_thread = threading.Thread(target=_worker, daemon=True, name=f"scan-worker-{run_id}")
+        worker_thread.start()
+
         return _json_response(
             self,
             {
-                "run_id": state.run_id,
+                "run_id": run_id,
                 "target": state.target,
-                "summary": state.summary(),
-                "report_path": state.report_path,
-                "web_map": build_web_map_payload(state.discoveries),
+                "status": "pending",
+                "message": f"Scan #{run_id} iniciado em background. Acompanhe o progresso via GET /run/{run_id}",
             },
-            status=HTTPStatus.CREATED,
+            status=HTTPStatus.ACCEPTED,
         )
 
     def _handle_run_get(self, parsed):

@@ -124,6 +124,9 @@ install_pkg sqlmap
 install_pkg nuclei
 install_pkg subfinder
 install_pkg whatweb
+install_pkg ffuf
+install_pkg katana
+install_pkg arjun
 install_pkg exploitdb
 install_pkg sslscan
 install_pkg dnsutils
@@ -147,7 +150,9 @@ echo -e "  nmap:      $(command -v nmap 2>/dev/null || echo 'not found')"
 echo -e "  nuclei:    $(command -v nuclei 2>/dev/null || echo 'not found')"
 echo -e "  subfinder: $(command -v subfinder 2>/dev/null || echo 'not found')"
 echo -e "  whatweb:   $(command -v whatweb 2>/dev/null || echo 'not found')"
+echo -e "  ffuf:      $(command -v ffuf 2>/dev/null || echo 'not found')"
 echo -e "  katana:    $(command -v katana 2>/dev/null || echo 'not found')"
+echo -e "  arjun:     $(command -v arjun 2>/dev/null || echo 'not found')"
 echo -e "  gau:       $(command -v gau 2>/dev/null || echo 'not found')"
 
 if ! command -v katana >/dev/null 2>&1 || ! command -v gau >/dev/null 2>&1; then

@@ -70,7 +70,6 @@ class NucleiScannerPlugin(VulnerabilityPlugin):
                     data=nuclei_results,
                     error=details,
                 )
-
             # Processar resultados
             processed_results = self._process_nuclei_results(nuclei_results, target)
             processed_results['command'] = nuclei_results.get('command', [])
