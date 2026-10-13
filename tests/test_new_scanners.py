@@ -125,6 +125,18 @@ def test_scope_filter_rejects_out_of_scope_host(vuln_server):
     assert not any("dominio-externo" in c for c in candidates)
 
 
+def test_infer_category_does_not_mislabel_ssti_as_sqli():
+    """Regressão: 'injection' em SSTI/Header Injection não deve virar sqli."""
+    from core.stages.stage_detect import StageDetect
+
+    stage = StageDetect.__new__(StageDetect)
+    assert stage._infer_category({"name": "Server-Side Template Injection (SSTI)"}, "unknown") == "ssti"
+    assert stage._infer_category({"name": "HTTP Header Injection"}, "unknown") == "header_injection"
+    assert stage._infer_category({"name": "SQL Injection"}, "unknown") == "sqli"
+    # fallback genérico: "injection" sem categoria específica cai em sqli
+    assert stage._infer_category({"name": "Generic Injection flaw"}, "unknown") == "sqli"
+
+
 def test_stage_detect_incremental_reuses_cache():
     """O modo incremental reaproveita o resultado e evita 2a execução."""
     from core.plugin_base import PluginResult

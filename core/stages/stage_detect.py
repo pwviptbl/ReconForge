@@ -397,29 +397,35 @@ class StageDetect(ReconStageBase):
     def _infer_category(self, vuln: Dict, default: str) -> str:
         """Tenta inferir a categoria de um achado a partir de seus campos."""
         name = str(vuln.get("name", "")).lower()
+        # IMPORTANTE: a ordem importa — chaves específicas (que são substring
+        # de termos mais genéricos) devem vir ANTES do genérico. Ex.: "ssti" e
+        # "template injection" e "header injection" precisam vir antes do
+        # genérico "injection" (→ sqli), senão um SSTI/Header Injection seria
+        # erroneamente classificado como sqli e roteado ao pipeline errado.
         cat_map = {
             "dom xss": "dom_xss",
             "xss": "xss",
             "cross-site": "xss",
-            "sql": "sqli",
-            "injection": "sqli",
+            "ssti": "ssti",
+            "template injection": "ssti",
+            "header injection": "header_injection",
             "lfi": "lfi",
             "local file": "lfi",
-            "ssrf": "ssrf",
             "server-side request": "ssrf",
+            "ssrf": "ssrf",
             "csrf": "csrf",
             "idor": "idor",
             "insecure direct": "idor",
             "open redirect": "open_redirect",
             "redirect": "open_redirect",
-            "header injection": "header_injection",
-            "ssti": "ssti",
-            "template injection": "ssti",
+            "sql": "sqli",
             "ssl": "ssl",
             "tls": "ssl",
             "misconfig": "misconfiguration",
-            "rce": "rce",
             "command": "rce",
+            "rce": "rce",
+            # Genérico por último: só cai aqui se nenhuma categoria específica bateu.
+            "injection": "sqli",
         }
         for keyword, category in cat_map.items():
             if keyword in name:
