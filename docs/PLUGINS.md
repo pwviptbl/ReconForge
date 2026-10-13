@@ -62,6 +62,7 @@ Comandos:
 - `HeaderInjectionScannerPlugin`
 - `SqliScannerPlugin`
 - `CsrfScannerPlugin`
+- `SecretsScannerPlugin`
 - `SSLAnalyzerPlugin`
 
 ### Inteligencia de exploit
