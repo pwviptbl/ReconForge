@@ -23,10 +23,10 @@ output:
 report:
   ai:
     enabled: true
-    provider: gemini
-    model: gemini-2.5-flash-lite
-    timeout_seconds: 45
-    max_output_tokens: 1200
+    provider: together             # "together" (Together AI API) ou "gemini"
+    model: meta-llama/Llama-3.3-70B-Instruct-Turbo  # Together: Llama-3.3-70B, Qwen2.5-72B | Gemini: gemini-2.5-flash-lite
+    timeout_seconds: 60
+    max_output_tokens: 2000
     temperature: 0.2
 plugins:
   config:

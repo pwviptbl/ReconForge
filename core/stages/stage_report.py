@@ -23,6 +23,7 @@ from core.models import Evidence, Finding, QueueItem
 from core.stage_base import StageBase
 from core.workflow_state import WorkflowState
 from utils.ai_reporter import AIReportGenerator, AIReportResult
+from utils.grc_exporter import save_grc_report
 from utils.sarif_exporter import build_sarif_document
 from utils.web_map import build_web_map_payload
 
@@ -74,6 +75,10 @@ class StageReport(StageBase):
         # Exportar SARIF 2.1.0 (integração com CI/GitHub Code Scanning)
         sarif_path = run_dir / f"{safe_target}_{ts}.sarif"
         self._save_sarif_report(state, sarif_path)
+
+        # Exportar formato compatível com GRC / Bastion Cyber
+        grc_path = run_dir / f"{safe_target}_{ts}.grc.json"
+        self._save_grc_report(state, grc_path, ai_summary=ai_report.text if ai_report.generated else "")
 
         # Salvar resultados brutos de cada plugin para análise manual
         self._save_plugin_raw_outputs(state, run_dir)
@@ -551,6 +556,15 @@ class StageReport(StageBase):
             self.logger.info(f"SARIF report: {sarif_path}")
         except Exception as exc:
             self.logger.warning(f"Falha ao salvar SARIF report: {exc}")
+
+    def _save_grc_report(self, state: WorkflowState, grc_path: Path, ai_summary: str = "") -> None:
+        """Exporta os achados e superfície formatados para o Bastion Cyber / GRC."""
+        try:
+            save_grc_report(state, grc_path, ai_summary=ai_summary)
+            state.plugin_states["grc_report_path"] = str(grc_path.resolve())
+            self.logger.info(f"Relatório GRC exportado com sucesso: {grc_path}")
+        except Exception as exc:
+            self.logger.warning(f"Falha ao salvar relatório GRC: {exc}")
 
     def _collect_metrics(self, state: WorkflowState) -> Dict[str, Any]:
         ai_meta = dict(state.plugin_states.get("ai_report", {}))
