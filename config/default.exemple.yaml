@@ -24,7 +24,7 @@ report:
   ai:
     enabled: true
     provider: together             # "together" (Together AI API) ou "gemini"
-    model: meta-llama/Llama-3.3-70B-Instruct-Turbo  # Together: Llama-3.3-70B, Qwen2.5-72B | Gemini: gemini-2.5-flash-lite
+    model: deepseek-ai/DeepSeek-V4.1-Flash  # Together: DeepSeek-V4.1-Flash, openai/gpt-oss-120b | Gemini: gemini-2.5-flash-lite
     timeout_seconds: 60
     max_output_tokens: 2000
     temperature: 0.2

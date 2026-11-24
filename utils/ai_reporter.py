@@ -50,7 +50,7 @@ class AIReportGenerator:
         self.provider = str(get_config("report.ai.provider", default_provider)).lower().strip()
 
         if self.provider == "together":
-            default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+            default_model = os.getenv("TOGETHER_MODEL", "deepseek-ai/DeepSeek-V4.1-Flash")
         else:
             default_model = "gemini-2.5-flash-lite"
 
